@@ -1,0 +1,6 @@
+defaultEnvironment: dev
+environments:
+  dev:
+    azd:
+      environmentName: restaurant-dev
+      service: restaurant

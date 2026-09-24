@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+requiredVersions:
+    azd: '>=1.27.1'
+    extensions:
+        azure.ai.agents: '>=1.0.0-beta.9'
+name: morcillaconf-restaurant
+services:
+    restaurant:
+        project: src/restaurant_agent
+        host: azure.ai.agent
+        language: python
+        uses:
+            - ai-project
+        env:
+            AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+        codeConfiguration:
+            dependencyResolution: remote_build
+            entryPoint: main.py
+            runtime: python_3_13
+        container:
+            resources:
+                cpu: "0.5"
+                memory: 1Gi
+        description: Camarero orquestador de la demo del restaurante multiagente.
+        kind: hosted
+        metadata:
+            tags:
+                - Agent Framework
+                - AI Agent Hosting
+                - Azure AI AgentServer
+                - Responses Protocol
+                - Streaming
+        name: restaurant
+        protocols:
+            - protocol: responses
+              version: 2.0.0
+    ai-project:
+        host: azure.ai.project
+        deployments:
+            - model:
+                format: OpenAI
+                name: gpt-5.6-luna
+                version: "2026-07-09"
+              name: gpt-5.6-luna
+              sku:
+                capacity: 10
+                name: GlobalStandard
+        endpoint: ${FOUNDRY_PROJECT_ENDPOINT}
+infra:
+    provider: microsoft.foundry

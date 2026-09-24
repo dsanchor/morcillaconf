@@ -21,7 +21,22 @@ El objetivo es mostrar conceptos como:
 
 - [Especificación funcional](SPECS.md)
 - [Plan de implementación](PLAN_IMPLEMENTACION.md)
+- [Progreso de implementación](PROGRESO.md)
 - [Convenciones de estructura y nombres](CONVENCIONES.md)
 
 El proyecto está planteado como una demo incremental con Python, Microsoft Agent
 Framework, Microsoft Foundry, FastAPI y Streamlit.
+
+## Desarrollo
+
+El camarero y su memoria local consentida viven en
+[`agents/restaurant`](agents/restaurant). Para preparar el entorno y ejecutar
+sus pruebas:
+
+```bash
+./scripts/setup.sh
+./scripts/test.sh
+```
+
+Consulta el README del agente para ejecutar la CLI, el servidor local o el smoke
+test opt-in contra Foundry.

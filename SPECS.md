@@ -36,7 +36,8 @@ La historia principal debe funcionar de extremo a extremo antes de incorporar
 variantes avanzadas. Cada capacidad técnica debe corresponder a algo visible en
 la demo:
 
-- Memoria: recordar preferencias y recuperar contexto entre visitas.
+- Memoria: recordar preferencias y restricciones consentidas como contexto no
+  vinculante entre visitas.
 - RAG o búsqueda: responder preguntas sobre la carta.
 - MCP: consultar datos operativos como mesas o existencias.
 - Multiagente: delegar la preparación del pedido en especialistas.
@@ -68,10 +69,11 @@ falten.
 Ejemplos:
 
 - «Hola, soy Majo y venimos dos» permite buscar mesa sin preguntas previas.
-- «Queremos cenar» requiere preguntar identidad, si procede, y número de
-  comensales.
-- Una preferencia recordada puede sugerirse, pero nunca debe reemplazar una
-  indicación actual.
+- Si no se indica el tamaño del grupo, se asume una persona.
+- Solo una petición explícita de mesa sin tamaño de grupo requiere preguntar el
+  número de comensales.
+- Un recuerdo puede sugerirse o solicitarse para reconfirmación, pero nunca debe
+  reemplazar una indicación actual.
 
 ### Autoridad limitada
 
@@ -263,15 +265,17 @@ comprensible para el cliente. La comanda definitiva todavía no se crea.
 ### Escena 3: cierre y recuperación
 
 Se cierra la conversación y se abre una sesión nueva con la misma identidad. El
-camarero recupera las preferencias autorizadas y el contexto necesario.
+camarero recupera las preferencias y restricciones autorizadas, diferenciadas
+por categoría y siempre como contexto no vinculante.
 
 Ejemplo:
 
 > ¿Puedo repetir lo de antes?
 
-El sistema recuerda la preferencia por agua con gas o pedidos anteriores, pero
-vuelve a comprobar carta y existencias. La memoria nunca se utiliza como prueba
-de disponibilidad actual.
+El sistema recuerda la preferencia por agua con gas, una posible restricción o
+pedidos anteriores, pero vuelve a comprobar carta y existencias. Una restricción
+recordada se reconfirma en la visita actual. La memoria nunca se utiliza como
+prueba de disponibilidad ni como confirmación del pedido.
 
 ### Escena 4: preparación y entrega
 
@@ -372,7 +376,8 @@ Responsabilidades:
 - extraer identidad, número de comensales y petición del mensaje;
 - solicitar únicamente la información obligatoria que falte;
 - consultar y comunicar la mesa asignada;
-- recuperar preferencias autorizadas;
+- recuperar memoria autorizada, diferenciando preferencias y restricciones
+  pendientes de reconfirmación;
 - responder sobre la carta utilizando la fuente documental;
 - construir un borrador estructurado del pedido;
 - transferir el contexto relevante a cocina;
@@ -457,7 +462,7 @@ completo después de conocer la disponibilidad, sustituciones y tiempo estimado.
 | Necesidad | Fuente correcta | Motivo |
 |---|---|---|
 | Pedido en curso | Estado de sesión | Cambia durante la conversación |
-| Preferencias autorizadas | Memoria persistente | Deben sobrevivir a una sesión |
+| Preferencias y restricciones autorizadas | Memoria persistente | Sobreviven a una sesión como contexto no vinculante y diferenciado |
 | Pedidos anteriores | Historial | Permite repetir sin confundirlo con stock |
 | Carta, ingredientes y alérgenos | Búsqueda documental | Información descriptiva y versionada |
 | Mesas disponibles | Servicio operacional o MCP | Estado que cambia en tiempo real |
@@ -489,12 +494,28 @@ Se distinguen tres niveles:
 
 1. **Sesión:** mesa, comensales y pedido actual.
 2. **Historial:** visitas y pedidos finalizados.
-3. **Preferencias persistentes:** información no sensible guardada con
-   consentimiento.
+3. **Memoria persistente:** preferencias y restricciones guardadas con
+   consentimiento, procedencia y fecha, diferenciadas por categoría.
 
-Las alergias y restricciones actuales se tratan como contexto operativo y no
-deben inferirse únicamente de una visita anterior. Una instrucción actual siempre
-prevalece sobre un recuerdo.
+Mientras un pedido siga siendo borrador, sus productos pueden resumirse como
+una preferencia de pedido de largo plazo si existe consentimiento. El resumen
+omite cantidades y estado operacional, es no vinculante y no convierte el
+borrador en historial ni demuestra que el cliente consumiera esos productos.
+La respuesta estructurada expone estos recuerdos en un campo separado del
+estado actual para que el cliente pueda comprobar qué se persistió realmente.
+Cuando el cliente expresa intención de repetir su pedido habitual —por ejemplo,
+«lo de siempre»— el camarero propone la preferencia de pedido más reciente y la
+incorpora al borrador como productos no verificados. Esto reafirma el gusto en
+ese turno, pero no confirma la comanda ni reafirma restricciones recordadas.
+La memoria se compacta de forma determinista: existe una cuota independiente
+para preferencias y restricciones, y cada cliente conserva un único resumen de
+pedido habitual que se actualiza con el borrador más reciente. No se utiliza un
+LLM para resumir restricciones.
+
+Todos los recuerdos son contexto no vinculante. Las alergias y restricciones
+recordadas deben reconfirmarse en la visita actual y nunca se consideran
+vigentes únicamente por proceder de una visita anterior. Una instrucción actual
+siempre prevalece sobre un recuerdo y el pedido requiere su confirmación HITL.
 
 ## 7. Secuencia de orquestación
 
@@ -502,8 +523,10 @@ El recorrido principal es secuencial y fácil de seguir. Cada bloque comienza co
 un evento o una invocación procedente del frontal:
 
 1. El frontal envía el evento de llegada o el mensaje al camarero.
-2. El camarero combina mensaje, sesión y memoria autorizada.
-3. Si faltan datos obligatorios, los solicita y pausa el flujo.
+2. El camarero combina mensaje, sesión y memoria autorizada sin convertir los
+   recuerdos en instrucciones vigentes.
+3. Si faltan datos obligatorios o una restricción recordada requiere
+   reconfirmación, los solicita y pausa el flujo.
 4. El servicio de mesas asigna una mesa.
 5. La búsqueda documental resuelve las consultas sobre la carta.
 6. El camarero construye el borrador de la comanda.
@@ -547,7 +570,7 @@ La traza debe permitir localizar:
 
 - mensaje recibido;
 - datos extraídos y campos pendientes;
-- lectura de memoria;
+- lectura de memoria, categoría, consentimiento y reconfirmación;
 - consulta de carta;
 - consulta y asignación de mesa;
 - transferencia del camarero a cocina;
@@ -584,6 +607,8 @@ prioriza siempre un incremento demostrable.
 - extracción de datos proporcionados por el usuario;
 - preguntas solo para datos ausentes;
 - sesión y memoria persistente consentida;
+- consulta, corrección, borrado y revocación de recuerdos;
+- separación explícita entre preferencias y restricciones no vinculantes;
 - recuperación tras cerrar y abrir;
 - representación inicial de mesas, aunque utilice datos locales.
 
@@ -645,7 +670,7 @@ La demo se considera preparada cuando:
 - asigna una mesa con capacidad suficiente;
 - refleja visualmente la ocupación;
 - recupera contexto después de reiniciar la conversación;
-- distingue una preferencia recordada de la disponibilidad actual;
+- distingue recuerdos de instrucciones actuales y reconfirma las restricciones;
 - consulta la carta y la despensa desde fuentes diferentes;
 - muestra al menos una transferencia del camarero a cocina;
 - consolida la respuesta de los especialistas;

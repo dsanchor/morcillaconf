@@ -89,8 +89,9 @@ ni evidencias de una implementacion previa.
 - El nombre escrito en el chat no es identidad autenticada.
 - La memoria de preferencias no sustituye la persistencia de visita, pedido,
   cuenta o checkpoint. Cada una tiene su contrato y ciclo de vida.
-- El consentimiento debe preceder a la escritura de preferencias; la politica
-  de guardado automatico, si se utiliza, debe respetar revocacion y borrado.
+- El consentimiento debe preceder a la escritura de preferencias o
+  restricciones recordadas; la politica de guardado automatico, si se utiliza,
+  debe respetar revocacion y borrado. Todo recuerdo es no vinculante.
 - Cada incremento sustituye adaptadores simulados por integraciones reales sin
   cambiar la experiencia unica del cliente ni relajar los controles.
 
@@ -182,6 +183,8 @@ preferencias sin inventar carta, disponibilidad ni asignacion de mesa.
   aplicacion, IDs de correlacion, limite de turnos y errores visibles.
 - [ ] Preguntar solo por informacion necesaria ausente; no pedir numero de mesa
   ni tratar un nombre del chat como permiso para cargar datos de otro cliente.
+  Asumir un comensal salvo que una peticion explicita de mesa requiera preguntar
+  el tamaño del grupo.
 - [ ] Ofrecer CLI de desarrollo y configuracion VS Code/Agent Inspector para
   probar antes de disponer de la web; no constituyen la interfaz final.
 - [ ] Incorporar pruebas unitarias y smoke real contra el modelo, con scripts
@@ -205,10 +208,20 @@ preferencia autorizada tras reiniciar el proceso; otra identidad no la recupera.
   desacoplados del transporte y preparados para un almacen gestionado.
 - [ ] Registrar consentimiento, procedencia y fecha antes de escribir recuerdos;
   ofrecer consulta, correccion, borrado y revocacion desde el cliente de pruebas.
-- [ ] No persistir alergias ni restricciones sensibles como preferencias
-  duraderas; reconfirmarlas en la visita correspondiente.
+- [ ] Exponer la memoria recuperada separada del estado actual para distinguir
+  recuerdos persistidos de datos reafirmados durante la visita.
+- [ ] Persistir alergias y restricciones en una categoria separada de las
+  preferencias, siempre como recuerdos no vinculantes; reconfirmarlas en la
+  visita correspondiente antes de usarlas en el pedido.
 - [ ] Acotar cantidad de recuerdos y tratarlos como datos no confiables.
   La peticion actual prevalece; un recuerdo no acredita precio ni stock.
+- [ ] Aplicar el limite por categoria y compactar los pedidos habituales en un
+  unico resumen actualizado, sin sumarizacion generativa.
+- [ ] Resumir los productos de un borrador como preferencia de pedido
+  consentida y no vinculante, sin convertirlos en historial completado.
+- [ ] Interpretar peticiones como "lo de siempre" para proponer la preferencia
+  de pedido más reciente en un borrador no confirmado, sin asumir que una
+  restricción recordada sigue vigente.
 - [ ] Configurar explicitamente ruta/almacen y dependencias para que el arranque
   no intente usar infraestructura no configurada ni oculte errores.
 - [ ] Probar persistencia al recrear proceso, concurrencia basica, borrado y
@@ -472,7 +485,7 @@ no del `actor` declarado por el navegador o por el modelo.
 | Contrato | Contenido minimo | Fase |
 |---|---|---|
 | Turno/borrador inicial | Texto, datos conocidos, restricciones actuales y campos pendientes | 1 |
-| Preferencia consentida | Cliente, dato, origen, fecha, consentimiento y borrado | 2 |
+| Memoria consentida | Cliente, tipo preferencia/restriccion, dato, origen, fecha, consentimiento, reconfirmacion y borrado | 2 |
 | Visita/sesion | Cliente verificado, visita, conversacion, workflow y pertenencia | 3 |
 | Comando | `event_id`, tipo, version, recursos, payload y clave de idempotencia | 3 |
 | Evento/snapshot | Secuencia, cursor, recursos autorizados, estado confirmado y acciones permitidas | 3 |

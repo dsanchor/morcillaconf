@@ -1,0 +1,9 @@
+.azure
+.foundry/results/
+**/.env
+**/.venv
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/*.egg-info/
+src/restaurant_agent/data/
