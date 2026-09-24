@@ -21,6 +21,7 @@ El objetivo es mostrar conceptos como:
 
 - [Especificación funcional](SPECS.md)
 - [Plan de implementación](PLAN_IMPLEMENTACION.md)
+- [Convenciones de estructura y nombres](CONVENCIONES.md)
 
 El proyecto está planteado como una demo incremental con Python, Microsoft Agent
 Framework, Microsoft Foundry, FastAPI y Streamlit.

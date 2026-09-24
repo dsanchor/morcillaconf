@@ -168,8 +168,9 @@ el sexto se consolida en fases 9-10. La fase 5 reduce riesgo de plataforma.
 **Demostracion:** una conversacion real recoge identidad presentada, comensales y
 preferencias sin inventar carta, disponibilidad ni asignacion de mesa.
 
-- [ ] Crear repositorio/proyecto Python, estructura modular, lockfile,
-  configuracion de ejemplo sin secretos y scripts Bash de ejecucion y pruebas.
+- [ ] Crear repositorio/proyecto Python siguiendo
+  [CONVENCIONES.md](CONVENCIONES.md), lockfile, configuracion de ejemplo sin
+  secretos y scripts Bash de ejecucion y pruebas.
 - [ ] Configurar proyecto Foundry y deployment del modelo elegido tras comprobar
   acceso, region, capacidades y cuota. Aprobar el coste antes de provisionar.
 - [ ] Implementar el camarero con Microsoft Agent Framework y cliente Foundry.
