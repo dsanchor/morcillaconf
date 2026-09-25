@@ -16,7 +16,6 @@ from restaurant_agent.memory.contracts import (
     MemoryKind,
     MemoryConsent,
     MemorySnapshot,
-    ORDER_PREFERENCE_PREFIX,
 )
 
 
@@ -65,6 +64,15 @@ class DurableMemoryRepository(Protocol):
     ) -> DurableMemoryRecord: ...
 
     def delete_memory(self, actor_id: str, *, preference_id: str) -> None: ...
+
+    def delete_memories(
+        self,
+        actor_id: str,
+        *,
+        preference_ids: list[str],
+    ) -> int: ...
+
+    def delete_all_memories(self, actor_id: str) -> int: ...
 
     def snapshot(self, actor_id: str) -> MemorySnapshot: ...
 
@@ -190,50 +198,29 @@ class SQLiteMemoryStore:
             "source_conversation_id",
         )
         normalized_value = preference_value.casefold()
-        is_order_preference = (
-            memory_kind is MemoryKind.PREFERENCE
-            and preference_value.startswith(ORDER_PREFERENCE_PREFIX)
-        )
         now = self._clock()
 
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             self._require_consent(connection, actor)
-            if is_order_preference:
-                existing = self._latest_order_preference(connection, actor)
-                if existing:
-                    connection.execute(
-                        """
-                        DELETE FROM durable_memories
-                        WHERE actor_id = ?
-                          AND kind = ?
-                          AND value LIKE ?
-                          AND preference_id != ?
-                        """,
-                        (
-                            actor,
-                            MemoryKind.PREFERENCE.value,
-                            f"{ORDER_PREFERENCE_PREFIX}%",
-                            existing["preference_id"],
-                        ),
-                    )
-            else:
-                existing = connection.execute(
-                    """
-                    SELECT preference_id, created_at
-                    FROM durable_memories
-                    WHERE actor_id = ? AND kind = ? AND normalized_value = ?
-                    """,
-                    (actor, memory_kind.value, normalized_value),
-                ).fetchone()
+            existing = connection.execute(
+                """
+                SELECT preference_id, created_at, occurrence_count
+                FROM durable_memories
+                WHERE actor_id = ? AND kind = ? AND normalized_value = ?
+                """,
+                (actor, memory_kind.value, normalized_value),
+            ).fetchone()
             if existing:
                 preference_id = existing["preference_id"]
                 created_at = datetime.fromisoformat(existing["created_at"])
+                occurrence_count = existing["occurrence_count"] + 1
                 connection.execute(
                     """
                     UPDATE durable_memories
                     SET normalized_value = ?, value = ?,
-                        source_conversation_id = ?, updated_at = ?
+                        source_conversation_id = ?, updated_at = ?,
+                        occurrence_count = ?
                     WHERE preference_id = ?
                     """,
                     (
@@ -241,12 +228,14 @@ class SQLiteMemoryStore:
                         preference_value,
                         source_id,
                         now.isoformat(),
+                        occurrence_count,
                         preference_id,
                     ),
                 )
             else:
                 preference_id = f"pref_{uuid4().hex}"
                 created_at = now
+                occurrence_count = 1
                 connection.execute(
                     """
                     INSERT INTO durable_memories(
@@ -257,9 +246,10 @@ class SQLiteMemoryStore:
                         value,
                         source_conversation_id,
                         created_at,
-                        updated_at
+                        updated_at,
+                        occurrence_count
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         preference_id,
@@ -270,6 +260,7 @@ class SQLiteMemoryStore:
                         source_id,
                         now.isoformat(),
                         now.isoformat(),
+                        occurrence_count,
                     ),
                 )
             self._trim_memories(connection, actor, memory_kind)
@@ -279,6 +270,7 @@ class SQLiteMemoryStore:
             actor_id=actor,
             kind=memory_kind,
             value=preference_value,
+            occurrence_count=occurrence_count,
             source_conversation_id=source_id,
             created_at=created_at,
             updated_at=now,
@@ -291,8 +283,8 @@ class SQLiteMemoryStore:
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT preference_id, actor_id, kind, value, source_conversation_id,
-                       created_at, updated_at
+                SELECT preference_id, actor_id, kind, value, occurrence_count,
+                       source_conversation_id, created_at, updated_at
                 FROM durable_memories
                 WHERE actor_id = ?
                 ORDER BY updated_at DESC, preference_id ASC
@@ -318,7 +310,7 @@ class SQLiteMemoryStore:
             self._require_consent(connection, actor)
             row = connection.execute(
                 """
-                SELECT kind, source_conversation_id, created_at
+                SELECT kind, occurrence_count, source_conversation_id, created_at
                 FROM durable_memories
                 WHERE preference_id = ? AND actor_id = ?
                 """,
@@ -351,26 +343,72 @@ class SQLiteMemoryStore:
             actor_id=actor,
             kind=MemoryKind(row["kind"]),
             value=preference_value,
+            occurrence_count=row["occurrence_count"],
             source_conversation_id=row["source_conversation_id"],
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=now,
         )
 
     def delete_memory(self, actor_id: str, *, preference_id: str) -> None:
+        self.delete_memories(
+            actor_id,
+            preference_ids=[preference_id],
+        )
+
+    def delete_memories(
+        self,
+        actor_id: str,
+        *,
+        preference_ids: list[str],
+    ) -> int:
         actor = self._normalize_required(actor_id, "actor_id")
-        selected_id = self._normalize_required(preference_id, "preference_id")
+        selected_ids = list(
+            dict.fromkeys(
+                self._normalize_required(item, "preference_id")
+                for item in preference_ids
+            )
+        )
+        if not selected_ids:
+            raise ValueError("preference_ids cannot be empty")
+        placeholders = ", ".join("?" for _ in selected_ids)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             self._require_consent(connection, actor)
-            cursor = connection.execute(
-                """
-                DELETE FROM durable_memories
-                WHERE preference_id = ? AND actor_id = ?
+            rows = connection.execute(
+                f"""
+                SELECT preference_id
+                FROM durable_memories
+                WHERE actor_id = ? AND preference_id IN ({placeholders})
                 """,
-                (selected_id, actor),
+                (actor, *selected_ids),
+            ).fetchall()
+            found_ids = {row["preference_id"] for row in rows}
+            missing_ids = [
+                memory_id
+                for memory_id in selected_ids
+                if memory_id not in found_ids
+            ]
+            if missing_ids:
+                missing = ", ".join(missing_ids)
+                raise MemoryNotFoundError(f"Unknown preferences: {missing}")
+            cursor = connection.execute(
+                f"""
+                DELETE FROM durable_memories
+                WHERE actor_id = ? AND preference_id IN ({placeholders})
+                """,
+                (actor, *selected_ids),
             )
-            if cursor.rowcount != 1:
-                raise MemoryNotFoundError(f"Unknown preference: {selected_id}")
+        return cursor.rowcount
+
+    def delete_all_memories(self, actor_id: str) -> int:
+        actor = self._normalize_required(actor_id, "actor_id")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            cursor = connection.execute(
+                "DELETE FROM durable_memories WHERE actor_id = ?",
+                (actor,),
+            )
+        return cursor.rowcount
 
     def snapshot(self, actor_id: str) -> MemorySnapshot:
         actor = self._normalize_required(actor_id, "actor_id")
@@ -403,6 +441,8 @@ class SQLiteMemoryStore:
                     source_conversation_id TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
+                    occurrence_count INTEGER NOT NULL DEFAULT 1
+                        CHECK(occurrence_count >= 1),
                     FOREIGN KEY(actor_id) REFERENCES memory_consents(actor_id)
                         ON DELETE CASCADE,
                     UNIQUE(actor_id, kind, normalized_value)
@@ -421,6 +461,20 @@ class SQLiteMemoryStore:
                 ON durable_memories(actor_id, updated_at DESC);
                 """
             )
+            memory_columns = {
+                row["name"]
+                for row in connection.execute(
+                    "PRAGMA table_info(durable_memories)"
+                ).fetchall()
+            }
+            if "occurrence_count" not in memory_columns:
+                connection.execute(
+                    """
+                    ALTER TABLE durable_memories
+                    ADD COLUMN occurrence_count INTEGER NOT NULL DEFAULT 1
+                    CHECK(occurrence_count >= 1)
+                    """
+                )
             legacy_table = connection.execute(
                 """
                 SELECT 1
@@ -458,7 +512,6 @@ class SQLiteMemoryStore:
             ).fetchall()
             for row in actors:
                 actor_id = row["actor_id"]
-                self._compact_order_preferences(connection, actor_id)
                 for memory_kind in MemoryKind:
                     self._trim_memories(connection, actor_id, memory_kind)
 
@@ -507,52 +560,6 @@ class SQLiteMemoryStore:
             )
             """,
             (actor_id, kind.value, self._max_memories),
-        )
-
-    @staticmethod
-    def _latest_order_preference(
-        connection: sqlite3.Connection,
-        actor_id: str,
-    ) -> sqlite3.Row | None:
-        return connection.execute(
-            """
-            SELECT preference_id, created_at
-            FROM durable_memories
-            WHERE actor_id = ?
-              AND kind = ?
-              AND value LIKE ?
-            ORDER BY updated_at DESC, preference_id ASC
-            LIMIT 1
-            """,
-            (
-                actor_id,
-                MemoryKind.PREFERENCE.value,
-                f"{ORDER_PREFERENCE_PREFIX}%",
-            ),
-        ).fetchone()
-
-    def _compact_order_preferences(
-        self,
-        connection: sqlite3.Connection,
-        actor_id: str,
-    ) -> None:
-        latest = self._latest_order_preference(connection, actor_id)
-        if latest is None:
-            return
-        connection.execute(
-            """
-            DELETE FROM durable_memories
-            WHERE actor_id = ?
-              AND kind = ?
-              AND value LIKE ?
-              AND preference_id != ?
-            """,
-            (
-                actor_id,
-                MemoryKind.PREFERENCE.value,
-                f"{ORDER_PREFERENCE_PREFIX}%",
-                latest["preference_id"],
-            ),
         )
 
     def _list_completed_orders(self, actor_id: str) -> list[CompletedOrderHistory]:
@@ -606,6 +613,7 @@ class SQLiteMemoryStore:
             actor_id=row["actor_id"],
             kind=MemoryKind(row["kind"]),
             value=row["value"],
+            occurrence_count=row["occurrence_count"],
             source_conversation_id=row["source_conversation_id"],
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),

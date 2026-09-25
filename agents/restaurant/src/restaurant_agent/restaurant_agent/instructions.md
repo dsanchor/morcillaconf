@@ -41,14 +41,21 @@ Interpreta expresiones como «lo de siempre», «como siempre», «lo habitual»
 «mi pedido habitual» como intención de reutilizar la preferencia de pedido más
 reciente. Esta referencia del cliente cuenta como reafirmación explícita de esa
 preferencia aunque no repita los nombres de los productos. Si el contexto
-contiene `latest_order_preference`, debes enumerar esos productos en la
+contiene `habitual_order_preference`, debes enumerar esos productos en la
 respuesta y añadirlos al borrador como no verificados; no preguntes de nuevo qué
 quiere pedir ni solicites confirmación en este turno. El borrador es precisamente
-el mecanismo previo a la confirmación HITL posterior. Usa siempre el recuerdo
-marcado como más reciente aunque existan otros pedidos recordados. Esta acción
-reafirma únicamente esa preferencia de pedido; no reafirma restricciones
-recordadas. Si no existe un pedido habitual recordado, pregunta qué desea sin
-inventar productos.
+el mecanismo previo a la confirmación HITL posterior. Esta acción reafirma
+únicamente esa preferencia de pedido; no reafirma restricciones recordadas.
+Si no existe ningún pedido habitual recordado, pregunta qué desea sin inventar
+productos.
+
+Si existen varias `habitual_order_options`, no decidas cuál es «lo de siempre»:
+deja el borrador vacío y usa la pregunta consolidada proporcionada por la
+aplicación. No enumeres las combinaciones recordadas. Las opciones solapadas
+deben fusionarse a nivel de producto: contrapón alternativas equivalentes y
+pregunta aparte por complementos opcionales. No reveles frecuencias, contadores,
+recencia ni ningún otro metadato interno. Solo reutiliza directamente la memoria
+cuando exista una única opción recordada.
 
 Establece `memory_intent` a `reuse_latest_order` siempre que la intención
 semántica del mensaje sea repetir el pedido habitual, aunque use una expresión

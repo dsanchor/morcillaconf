@@ -504,13 +504,20 @@ borrador en historial ni demuestra que el cliente consumiera esos productos.
 La respuesta estructurada expone estos recuerdos en un campo separado del
 estado actual para que el cliente pueda comprobar qué se persistió realmente.
 Cuando el cliente expresa intención de repetir su pedido habitual —por ejemplo,
-«lo de siempre»— el camarero propone la preferencia de pedido más reciente y la
-incorpora al borrador como productos no verificados. Esto reafirma el gusto en
-ese turno, pero no confirma la comanda ni reafirma restricciones recordadas.
-La memoria se compacta de forma determinista: existe una cuota independiente
-para preferencias y restricciones, y cada cliente conserva un único resumen de
-pedido habitual que se actualiza con el borrador más reciente. No se utiliza un
-LLM para resumir restricciones.
+«lo de siempre»— el camarero reutiliza directamente la memoria solo cuando
+existe un único pedido recordado. Si existen varios, los presenta ordenados por
+frecuencia y recencia y pregunta de forma natural cuál prefiere antes de crear
+el borrador. El orden se calcula internamente: nunca se revelan al cliente
+frecuencias, contadores ni recencia. Esto evita inferir una opción ambigua y no
+confirma la comanda ni reafirma restricciones recordadas.
+Las combinaciones solapadas se consolidan semánticamente a nivel de producto:
+el camarero contrapone alternativas equivalentes una sola vez y pregunta por
+separado si el cliente desea los complementos opcionales.
+La memoria se acota de forma determinista: existe una cuota independiente para
+preferencias y restricciones. Se conservan varios resúmenes de pedidos dentro
+de la cuota de preferencias, un resumen idéntico se actualiza sin duplicarse y
+acumula un contador de repeticiones. No se utiliza un LLM para resumir
+restricciones.
 
 Todos los recuerdos son contexto no vinculante. Las alergias y restricciones
 recordadas deben reconfirmarse en la visita actual y nunca se consideran

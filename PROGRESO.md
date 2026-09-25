@@ -1,6 +1,6 @@
 # Progreso de implementación
 
-Última actualización: **2026-09-24**
+Última actualización: **2026-09-25**
 
 Este documento ofrece una vista compartida del estado real del repositorio. No
 sustituye a [SPECS.md](SPECS.md) ni a
@@ -18,7 +18,7 @@ indicadas en el propio plan.
 
 | Fase | Estado de implementación | Revisión conjunta | Evidencia principal |
 |---|---|---|---|
-| 1. Proyecto y primer camarero | Implementada | Pendiente | 32 pruebas locales compartidas con fase 2; inferencia real y servidor local validados |
+| 1. Proyecto y primer camarero | Implementada | Pendiente | 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados |
 | 2. Memoria persistente consentida | Implementada | Pendiente | SQLite, consentimiento, aislamiento, revocación, concurrencia y smoke real |
 | 3. Vista única, BFF y continuidad | Pendiente | Pendiente | Sin implementación |
 | 4. Recorrido local completo y dos HITL | Pendiente | Pendiente | Sin implementación |
@@ -47,6 +47,10 @@ indicadas en el propio plan.
 - Servidor local mediante el protocolo Responses.
 - Configuración de VS Code y Agent Inspector.
 - Scripts reproducibles de preparación, ejecución, pruebas y smoke.
+- Generador de configuración local exportable mediante
+  `scripts/init-local-env.sh`, con fichero privado e ignorado por Git.
+- Utilidad `scripts/manage-memory.sh` para listar y eliminar memorias concretas
+  o todas las memorias de una identidad local.
 
 ### Evidencia
 
@@ -85,12 +89,17 @@ indicadas en el propio plan.
 - Campo `remembered_memories` en la respuesta local con el contenido realmente
   recuperado de SQLite, separado del estado reafirmado en la visita.
 - Resolución de intención para «lo de siempre», «como siempre» y expresiones
-  equivalentes mediante la preferencia de pedido más reciente.
+  equivalentes: aplica directamente una única opción y, si hay varias, las
+  presenta por frecuencia y recencia para que el cliente elija, sin mostrarle
+  contadores ni otros metadatos internos. Las combinaciones solapadas se
+  consolidan por producto para no repetir alternativas.
 - Clasificador semántico especializado para decidir si el mensaje reutiliza el
   pedido habitual; el context provider entrega esa decisión y la memoria al
   camarero antes de generar el borrador.
-- Compactación determinista: un único resumen de pedido habitual por identidad,
-  actualizado con el borrador más reciente y sin sumarización generativa.
+- Historial acotado de resúmenes de pedido dentro de la cuota de preferencias:
+  conserva pedidos distintos, cuenta duplicados exactos y utiliza frecuencia y
+  recencia para ordenar las alternativas de «lo de siempre», sin sumarización
+  generativa.
 
 ### Decisión vigente sobre alergias y restricciones
 
@@ -144,8 +153,8 @@ Controles:
 - El smoke real contra Foundry persiste y recupera una preferencia.
 - `run-local.sh` guarda y recupera preferencias y restricciones con la identidad
   falsa de entorno, solicitando reconfirmación de la restricción recordada.
-- Los productos de un borrador se persisten como un único resumen de preferencia
-  en los recorridos CLI y Responses, siempre sujeto al consentimiento.
+- Los productos de cada borrador se persisten juntos en un resumen de
+  preferencia; los resúmenes distintos se conservan dentro del límite.
 - Las preferencias y restricciones recuperadas se muestran en
   `remembered_memories`; no se copian a `customer.preferences` ni
   `customer.restrictions` hasta que el cliente las reafirma.

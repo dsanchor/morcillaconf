@@ -18,19 +18,29 @@ from restaurant_agent.memory.intent import (
 
 def apply_habitual_order(
     result: WaiterModelResult,
-    latest_order_preference: str | None,
+    habitual_order_preference: str | None,
+    habitual_order_options: list[tuple[str, int]] | None = None,
+    habitual_order_question: str | None = None,
 ) -> None:
     """Apply a model-classified repeat intent to the structured draft."""
 
     if (
         result.memory_intent is not MemoryIntent.REUSE_LATEST_ORDER
-        or not latest_order_preference
     ):
+        return
+
+    if habitual_order_options and len(habitual_order_options) > 1:
+        result.order_draft = OrderDraft()
+        if habitual_order_question:
+            result.reply = habitual_order_question
+        return
+
+    if not habitual_order_preference:
         return
 
     item_names = [
         item.strip()
-        for item in latest_order_preference.split(",")
+        for item in habitual_order_preference.split(",")
         if item.strip()
     ]
     if not item_names:
@@ -83,14 +93,34 @@ class HabitualOrderMiddleware(AgentMiddleware):
         result = response.value
         if not isinstance(result, WaiterModelResult):
             return
-        latest_order_preference = (
-            context.session.state.get("latest_order_preference")
+        habitual_order_preference = (
+            context.session.state.get("habitual_order_preference")
             if context.session is not None
             else None
         )
+        raw_options = (
+            context.session.state.get("habitual_order_options")
+            if context.session is not None
+            else None
+        )
+        habitual_order_options = (
+            [
+                (option[0], option[1])
+                for option in raw_options
+            ]
+            if isinstance(raw_options, list)
+            and all(
+                isinstance(option, (list, tuple))
+                and len(option) == 2
+                and isinstance(option[0], str)
+                and isinstance(option[1], int)
+                for option in raw_options
+            )
+            else []
+        )
         if (
             result.memory_intent is MemoryIntent.NONE
-            and isinstance(latest_order_preference, str)
+            and habitual_order_options
         ):
             current_message = context.messages[-1].text if context.messages else None
             if current_message:
@@ -100,9 +130,19 @@ class HabitualOrderMiddleware(AgentMiddleware):
                 )
         apply_habitual_order(
             result,
-            latest_order_preference=(
-                latest_order_preference
-                if isinstance(latest_order_preference, str)
+            habitual_order_preference=(
+                habitual_order_preference
+                if isinstance(habitual_order_preference, str)
+                else None
+            ),
+            habitual_order_options=habitual_order_options,
+            habitual_order_question=(
+                context.session.state.get("habitual_order_question")
+                if context.session is not None
+                and isinstance(
+                    context.session.state.get("habitual_order_question"),
+                    str,
+                )
                 else None
             ),
         )

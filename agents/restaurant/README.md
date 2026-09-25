@@ -21,7 +21,8 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
 - Expone los recuerdos persistidos mediante `remembered_memories`, separados
   de las preferencias confirmadas en la visita actual.
 - Interpreta «lo de siempre» y expresiones equivalentes para recuperar el
-  pedido habitual más reciente y proponerlo como borrador no confirmado.
+  pedido habitual: si solo existe uno lo propone como borrador; si hay varios,
+  muestra las alternativas para que el cliente elija.
 - Usa clasificación semántica, no una comparación literal de frases, y añade
   la intención resuelta al contexto antes de construir la respuesta.
 - Permite consultar, corregir, borrar y revocar la memoria.
@@ -59,6 +60,51 @@ MEMORY_MAX_ITEMS="20"
 
 La configuración local debe coincidir con el entorno de `azd`, porque
 `azd ai agent run` da prioridad a sus propias variables.
+
+También se puede generar un fichero de variables exportables desde la raíz:
+
+```bash
+./scripts/init-local-env.sh \
+  --project-endpoint "https://<account>.services.ai.azure.com/api/projects/<project>" \
+  --actor-id "Majo"
+```
+
+Si se omiten los argumentos, el script los solicita interactivamente. Después,
+en cada terminal nueva:
+
+```bash
+source ./.local/restaurant.env.sh
+./scripts/run-local.sh
+```
+
+El fichero generado está ignorado por Git, tiene permisos `600` y no se
+sobrescribe salvo que se indique `--force`. Este script configura el acceso
+local, pero no crea recursos ni deployments en Azure.
+
+## Administrar la memoria local
+
+Después de cargar el entorno, lista las memorias para obtener sus IDs:
+
+```bash
+source ./.local/restaurant.env.sh
+./scripts/manage-memory.sh --actor-id Majo list
+```
+
+Borra una o varias memorias concretas:
+
+```bash
+./scripts/manage-memory.sh --actor-id Majo delete \
+  pref_id_1 pref_id_2
+```
+
+Borra todas las memorias de la identidad:
+
+```bash
+./scripts/manage-memory.sh --actor-id Majo clear --yes
+```
+
+`clear` requiere `--yes` y conserva el consentimiento. Para revocar además el
+consentimiento debe utilizarse `/memory revoke` desde la CLI del camarero.
 
 ## Preparar el entorno
 
@@ -160,8 +206,15 @@ otra sesión y ausencia de afirmaciones de reserva o confirmación no respaldada
 - El archivo debe residir en un volumen persistente si se ejecuta en un
   contenedor; el sistema no cambia silenciosamente a memoria volátil.
 - `MEMORY_MAX_ITEMS` limita por separado preferencias y restricciones.
-- Solo se conserva un resumen de pedido habitual por identidad; cada borrador
-  nuevo actualiza ese resumen.
+- Se conservan varios resúmenes de pedidos anteriores dentro del límite de
+  preferencias.
+- Un pedido idéntico incrementa su contador y actualiza su fecha, en lugar de
+  duplicarse.
+- «Lo de siempre» utiliza directamente la memoria solo si existe una opción.
+  Con varias, las muestra ordenadas por frecuencia y recencia sin elegir ni
+  revelar al cliente esos metadatos internos. Las opciones solapadas se
+  consolidan por producto para preguntar una sola vez por alternativas y
+  complementos.
 - La compactación es determinista y no usa un modelo generativo.
 - El consentimiento incluye de forma explícita preferencias y restricciones.
 - Las restricciones se etiquetan como tales y siempre requieren reconfirmación.

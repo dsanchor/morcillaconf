@@ -215,13 +215,16 @@ preferencia autorizada tras reiniciar el proceso; otra identidad no la recupera.
   visita correspondiente antes de usarlas en el pedido.
 - [ ] Acotar cantidad de recuerdos y tratarlos como datos no confiables.
   La peticion actual prevalece; un recuerdo no acredita precio ni stock.
-- [ ] Aplicar el limite por categoria y compactar los pedidos habituales en un
-  unico resumen actualizado, sin sumarizacion generativa.
+- [ ] Aplicar el limite por categoria, conservar un historial acotado de
+  resúmenes de pedido, contar repeticiones y deduplicar los idénticos, sin
+  sumarizacion generativa.
 - [ ] Resumir los productos de un borrador como preferencia de pedido
   consentida y no vinculante, sin convertirlos en historial completado.
 - [ ] Interpretar peticiones como "lo de siempre" para proponer la preferencia
-  de pedido más reciente en un borrador no confirmado, sin asumir que una
-  restricción recordada sigue vigente.
+  recordada cuando sea única; si existen varias, presentarlas por frecuencia y
+  recencia para que el cliente elija, sin exponer esos metadatos internos ni
+  asumir restricciones vigentes. Fusionar las combinaciones solapadas para
+  preguntar una sola vez por cada alternativa o complemento.
 - [ ] Configurar explicitamente ruta/almacen y dependencias para que el arranque
   no intente usar infraestructura no configurada ni oculte errores.
 - [ ] Probar persistencia al recrear proceso, concurrencia basica, borrado y

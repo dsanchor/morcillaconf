@@ -88,6 +88,7 @@ class DurableMemoryRecord(BaseModel):
     actor_id: str
     kind: MemoryKind
     value: str = Field(min_length=1, max_length=200)
+    occurrence_count: int = Field(default=1, ge=1)
     source_conversation_id: str
     created_at: datetime
     updated_at: datetime

@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 
 from restaurant_agent.memory.contracts import ConsentStatus, MemoryKind
-from restaurant_agent.memory.store import ConsentRequiredError, SQLiteMemoryStore
+from restaurant_agent.memory.store import (
+    ConsentRequiredError,
+    MemoryNotFoundError,
+    SQLiteMemoryStore,
+)
 
 
 def create_store(path: Path, *, max_memories: int = 20) -> SQLiteMemoryStore:
@@ -103,6 +107,47 @@ def test_correction_deletion_and_revocation_are_persistent(tmp_path: Path) -> No
     assert recreated_store.get_consent("customer-1").status is ConsentStatus.REVOKED
 
 
+def test_delete_all_memories_keeps_consent(tmp_path: Path) -> None:
+    store = create_store(tmp_path / "memory.db")
+    store.grant_consent("customer-1", source="test")
+    for kind in MemoryKind:
+        store.remember_memory(
+            "customer-1",
+            kind=kind,
+            value=f"{kind.value} de prueba",
+            source_conversation_id="conv-1",
+        )
+
+    deleted = store.delete_all_memories("customer-1")
+
+    assert deleted == 2
+    assert store.list_memories("customer-1") == []
+    assert store.has_active_consent("customer-1") is True
+
+
+def test_selective_delete_is_atomic_when_an_id_is_unknown(
+    tmp_path: Path,
+) -> None:
+    store = create_store(tmp_path / "memory.db")
+    store.grant_consent("customer-1", source="test")
+    memory = store.remember_memory(
+        "customer-1",
+        kind=MemoryKind.PREFERENCE,
+        value="agua con gas",
+        source_conversation_id="conv-1",
+    )
+
+    with pytest.raises(MemoryNotFoundError):
+        store.delete_memories(
+            "customer-1",
+            preference_ids=[memory.preference_id, "pref_unknown"],
+        )
+
+    assert [item.preference_id for item in store.list_memories("customer-1")] == [
+        memory.preference_id
+    ]
+
+
 def test_store_keeps_only_the_configured_number_of_memories(
     tmp_path: Path,
 ) -> None:
@@ -140,10 +185,10 @@ def test_memory_limit_is_applied_independently_by_category(
     assert sum(item.kind is MemoryKind.RESTRICTION for item in memories) == 2
 
 
-def test_latest_order_preference_replaces_previous_summary(
+def test_order_preferences_keep_bounded_history(
     tmp_path: Path,
 ) -> None:
-    store = create_store(tmp_path / "memory.db")
+    store = create_store(tmp_path / "memory.db", max_memories=2)
     store.grant_consent("customer-1", source="test")
     first = store.remember_memory(
         "customer-1",
@@ -163,13 +208,81 @@ def test_latest_order_preference_replaces_previous_summary(
         for memory in store.list_memories("customer-1")
         if memory.value.startswith("Preferencia de pedido: ")
     ]
-    assert len(order_memories) == 1
-    assert order_memories[0].preference_id == first.preference_id
-    assert latest.preference_id == first.preference_id
+    assert len(order_memories) == 2
+    assert {memory.preference_id for memory in order_memories} == {
+        first.preference_id,
+        latest.preference_id,
+    }
     assert order_memories[0].value == "Preferencia de pedido: ensalada, café"
 
 
-def test_recreation_compacts_existing_order_summaries(tmp_path: Path) -> None:
+def test_repeated_memory_increments_occurrence_count(tmp_path: Path) -> None:
+    store = create_store(tmp_path / "memory.db")
+    store.grant_consent("customer-1", source="test")
+
+    first = store.remember_memory(
+        "customer-1",
+        kind=MemoryKind.PREFERENCE,
+        value="agua con gas",
+        source_conversation_id="conv-1",
+    )
+    repeated = store.remember_memory(
+        "customer-1",
+        kind=MemoryKind.PREFERENCE,
+        value="agua con gas",
+        source_conversation_id="conv-2",
+    )
+
+    assert repeated.preference_id == first.preference_id
+    assert repeated.occurrence_count == 2
+    assert store.list_memories("customer-1")[0].occurrence_count == 2
+
+
+def test_existing_database_adds_occurrence_count(tmp_path: Path) -> None:
+    database_path = tmp_path / "memory.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE memory_consents (
+                actor_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                source TEXT NOT NULL,
+                recorded_at TEXT NOT NULL
+            );
+            CREATE TABLE durable_memories (
+                preference_id TEXT PRIMARY KEY,
+                actor_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                normalized_value TEXT NOT NULL,
+                value TEXT NOT NULL,
+                source_conversation_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(actor_id, kind, normalized_value)
+            );
+            INSERT INTO memory_consents
+                (actor_id, status, source, recorded_at)
+            VALUES
+                ('customer-1', 'granted', 'test', '2026-01-01T00:00:00+00:00');
+            INSERT INTO durable_memories(
+                preference_id, actor_id, kind, normalized_value, value,
+                source_conversation_id, created_at, updated_at
+            )
+            VALUES (
+                'pref_existing', 'customer-1', 'preference',
+                'agua con gas', 'agua con gas', 'conv-1',
+                '2026-01-01T00:00:00+00:00',
+                '2026-01-01T00:00:00+00:00'
+            );
+            """
+        )
+
+    store = create_store(database_path)
+
+    assert store.list_memories("customer-1")[0].occurrence_count == 1
+
+
+def test_recreation_preserves_existing_order_summaries(tmp_path: Path) -> None:
     database_path = tmp_path / "memory.db"
     store = create_store(database_path)
     store.grant_consent("customer-1", source="test")
@@ -207,9 +320,10 @@ def test_recreation_compacts_existing_order_summaries(tmp_path: Path) -> None:
         if memory.value.startswith("Preferencia de pedido: ")
     ]
 
-    assert [memory.value for memory in order_memories] == [
-        "Preferencia de pedido: ensalada, café"
-    ]
+    assert {memory.value for memory in order_memories} == {
+        "Preferencia de pedido: tortilla, agua",
+        "Preferencia de pedido: ensalada, café",
+    }
 
 
 def test_concurrent_writes_do_not_corrupt_memory(tmp_path: Path) -> None:

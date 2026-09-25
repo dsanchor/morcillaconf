@@ -73,7 +73,12 @@ async def test_middleware_uses_semantic_classifier_as_fallback() -> None:
         memory_intent=MemoryIntent.NONE,
     )
     session = SimpleNamespace(
-        state={"latest_order_preference": "tortilla de patata, agua con gas"}
+        state={
+            "habitual_order_preference": "tortilla de patata, agua con gas",
+            "habitual_order_options": [
+                ["tortilla de patata, agua con gas", 1]
+            ],
+        }
     )
     context = AgentContext(
         agent=object(),
@@ -93,3 +98,33 @@ async def test_middleware_uses_semantic_classifier_as_fallback() -> None:
         "tortilla de patata",
         "agua con gas",
     ]
+
+
+def test_multiple_habitual_orders_require_customer_choice() -> None:
+    result = WaiterModelResult(
+        reply="Respuesta provisional.",
+        customer=CustomerSnapshot(presented_name="David"),
+        pending_fields=[],
+        memory_intent=MemoryIntent.REUSE_LATEST_ORDER,
+    )
+
+    apply_habitual_order(
+        result,
+        habitual_order_preference=None,
+        habitual_order_options=[
+            ("agua con gas", 2),
+            ("coca cola", 2),
+        ],
+        habitual_order_question=(
+            "¿Prefieres hoy coca cola o agua con gas? "
+            "¿Quieres también pincho de tortilla?"
+        ),
+    )
+
+    assert result.order_draft.items == []
+    assert result.reply == (
+        "¿Prefieres hoy coca cola o agua con gas? "
+        "¿Quieres también pincho de tortilla?"
+    )
+    assert "2x" not in result.reply
+    assert "veces" not in result.reply

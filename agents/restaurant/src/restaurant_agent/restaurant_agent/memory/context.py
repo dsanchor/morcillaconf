@@ -5,6 +5,7 @@ import json
 from agent_framework import AgentSession, ContextProvider, SessionContext
 
 from restaurant_agent.memory.contracts import (
+    DurableMemoryRecord,
     MemoryCandidate,
     MemoryIntent,
     MemoryKind,
@@ -15,7 +16,40 @@ from restaurant_agent.memory.intent import (
     IntentClassifier,
     classify_memory_intent,
 )
+from restaurant_agent.memory.options import (
+    OrderOptionMerger,
+    merge_habitual_order_options,
+)
 from restaurant_agent.memory.store import DurableMemoryRepository
+
+
+def rank_habitual_order_preferences(
+    memories: list[DurableMemoryRecord],
+) -> list[tuple[str, int]]:
+    """Rank remembered orders by frequency and then recency."""
+
+    order_memories = [
+        memory
+        for memory in memories
+        if memory.kind is MemoryKind.PREFERENCE
+        and memory.value.startswith(ORDER_PREFERENCE_PREFIX)
+    ]
+    ranked = sorted(
+        order_memories,
+        key=lambda memory: (
+            memory.occurrence_count,
+            memory.updated_at,
+            memory.preference_id,
+        ),
+        reverse=True,
+    )
+    return [
+        (
+            memory.value.removeprefix(ORDER_PREFERENCE_PREFIX),
+            memory.occurrence_count,
+        )
+        for memory in ranked
+    ]
 
 
 class DurableMemoryContextProvider(ContextProvider):
@@ -30,12 +64,14 @@ class DurableMemoryContextProvider(ContextProvider):
         fallback_actor_id: str | None = None,
         persist_fallback_candidates: bool = False,
         intent_classifier: IntentClassifier | None = None,
+        option_merger: OrderOptionMerger | None = None,
     ) -> None:
         super().__init__(source_id="consented-memory")
         self._store = store
         self._fallback_actor_id = fallback_actor_id
         self._persist_fallback_candidates = persist_fallback_candidates
         self._intent_classifier = intent_classifier
+        self._option_merger = option_merger
 
     async def before_run(
         self,
@@ -73,21 +109,19 @@ class DurableMemoryContextProvider(ContextProvider):
         if not memories:
             return
 
-        latest_order_preference = next(
-            (
-                memory.value.removeprefix(ORDER_PREFERENCE_PREFIX)
-                for memory in memories
-                if memory.kind is MemoryKind.PREFERENCE
-                and memory.value.startswith(ORDER_PREFERENCE_PREFIX)
-            ),
-            None,
+        habitual_order_options = rank_habitual_order_preferences(memories)
+        habitual_order_preference = (
+            habitual_order_options[0][0]
+            if len(habitual_order_options) == 1
+            else None
         )
-        session.state["latest_order_preference"] = latest_order_preference
+        session.state["habitual_order_preference"] = habitual_order_preference
+        session.state["habitual_order_options"] = habitual_order_options
         current_message = (
             context.input_messages[-1].text if context.input_messages else None
         )
         if (
-            latest_order_preference
+            habitual_order_options
             and self._intent_classifier is not None
             and current_message
         ):
@@ -97,17 +131,47 @@ class DurableMemoryContextProvider(ContextProvider):
             )
             session.state["memory_intent"] = memory_intent.value
             if memory_intent is MemoryIntent.REUSE_LATEST_ORDER:
-                context.extend_instructions(
-                    self.source_id,
-                    "La aplicación ha interpretado semánticamente el mensaje "
-                    "actual como una petición explícita de repetir el pedido "
-                    "habitual. Trátalo exactamente como si el cliente hubiera "
-                    "enumerado estos productos ahora: "
-                    f"{latest_order_preference}. Establece `memory_intent` a "
-                    "`reuse_latest_order`, enuméralos en `reply` y añádelos a "
-                    "`order_draft.items` con cantidad 1 y estado `unverified`. "
-                    "No pidas aclaración ni confirmación en este turno.",
-                )
+                if habitual_order_preference:
+                    context.extend_instructions(
+                        self.source_id,
+                        "La aplicación ha interpretado semánticamente el "
+                        "mensaje actual como una petición explícita de repetir "
+                        "el único pedido habitual recordado. Trátalo exactamente "
+                        "como si el cliente hubiera enumerado estos productos "
+                        f"ahora: {habitual_order_preference}. Establece "
+                        "`memory_intent` a `reuse_latest_order`, enuméralos en "
+                        "`reply` y añádelos a `order_draft.items` con cantidad 1 "
+                        "y estado `unverified`.",
+                    )
+                else:
+                    if self._option_merger is None:
+                        raise RuntimeError(
+                            "An order option merger is required for overlapping "
+                            "habitual orders."
+                        )
+                    habitual_order_question = (
+                        await merge_habitual_order_options(
+                            self._option_merger,
+                            [
+                                value
+                                for value, _ in habitual_order_options
+                            ],
+                        )
+                    )
+                    session.state["habitual_order_question"] = (
+                        habitual_order_question
+                    )
+                    context.extend_instructions(
+                        self.source_id,
+                        "La aplicación ha interpretado semánticamente el "
+                        "mensaje actual como una petición de repetir un pedido, "
+                        "pero existen varias posibilidades recordadas. "
+                        "Establece `memory_intent` a `reuse_latest_order`, deja "
+                        "`order_draft.items` vacío y usa exactamente esta "
+                        "pregunta consolidada, sin enumerar las combinaciones "
+                        "originales ni seleccionar ninguna automáticamente: "
+                        f"{habitual_order_question}",
+                    )
         values = [
             {
                 "kind": memory.kind.value,
@@ -129,18 +193,23 @@ class DurableMemoryContextProvider(ContextProvider):
             "`customer.restrictions`. Si el mensaje actual expresa intención "
             "de repetir lo habitual —por ejemplo «lo de siempre», «como "
             "siempre» o «mi pedido habitual»— usa "
-            "`latest_order_preference` como petición actual reafirmada aunque "
+            "`habitual_order_preference` como petición actual reafirmada aunque "
             "el cliente no repita los nombres: debes enumerar sus productos en "
             "la respuesta y añadirlos al borrador con estado `unverified`, sin "
             "volver a preguntar qué desea, pedir aclaración o solicitar "
             "confirmación en este turno. El borrador se confirmará mediante "
-            "HITL posteriormente. Usa este recuerdo más reciente aunque "
-            "existan otros pedidos recordados. No lo presentes como pedido "
+            "HITL posteriormente. Usa esta preferencia habitual ya seleccionada "
+            "por frecuencia y recencia aunque existan otros pedidos recordados. "
+            "No lo presentes como pedido "
             "confirmado. Si "
-            "no existe `latest_order_preference`, pregunta qué desea sin "
-            "inventar productos. Las restricciones recordadas siguen "
+            "hay varias `habitual_order_options`, no elijas automáticamente: "
+            "pregunta de forma natural cuál prefiere hoy, siguiendo el orden "
+            "recibido. No reveles frecuencias, contadores, recencia ni otros "
+            "metadatos internos. Si no existe ninguna, pregunta qué desea sin "
+            "inventar productos. Las restricciones "
+            "recordadas siguen "
             "requiriendo reconfirmación.\n"
-            f"{json.dumps({'memories': values, 'latest_order_preference': latest_order_preference}, ensure_ascii=False)}",
+            f"{json.dumps({'memories': values, 'habitual_order_preference': habitual_order_preference, 'habitual_order_options': [value for value, _ in habitual_order_options]}, ensure_ascii=False)}",
         )
 
     async def after_run(

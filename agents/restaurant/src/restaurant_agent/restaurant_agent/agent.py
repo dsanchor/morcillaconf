@@ -13,6 +13,7 @@ from restaurant_agent.memory.intent import MemoryIntentDecision
 from restaurant_agent.memory.middleware import (
     HabitualOrderMiddleware,
 )
+from restaurant_agent.memory.options import HabitualOrderQuestion
 from restaurant_agent.memory.store import DurableMemoryRepository
 
 INSTRUCTIONS_PATH = Path(__file__).with_name("instructions.md")
@@ -52,6 +53,24 @@ def create_waiter_agent(
             "response_format": MemoryIntentDecision,
         },
     )
+    option_merger = Agent(
+        id="habitual-order-option-merger",
+        name="Consolidador de pedidos habituales",
+        description=(
+            "Fusiona pedidos solapados en preguntas breves por producto."
+        ),
+        client=client,
+        instructions=(
+            "Consolida opciones de pedido solapadas sin enumerar combinaciones "
+            "completas. Agrupa alternativas equivalentes y pregunta aparte por "
+            "complementos opcionales. No inventes productos ni reveles "
+            "metadatos internos."
+        ),
+        default_options={
+            "store": False,
+            "response_format": HabitualOrderQuestion,
+        },
+    )
     context_providers = None
     if memory_store:
         context_providers = [
@@ -64,6 +83,7 @@ def create_waiter_agent(
                 ),
                 persist_fallback_candidates=settings.enable_dev_fake_identity,
                 intent_classifier=intent_classifier,
+                option_merger=option_merger,
             )
         ]
     default_options = {"store": False}

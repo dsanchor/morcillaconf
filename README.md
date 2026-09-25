@@ -38,5 +38,21 @@ sus pruebas:
 ./scripts/test.sh
 ```
 
+Para crear una configuración local reutilizable:
+
+```bash
+./scripts/init-local-env.sh
+source ./.local/restaurant.env.sh
+./scripts/run-local.sh
+```
+
+Para listar o borrar memorias locales de una identidad:
+
+```bash
+./scripts/manage-memory.sh --actor-id Majo list
+./scripts/manage-memory.sh --actor-id Majo delete <memory-id>
+./scripts/manage-memory.sh --actor-id Majo clear --yes
+```
+
 Consulta el README del agente para ejecutar la CLI, el servidor local o el smoke
 test opt-in contra Foundry.
