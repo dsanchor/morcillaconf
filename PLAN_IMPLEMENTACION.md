@@ -243,6 +243,11 @@ preferencia autorizada tras reiniciar el proceso; otra identidad no la recupera.
 **Demostracion:** identificarse, entrar, conversar, cerrar y recuperar la visita
 desde la misma pantalla. Mesas iniciales claramente etiquetadas como datos locales.
 
+La ejecución paralela de contratos, frontend, BFF e integración se detalla en
+[el anexo de paralelización del frontend](docs/PARALELIZACION_FRONTEND.md).
+La fase mantiene una única aceptación conjunta y no se considera completada por
+terminar uno de esos carriles de forma aislada.
+
 - [ ] Crear Streamlit y FastAPI con contratos independientes del transporte del
   agente. Adaptador local explicito al principio, remoto en fase 5.
 - [ ] Resolver identidad fuera del chat; usar identidades sinteticas solo en
