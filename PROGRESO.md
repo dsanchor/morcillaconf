@@ -18,7 +18,7 @@ indicadas en el propio plan.
 
 | Fase | Estado de implementación | Revisión conjunta | Evidencia principal |
 |---|---|---|---|
-| 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión pendientes de validar |
+| 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas; pendiente de aprobación |
 | 2. Memoria persistente automática | Implementada y validada localmente | Pendiente | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
 | 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente | Pendiente | 127 pruebas locales totales, incluidos CLI y contratos actualizados; 3B/3C/3D pendientes |
 | 4. Recorrido local completo y dos HITL | Pendiente | Pendiente | Sin implementación |
@@ -65,11 +65,9 @@ indicadas en el propio plan.
 
 Resultados y hallazgos en
 [docs/revision-fase-1-jesus.md](docs/revision-fase-1-jesus.md). La fase no se
-cierra todavía: el smoke real fallaba en su tercer paso y las correcciones
-siguen pendientes de validar.
+cierra todavía: falta la revisión conjunta de las correcciones.
 
-Correcciones propuestas, pendientes de validar con las pruebas, el smoke y la
-CLI:
+Correcciones validadas el 27/09/2026 en un Codespace con `gpt-5.6-luna`:
 
 - `pending_fields` se deriva de los datos del cliente en lugar de rechazar la
   respuesta del modelo, y el camarero pide el nombre cuando no lo conoce.
@@ -79,6 +77,11 @@ CLI:
 - Los scripts tienen permiso de ejecución y las pruebas de configuración no
   dependen de las variables cargadas en la terminal.
 - Se documenta que `gpt-6-luna` no admite la salida estructurada del camarero.
+
+Evidencia: `./scripts/test.sh` superado; `./scripts/smoke-test.sh` superado
+(«Foundry smoke test passed.»); en la CLI, «hola» sin nombre hace que el
+camarero pida el nombre sin cerrarse, y con `gpt-6-luna` se muestra el error
+sin cerrar la conversación.
 
 Decisión sobre el número de comensales: se asume un mínimo de una persona,
 porque siempre hay al menos un cliente usando la aplicación. El smoke se
