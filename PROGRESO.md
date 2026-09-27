@@ -18,7 +18,7 @@ indicadas en el propio plan.
 
 | Fase | Estado de implementación | Revisión conjunta | Evidencia principal |
 |---|---|---|---|
-| 1. Proyecto y primer camarero | Implementada | Pendiente | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados |
+| 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. El smoke actual falla en su tercer paso |
 | 2. Memoria persistente automática | Implementada y validada localmente | Pendiente | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
 | 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente | Pendiente | 127 pruebas locales totales, incluidos CLI y contratos actualizados; 3B/3C/3D pendientes |
 | 4. Recorrido local completo y dos HITL | Pendiente | Pendiente | Sin implementación |
@@ -60,6 +60,28 @@ indicadas en el propio plan.
 - El camarero no afirma haber reservado, preparado o cobrado.
 - Inferencia real contra Foundry validada.
 - Servidor local e invocación mediante `azd ai agent invoke --local` validados.
+
+### Revisión del 27/09/2026
+
+Resultados y hallazgos en
+[docs/revision-fase-1-jesus.md](docs/revision-fase-1-jesus.md). La fase no se
+cierra todavía: el smoke real falla en su tercer paso.
+
+Correcciones propuestas, pendientes de validar con las pruebas, el smoke y la
+CLI:
+
+- `pending_fields` se deriva de los datos del cliente en lugar de rechazar la
+  respuesta del modelo, y el camarero pide el nombre cuando no lo conoce.
+- Las respuestas que no cumplen el contrato y los fallos del servicio del
+  modelo se muestran como errores visibles, sin cerrar la CLI ni imprimir el
+  contenido de la respuesta.
+- Los scripts tienen permiso de ejecución y las pruebas de configuración no
+  dependen de las variables cargadas en la terminal.
+- Se documenta que `gpt-6-luna` no admite la salida estructurada del camarero.
+
+Sigue abierta la decisión sobre el número de comensales. El estado inicial
+presenta `party_size: 1` como confirmado, así que el modelo no pregunta cuántos
+son ante «Queremos cenar» y el tercer paso del smoke sigue fallando.
 
 ### Pendiente de revisión
 

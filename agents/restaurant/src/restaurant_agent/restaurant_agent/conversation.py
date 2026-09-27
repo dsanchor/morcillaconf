@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 from uuid import uuid4
@@ -42,8 +43,50 @@ class InvalidAgentResponseError(ConversationError):
     """Raised when the model does not satisfy the structured contract."""
 
 
+class AgentUnavailableError(ConversationError):
+    """Raised when the model service cannot complete a turn."""
+
+
 class GuestMemoryError(ConversationError):
     """Raised when a guest attempts to create a durable profile."""
+
+
+# Module prefixes of the model client, HTTP and Azure credential libraries.
+_AGENT_SERVICE_MODULES = ("agent_framework", "openai", "httpx", "azure")
+
+
+def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = current.__cause__ or (
+            None if current.__suppress_context__ else current.__context__
+        )
+
+
+def _describe_service_failure(exc: BaseException) -> str:
+    """Name the root failure without echoing model content or customer data."""
+
+    root = list(_exception_chain(exc))[-1]
+    status = getattr(root, "status_code", None)
+    name = type(root).__name__
+    return f"{name}, HTTP {status}" if isinstance(status, int) else name
+
+
+def _as_conversation_error(exc: Exception) -> ConversationError | None:
+    if any(isinstance(item, ValidationError) for item in _exception_chain(exc)):
+        return InvalidAgentResponseError(
+            "The waiter returned a response that does not match the contract"
+        )
+    if type(exc).__module__.startswith(_AGENT_SERVICE_MODULES):
+        return AgentUnavailableError(
+            "The model could not complete the response "
+            f"({_describe_service_failure(exc)}). Check the configured "
+            "deployment and your Azure credentials."
+        )
+    return None
 
 
 class StructuredAgent(Protocol):
@@ -143,11 +186,17 @@ class ConversationManager:
 
             self._refresh_remembered_memories(record)
             prompt = self._build_prompt(record, normalized_message)
-            response = await self._agent.run(
-                prompt,
-                session=record.agent_session,
-                options={"response_format": WaiterModelResult},
-            )
+            try:
+                response = await self._agent.run(
+                    prompt,
+                    session=record.agent_session,
+                    options={"response_format": WaiterModelResult},
+                )
+            except Exception as exc:
+                conversation_error = _as_conversation_error(exc)
+                if conversation_error is None:
+                    raise
+                raise conversation_error from exc
             try:
                 result = response.value
             except (ValidationError, ValueError) as exc:
