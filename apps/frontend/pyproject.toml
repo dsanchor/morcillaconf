@@ -1,0 +1,34 @@
+[project]
+name = "morcillaconf-frontend"
+version = "0.1.0"
+description = "Vista única de cliente en Streamlit para la demo del restaurante multiagente."
+requires-python = ">=3.13"
+dependencies = [
+    "morcillaconf-contracts",
+    "pydantic>=2.12",
+    "streamlit>=1.64,<2",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+morcillaconf-contracts = { path = "../../packages/contracts", editable = true }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+frontend = ["styles/*.css"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "pytest-asyncio>=1.2",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+asyncio_mode = "auto"
+testpaths = ["tests"]
