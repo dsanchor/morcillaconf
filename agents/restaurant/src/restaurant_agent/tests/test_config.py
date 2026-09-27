@@ -6,6 +6,12 @@ from pydantic import ValidationError
 from restaurant_agent.config import Settings
 
 
+@pytest.fixture(autouse=True)
+def isolated_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for field_name in Settings.model_fields:
+        monkeypatch.delenv(field_name.upper(), raising=False)
+
+
 def settings(**overrides: object) -> Settings:
     values = {
         "foundry_project_endpoint": "https://example.services.ai.azure.com/api/projects/demo",

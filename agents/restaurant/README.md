@@ -11,9 +11,14 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
   del grupo.
 - Conserva un borrador estructurado y no confirmado del pedido.
 - Aplica correcciones en turnos posteriores.
-- Pregunta únicamente por el nombre o los comensales que falten.
+- Pregunta únicamente por el nombre o los comensales que falten; si no conoce
+  el nombre del cliente, se lo pide sin dejar de atenderle.
 - Limita la cantidad de turnos y valida la propiedad de cada conversación.
-- Expone errores de contrato en lugar de aceptar respuestas incompletas.
+- Calcula `pending_fields` a partir de los datos del cliente que siguen vacíos,
+  sin depender de que el modelo los enumere.
+- Rechaza las respuestas del modelo que no cumplen el contrato y los fallos del
+  servicio como errores visibles: la CLI muestra el error, conserva la
+  conversación y no imprime el contenido de la respuesta ni datos del cliente.
 - Lee y persiste preferencias y restricciones en SQLite automáticamente para
   una identidad autenticada resuelta por el servidor, incluida la falsa local.
 - Los invitados no tienen perfil duradero.
@@ -71,6 +76,11 @@ MEMORY_MAX_ITEMS="20"
 
 La configuración local debe coincidir con el entorno de `azd`, porque
 `azd ai agent run` da prioridad a sus propias variables.
+
+El camarero necesita un deployment que admita salida estructurada
+(`text.format` de tipo `json_schema`) a través del endpoint del proyecto.
+`gpt-5.6-luna` (2026-07-09) funciona; `gpt-6-luna` (2026-09-22) la rechaza con
+un error 400.
 
 También se puede generar un fichero de variables exportables desde la raíz:
 

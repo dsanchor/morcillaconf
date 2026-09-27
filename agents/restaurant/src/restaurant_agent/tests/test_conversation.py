@@ -2,6 +2,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from restaurant_agent.contracts import (
     CustomerSnapshot,
@@ -10,6 +11,7 @@ from restaurant_agent.contracts import (
     WaiterModelResult,
 )
 from restaurant_agent.conversation import (
+    AgentUnavailableError,
     ConversationAccessError,
     ConversationManager,
     ConversationNotFoundError,
@@ -38,7 +40,50 @@ class FakeAgent:
         await asyncio.sleep(0)
         self.prompts.append(messages)
         assert options["response_format"] is WaiterModelResult
-        return SimpleNamespace(value=self.results.pop(0))
+        result = self.results.pop(0)
+        if isinstance(result, BaseException):
+            raise result
+        return SimpleNamespace(value=result)
+
+
+class FakeChatClientException(Exception):
+    """Stands in for agent_framework.exceptions.ChatClientException."""
+
+
+FakeChatClientException.__module__ = "agent_framework.exceptions"
+
+
+class FakeBadRequestError(Exception):
+    """Stands in for openai.BadRequestError."""
+
+    status_code = 400
+
+
+FakeBadRequestError.__module__ = "openai._exceptions"
+
+
+def wrapped_by_chat_client(cause: BaseException) -> FakeChatClientException:
+    try:
+        raise FakeChatClientException("service failed to complete the prompt") from cause
+    except FakeChatClientException as exc:
+        return exc
+
+
+def contract_violation() -> FakeChatClientException:
+    try:
+        WaiterModelResult.model_validate_json(
+            '{"reply": "Recuerdo tu alergia a los frutos secos", "unexpected": true}'
+        )
+    except ValidationError as exc:
+        return wrapped_by_chat_client(exc)
+    raise AssertionError("The model output should violate the contract")
+
+
+def service_failure() -> FakeChatClientException:
+    try:
+        raise FakeBadRequestError("text.format json_schema is not supported")
+    except FakeBadRequestError as exc:
+        return wrapped_by_chat_client(exc)
 
 
 @pytest.mark.asyncio
@@ -207,6 +252,64 @@ async def test_invalid_agent_output_is_not_silently_accepted() -> None:
     conversation_id = manager.start_conversation(actor_id="owner")
 
     with pytest.raises(InvalidAgentResponseError):
+        await manager.send_message(
+            conversation_id=conversation_id,
+            actor_id="owner",
+            message="Hola",
+        )
+
+
+@pytest.mark.asyncio
+async def test_contract_violation_is_visible_without_customer_data() -> None:
+    agent = FakeAgent(
+        contract_violation(),
+        WaiterModelResult(
+            reply="Gracias, Majo.",
+            customer=CustomerSnapshot(presented_name="Majo", party_size=2),
+            memory_intent=MemoryIntent.NONE,
+        ),
+    )
+    manager = ConversationManager(agent)
+    conversation_id = manager.start_conversation(actor_id="owner")
+
+    with pytest.raises(InvalidAgentResponseError) as error:
+        await manager.send_message(
+            conversation_id=conversation_id,
+            actor_id="owner",
+            message="Hola",
+        )
+    retried = await manager.send_message(
+        conversation_id=conversation_id,
+        actor_id="owner",
+        message="Soy Majo y venimos dos.",
+    )
+
+    assert "frutos secos" not in str(error.value)
+    assert retried.turn_number == 1
+
+
+@pytest.mark.asyncio
+async def test_model_service_failure_is_visible_without_its_details() -> None:
+    manager = ConversationManager(FakeAgent(service_failure()))
+    conversation_id = manager.start_conversation(actor_id="owner")
+
+    with pytest.raises(AgentUnavailableError) as error:
+        await manager.send_message(
+            conversation_id=conversation_id,
+            actor_id="owner",
+            message="Hola",
+        )
+
+    assert "FakeBadRequestError, HTTP 400" in str(error.value)
+    assert "json_schema" not in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_unexpected_programming_errors_are_not_masked() -> None:
+    manager = ConversationManager(FakeAgent(TypeError("bug in a middleware")))
+    conversation_id = manager.start_conversation(actor_id="owner")
+
+    with pytest.raises(TypeError):
         await manager.send_message(
             conversation_id=conversation_id,
             actor_id="owner",

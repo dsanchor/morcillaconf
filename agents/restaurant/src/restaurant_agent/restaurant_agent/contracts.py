@@ -22,6 +22,17 @@ class SessionState(BaseModel):
     turn_count: int = Field(default=0, ge=0)
 
 
+def missing_customer_fields(customer: CustomerSnapshot) -> list[PendingField]:
+    """Customer data that is still unknown, derived deterministically."""
+
+    missing = []
+    if customer.presented_name is None:
+        missing.append(PendingField.CUSTOMER_NAME)
+    if customer.party_size is None:
+        missing.append(PendingField.PARTY_SIZE)
+    return missing
+
+
 class WaiterModelResult(BaseModel):
     """Full structured snapshot returned by the model for one turn."""
 
@@ -30,7 +41,13 @@ class WaiterModelResult(BaseModel):
     reply: str = Field(min_length=1, max_length=2_000)
     customer: CustomerSnapshot
     order_draft: OrderDraft = Field(default_factory=OrderDraft)
-    pending_fields: list[PendingField] = Field(default_factory=list)
+    pending_fields: list[PendingField] = Field(
+        default_factory=list,
+        description=(
+            "Derived by the application from customer: customer_name while "
+            "presented_name is null and party_size while party_size is null."
+        ),
+    )
     memory_candidates: list[MemoryCandidate] = Field(
         default_factory=list,
         max_length=20,
@@ -47,16 +64,8 @@ class WaiterModelResult(BaseModel):
     )
 
     @model_validator(mode="after")
-    def pending_fields_match_customer_snapshot(self) -> "WaiterModelResult":
-        expected = set()
-        if self.customer.presented_name is None:
-            expected.add(PendingField.CUSTOMER_NAME)
-        if self.customer.party_size is None:
-            expected.add(PendingField.PARTY_SIZE)
-        if set(self.pending_fields) != expected:
-            raise ValueError(
-                "pending_fields must contain exactly the missing customer fields"
-            )
+    def derive_pending_fields_from_customer(self) -> "WaiterModelResult":
+        self.pending_fields = missing_customer_fields(self.customer)
         return self
 
 
