@@ -1,0 +1,91 @@
+/* Scene styles shared by the Streamlit view and its static preview. */
+@import url("https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&family=Alegreya+Sans:wght@400;500;700&display=swap");
+
+:root {
+  --noche: #0a0f1f;
+  --nogal: #140e0b;
+  --roble: #231811;
+  --roble-medio: #3a2719;
+  --veta: #8a6644;
+  --piedra: #e7d7b5;
+  --piedra-tenue: #b9a685;
+  --tinta: #24180f;
+  --luz: #f2b04a;
+  --vino: #8c1c2b;
+  --serif: "Alegreya", Georgia, "Times New Roman", serif;
+  --sans: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+  --ease-salida: cubic-bezier(.16, 1, .3, 1);
+}
+
+/* Entrance: a fixed scene above the app, so it never shifts the layout. */
+.escena {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  background: var(--noche);
+}
+.escena .fachada { display: block; width: 100%; height: 100%; }
+.escena .mundo { transform-box: view-box; transform-origin: 800px 720px; }
+.escena .catedral { transform-box: view-box; }
+.escena .hojas { transform-box: view-box; }
+.escena .hoja { transform-box: fill-box; }
+.escena .hoja-izq { transform-origin: 0% 50%; }
+.escena .hoja-der { transform-origin: 100% 50%; }
+.escena .derrame { opacity: 0; }
+.escena .resplandor { animation: titilar 5s ease-in-out infinite; }
+
+.escena.llama .hojas { animation: temblar .5s cubic-bezier(.36, .07, .19, .97) both; }
+
+.escena.abriendo { animation: desvanecer .55s ease-in 1.95s forwards; }
+.escena.abriendo .hoja { animation: abrir-hoja 1.7s var(--ease-salida) .15s forwards; }
+.escena.abriendo .derrame { animation: derramar 1.4s ease-out .3s forwards; }
+.escena.abriendo .mundo { animation: cruzar 1.15s cubic-bezier(.7, 0, .84, 0) 1.25s forwards; }
+
+@keyframes titilar { 0%, 100% { opacity: 1; } 45% { opacity: .8; } 62% { opacity: .95; } }
+@keyframes temblar {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-7px); }
+  40%, 60% { transform: translateX(7px); }
+}
+@keyframes abrir-hoja { to { transform: scaleX(.09); filter: brightness(.45); } }
+@keyframes derramar { to { opacity: .9; } }
+@keyframes cruzar { to { transform: scale(5.2); } }
+@keyframes desvanecer { to { opacity: 0; visibility: hidden; } }
+
+/* Dining-room plan. */
+@media (max-aspect-ratio: 4/5) {
+  .escena .catedral { transform: translateX(-310px); }
+}
+.planta { display: block; width: 100%; height: auto; }
+.planta text {
+  font-family: var(--serif);
+  font-size: 21px;
+  fill: var(--piedra);
+  letter-spacing: .01em;
+}
+.planta .camarero, .planta .cliente { transform-box: view-box; }
+.planta.llegando .cliente { animation: asomar .8s var(--ease-salida) 2.2s both; }
+.planta.llegando .camarero { animation: acercarse 1.7s cubic-bezier(.45, 0, .2, 1) 2.8s both; }
+
+@keyframes asomar {
+  from { opacity: 0; transform: translate(124px, 306px) scale(.7); }
+  to { opacity: 1; transform: translate(124px, 264px) scale(1); }
+}
+@keyframes acercarse {
+  from { transform: translate(560px, 124px); }
+  to { transform: translate(192px, 272px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .escena .resplandor,
+  .escena.llama .hojas,
+  .escena.abriendo .hoja,
+  .escena.abriendo .derrame,
+  .escena.abriendo .mundo,
+  .planta.llegando .cliente,
+  .planta.llegando .camarero { animation: none; }
+  .escena.abriendo { animation: desvanecer .3s ease-out forwards; }
+  .planta.llegando .camarero { transform: translate(192px, 272px); }
+}

@@ -1,0 +1,267 @@
+/* Streamlit port of the preview surfaces (apps/frontend/preview/preview.css).
+   Checked against the Streamlit 1.64 DOM: keyed containers expose .st-key-*
+   and the chrome keeps stable data-testid attributes. No "less than" signs
+   here: DOMPurify drops a style element whose text looks like markup. */
+:root {
+  --carbon: #0e0907;
+  --lumbre: #ffd27a;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.stApp {
+  --alto-plano: min(33vh, calc((100vw - 352px) * .34));
+  background: var(--nogal);
+  color: var(--piedra);
+  -webkit-font-smoothing: antialiased;
+}
+.stApp :focus-visible { outline: 3px solid var(--lumbre); outline-offset: 2px; }
+
+/* Chrome that would compete with the scene. */
+header[data-testid="stHeader"] { background: transparent !important; pointer-events: none; }
+[data-testid="stToolbarActions"],
+[data-testid="stMainMenu"],
+[data-testid="stAppDeployButton"],
+[data-testid="stDecoration"],
+.stApp footer { display: none !important; }
+[data-testid="stStatusWidget"]:not(:has([data-testid="stConnectionStatus"])) { display: none !important; }
+[data-testid="stElementContainer"][data-stale="true"] { opacity: 1 !important; transition: none !important; }
+[data-testid="stMainBlockContainer"] { max-width: none; padding: 26px 32px 18px; }
+
+/* The door: a fixed scene with the name form on its doorstep. */
+.stApp .escena { z-index: 999996; }
+[data-testid="stLayoutWrapper"]:has(> .st-key-puerta),
+[data-testid="stLayoutWrapper"]:has(> .st-key-umbral) { position: absolute; }
+.stApp .golpe-1 .escena.llama .hojas { animation-name: temblar-otra; }
+.stApp .st-key-umbral {
+  position: fixed; z-index: 999997; left: 50%; bottom: 3.6vh;
+  transform: translateX(-50%);
+  width: min(460px, 90vw);
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, .75));
+}
+.stApp .st-key-umbral [data-testid="stForm"] { padding: 0; border: 0; }
+.stApp .st-key-umbral [data-testid="stTextInputRootElement"] {
+  height: 3.1rem;
+  background: rgba(14, 9, 7, .9) !important;
+  border: 1px solid var(--veta) !important;
+  border-radius: 4px !important;
+}
+.stApp .st-key-umbral [data-testid="stTextInputRootElement"]:focus-within { border-color: var(--luz) !important; }
+.stApp .st-key-umbral input {
+  padding: .78rem 1rem !important;
+  background: transparent !important;
+  color: var(--piedra) !important;
+  font: 500 1.2rem/1.2 var(--serif) !important;
+}
+.stApp .st-key-umbral input::placeholder { color: var(--piedra-tenue); opacity: 1; }
+.stApp .st-key-umbral [data-testid="InputInstructions"] { display: none !important; }
+.stApp .st-key-umbral [data-testid="stFormSubmitButton"] button {
+  height: 3.1rem; padding: 0 1.5rem !important;
+  border: 0 !important; border-radius: 4px !important;
+  background: var(--luz) !important; color: var(--tinta) !important;
+}
+.stApp .st-key-umbral [data-testid="stFormSubmitButton"] button:hover { background: #ffc766 !important; }
+.stApp .st-key-umbral [data-testid="stFormSubmitButton"] button p {
+  margin: 0; font: 700 1.05rem/1 var(--sans); color: inherit;
+}
+.stApp .umbral-aviso .aviso {
+  margin: 0; text-align: center;
+  font: italic 1.05rem/1.3 var(--serif); color: var(--piedra);
+  text-shadow: 0 1px 3px #000;
+}
+
+/* Commands sidebar: the customer's name and the slash commands only. */
+section[data-testid="stSidebar"] { background: var(--carbon); border-right: 1px solid var(--roble-medio); }
+[data-testid="stSidebarContent"] { padding-left: 0 !important; padding-right: 0 !important; }
+[data-testid="stSidebarUserContent"] { padding: 30px 18px 22px !important; }
+.stApp .quien { padding: 0 12px; }
+.stApp .quien .nombre {
+  font: 500 1.6rem/1.1 var(--serif); color: var(--piedra); overflow-wrap: anywhere;
+}
+.stApp .st-key-comandos button {
+  display: flex; justify-content: flex-start; width: 100%;
+  min-height: 0; padding: 9px 12px !important;
+  border: 0 !important; border-radius: 4px !important;
+  background: none !important; color: var(--piedra) !important;
+}
+.stApp .st-key-comandos button p,
+.stApp .comando code { margin: 0; font: 500 1.06rem/1.35 var(--mono); color: inherit; }
+.stApp .st-key-comandos button:hover { background: rgba(242, 176, 74, .08) !important; }
+.stApp .st-key-comandos button:hover p { color: var(--luz); }
+.stApp .st-key-comandos button:disabled { opacity: .45; }
+.stApp .comando.estatico { padding: 9px 12px; color: var(--piedra); }
+.stApp .comando code { padding: 0; background: none; white-space: normal; }
+.stApp .comando .arg { color: var(--piedra-tenue); font-style: italic; }
+
+/* The conversation window: oak frame with iron corner brackets. */
+.stApp .st-key-ventana {
+  --forja: linear-gradient(#1d1816, #1d1816);
+  --clavo: radial-gradient(circle, #6d625a 0 2.2px, transparent 2.8px);
+  border: 10px solid transparent; border-radius: 6px;
+  background:
+    var(--clavo) left top / 10px 10px no-repeat border-box,
+    var(--clavo) right top / 10px 10px no-repeat border-box,
+    var(--clavo) left bottom / 10px 10px no-repeat border-box,
+    var(--clavo) right bottom / 10px 10px no-repeat border-box,
+    var(--forja) left top / 60px 10px no-repeat border-box,
+    var(--forja) left top / 10px 60px no-repeat border-box,
+    var(--forja) right top / 60px 10px no-repeat border-box,
+    var(--forja) right top / 10px 60px no-repeat border-box,
+    var(--forja) left bottom / 60px 10px no-repeat border-box,
+    var(--forja) left bottom / 10px 60px no-repeat border-box,
+    var(--forja) right bottom / 60px 10px no-repeat border-box,
+    var(--forja) right bottom / 10px 60px no-repeat border-box,
+    radial-gradient(120% 70% at 50% 0%, rgba(242, 176, 74, .1), transparent 62%) padding-box,
+    linear-gradient(#1a120d, #1a120d) padding-box,
+    linear-gradient(#2e1f15, #2e1f15) border-box;
+  box-shadow: inset 0 0 0 1px var(--veta), 0 16px 30px -14px rgba(0, 0, 0, .8);
+}
+.stApp .mensajes {
+  box-sizing: border-box;
+  display: flex; flex-direction: column-reverse; overflow-y: auto;
+  height: max(220px, calc(100vh - var(--alto-plano) - 196px));
+  height: max(220px, calc(100dvh - var(--alto-plano) - 196px));
+  padding: 26px 28px;
+  font: 400 18px/1.5 var(--sans);
+}
+.stApp .hilo { display: flex; flex-direction: column; gap: 14px; margin-bottom: auto; }
+.stApp .msg { display: flex; align-items: flex-end; gap: 12px; max-width: min(62ch, 88%); }
+.stApp .msg .icono {
+  width: 42px; height: 42px; flex: none; padding: 2px;
+  background: #6b4a2f; border: 1px solid #a07a52; border-radius: 50%;
+}
+.stApp .burbuja { padding: .7rem 1rem; box-shadow: 0 2px 0 rgba(0, 0, 0, .35); overflow-wrap: anywhere; }
+.stApp .msg.camarero .burbuja {
+  background: var(--piedra); color: var(--tinta);
+  font: 400 1.24rem/1.45 var(--serif); border-radius: 3px 12px 12px 12px;
+}
+.stApp .msg.cliente { align-self: flex-end; }
+.stApp .msg.cliente .burbuja {
+  background: var(--vino); color: #f6ead3;
+  font: 400 1.12rem/1.5 var(--sans); border-radius: 12px 3px 12px 12px;
+}
+.stApp .msg.enviando .burbuja { opacity: .72; }
+.stApp .msg.provisional .burbuja { opacity: .85; }
+.stApp .tarjeta {
+  align-self: center; width: min(46ch, 100%); padding: .8rem 1.1rem;
+  border: 1px dashed var(--veta); border-radius: 4px;
+  background: rgba(231, 215, 181, .05);
+  font: 400 1rem/1.5 var(--sans); color: var(--piedra);
+}
+.stApp .tarjeta p { margin: 0; font: inherit; color: inherit; }
+.stApp .tarjeta p.nota { margin-top: .35rem; color: var(--piedra-tenue); }
+.stApp .tarjeta ul { margin: .4rem 0 0; padding: 0; list-style: none; display: grid; gap: .25rem; }
+.stApp .tarjeta li { margin: 0; padding: 0; font: inherit; }
+.stApp .tarjeta code { padding: 0; background: none; color: var(--luz); font: .88rem var(--mono); }
+.stApp .escribiendo { display: inline-flex; gap: 6px; padding: 1rem 1.1rem; }
+.stApp .escribiendo i {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--luz);
+  animation: pensar 1.1s ease-in-out infinite;
+}
+.stApp .escribiendo i:nth-child(2) { animation-delay: .15s; }
+.stApp .escribiendo i:nth-child(3) { animation-delay: .3s; }
+
+/* The greeting arrives after the door opens, or right after /new. */
+.stApp .pila { display: grid; }
+.stApp .pila > .msg { grid-area: 1 / 1; }
+.stApp .revelar-door .aguarda { animation: aguardar .9s linear 3.1s both; }
+.stApp .revelar-door .saludo { animation: saludar .35s var(--ease-salida) 4s both; }
+.stApp .revelar-quick .aguarda { animation: aguardar .9s linear .1s both; }
+.stApp .revelar-quick .saludo { animation: saludar .35s var(--ease-salida) 1s both; }
+
+/* Composer inline at the bottom of the window. */
+.stApp .st-key-redactor { padding: 12px 14px; background: #110b08; border-top: 1px solid var(--roble-medio); }
+.stApp .st-key-redactor [data-testid="stChatInput"] > div {
+  padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important;
+}
+.stApp .st-key-redactor [data-testid="stChatInputTextArea"] {
+  min-height: 48px; padding: .7rem .9rem !important;
+  background: #1c140f !important; color: var(--piedra) !important;
+  border: 1px solid var(--roble-medio) !important; border-radius: 4px !important;
+  font: 400 1rem/1.5 var(--sans) !important;
+}
+.stApp .st-key-redactor [data-testid="stChatInputTextArea"]::placeholder { color: var(--piedra-tenue); opacity: 1; }
+.stApp .st-key-redactor [data-testid="stChatInputTextArea"]:focus { border-color: var(--luz) !important; outline: none; }
+.stApp .st-key-redactor [data-testid="stChatInputSubmitButton"] {
+  width: 48px !important; height: 48px !important; border-radius: 4px !important;
+  background: var(--luz) !important; color: var(--tinta) !important;
+}
+.stApp .st-key-redactor [data-testid="stChatInputSubmitButton"]:hover { background: #ffc766 !important; }
+.stApp .st-key-redactor [data-testid="stChatInputSubmitButton"] svg { transform: rotate(90deg); }
+.stApp .st-key-redactor [data-testid="InputInstructions"],
+.stApp .st-key-redactor .stChatInputInstructions { display: none !important; }
+
+/* «Camarero simulado» right below the window, then the plan. */
+.stApp .simulado {
+  margin: 0 4px; text-align: right;
+  font: 400 .92rem/1.5 var(--sans); letter-spacing: .04em; color: var(--piedra-tenue);
+}
+.stApp .simulado::before { content: "●"; margin-right: .5em; color: var(--luz); }
+.stApp .planta-marco { display: flex; justify-content: center; margin-top: 8px; }
+.stApp .planta-marco .planta { max-height: 33vh; }
+.stApp .planta-marco.entrando { animation: aparecer .9s var(--ease-salida) 2.5s both; }
+
+/* Desktop: the sidebar is locked open at the prototype's width. */
+@media (min-width: 769px) {
+  section[data-testid="stSidebar"] {
+    width: 288px !important; min-width: 288px !important; max-width: 288px !important;
+  }
+  [data-testid="stSidebarHeader"],
+  [data-testid="stSidebarResizeHandle"] { display: none !important; }
+  section[data-testid="stSidebar"] > div:has(> [data-testid="stSidebarResizeHandle"]) { display: none !important; }
+}
+
+/* Mobile: the sidebar becomes a drawer opened from «/comandos». */
+@media (max-width: 768px) {
+  .stApp { --alto-plano: min(24vh, calc((100vw - 24px) * .34)); font-size: 17px; }
+  [data-testid="stMainBlockContainer"] { padding: 62px 12px 12px; }
+  [data-testid="stExpandSidebarButton"] {
+    pointer-events: auto; display: inline-flex; align-items: center; gap: 8px;
+    height: 44px; padding: 0 14px !important;
+    background: var(--carbon) !important; color: var(--piedra) !important;
+    border: 1px solid var(--roble-medio) !important; border-radius: 4px !important;
+  }
+  [data-testid="stExpandSidebarButton"] > * { display: none !important; }
+  [data-testid="stExpandSidebarButton"]::before {
+    content: ""; width: 18px; height: 14px;
+    background:
+      linear-gradient(currentColor, currentColor) top / 100% 2px no-repeat,
+      linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,
+      linear-gradient(currentColor, currentColor) bottom / 100% 2px no-repeat;
+  }
+  [data-testid="stExpandSidebarButton"]::after { content: "/comandos"; font: 500 1rem var(--mono); }
+  .stApp .st-key-ventana { border-width: 7px; }
+  .stApp .mensajes {
+    height: max(200px, calc(100vh - var(--alto-plano) - 218px));
+    height: max(200px, calc(100dvh - var(--alto-plano) - 218px));
+    padding: 18px 14px;
+    font-size: 17px;
+  }
+  .stApp .msg { max-width: 94%; }
+  .stApp .msg.camarero .burbuja { font-size: 1.12rem; }
+  .stApp .msg.cliente .burbuja { font-size: 1.05rem; }
+  .stApp .planta-marco .planta { max-height: 24vh; }
+  .stApp .simulado { margin: 0 2px; }
+}
+
+@keyframes pensar { 0%, 70%, 100% { opacity: .25; transform: none; } 35% { opacity: 1; transform: translateY(-4px); } }
+@keyframes abrir-ventana {
+  from { clip-path: inset(0 50% 0 50% round 6px); opacity: .35; }
+  to { clip-path: inset(0 0 0 0 round 6px); opacity: 1; }
+}
+@keyframes aparecer { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes aparecer-lateral { from { opacity: 0; } to { opacity: 1; } }
+@keyframes aguardar { 0% { opacity: 0; } 1%, 99% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes saludar { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes temblar-otra {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-7px); }
+  40%, 60% { transform: translateX(7px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stApp .golpe-1 .escena.llama .hojas,
+  .stApp .planta-marco.entrando,
+  .stApp .escribiendo i,
+  .stApp .pila .saludo { animation: none !important; }
+  .stApp .pila .aguarda { display: none; }
+}
