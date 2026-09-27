@@ -42,11 +42,8 @@ async def run_smoke() -> None:
         message="Queremos cenar.",
     )
     assert second.customer.presented_name is None
-    assert second.customer.party_size is None
-    assert set(second.pending_fields) == {
-        PendingField.CUSTOMER_NAME,
-        PendingField.PARTY_SIZE,
-    }
+    assert second.customer.party_size == 1
+    assert second.pending_fields == [PendingField.CUSTOMER_NAME]
 
     unsupported = await manager.send_message(
         conversation_id=first_id,

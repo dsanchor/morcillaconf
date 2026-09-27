@@ -18,7 +18,7 @@ indicadas en el propio plan.
 
 | Fase | Estado de implementación | Revisión conjunta | Evidencia principal |
 |---|---|---|---|
-| 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. El smoke actual falla en su tercer paso |
+| 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión pendientes de validar |
 | 2. Memoria persistente automática | Implementada y validada localmente | Pendiente | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
 | 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente | Pendiente | 127 pruebas locales totales, incluidos CLI y contratos actualizados; 3B/3C/3D pendientes |
 | 4. Recorrido local completo y dos HITL | Pendiente | Pendiente | Sin implementación |
@@ -65,7 +65,8 @@ indicadas en el propio plan.
 
 Resultados y hallazgos en
 [docs/revision-fase-1-jesus.md](docs/revision-fase-1-jesus.md). La fase no se
-cierra todavía: el smoke real falla en su tercer paso.
+cierra todavía: el smoke real fallaba en su tercer paso y las correcciones
+siguen pendientes de validar.
 
 Correcciones propuestas, pendientes de validar con las pruebas, el smoke y la
 CLI:
@@ -79,9 +80,10 @@ CLI:
   dependen de las variables cargadas en la terminal.
 - Se documenta que `gpt-6-luna` no admite la salida estructurada del camarero.
 
-Sigue abierta la decisión sobre el número de comensales. El estado inicial
-presenta `party_size: 1` como confirmado, así que el modelo no pregunta cuántos
-son ante «Queremos cenar» y el tercer paso del smoke sigue fallando.
+Decisión sobre el número de comensales: se asume un mínimo de una persona,
+porque siempre hay al menos un cliente usando la aplicación. El smoke se
+alinea con esta regla: ante «Queremos cenar» espera una persona y solo el
+nombre pendiente.
 
 ### Pendiente de revisión
 

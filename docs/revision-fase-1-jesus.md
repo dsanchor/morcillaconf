@@ -90,14 +90,21 @@ es lo mismo que arranca `F5`.
 `src/restaurant_agent/tests/` y no en `agents/restaurant/tests/`, y hay
 `azure.yaml` en lugar de `agent.yaml`. ¿Se aceptan o se actualiza el documento?
 
-## Decisiones pendientes
+## Decisiones
 
 1. **Nombre.** ¿Debe el camarero pedirlo cuando falta? ¿Debe calcular
    `pending_fields` la aplicación en lugar del modelo? Tener en cuenta la
    entrada con nombre de la web (fase 3).
+   → *Aplicado en el PR de correcciones:* la aplicación calcula
+   `pending_fields` y el camarero pide el nombre cuando no lo conoce.
+   Pendiente de confirmar en la revisión conjunta.
 2. **Comensales.** ¿«Asumir una persona» o «desconocido hasta que lo diga»?
    Alinear SPECS, plan, instrucciones, el valor por defecto del contrato y el
    smoke.
+   → *Decidido (27/09):* se asume un mínimo de una persona, porque siempre hay
+   al menos un cliente usando la aplicación. Coincide con SPECS, las
+   instrucciones y el valor por defecto del contrato; el smoke se alinea con
+   esta regla.
 
 ## Propuesta
 
