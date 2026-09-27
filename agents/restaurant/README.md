@@ -239,8 +239,10 @@ otra sesión y ausencia de afirmaciones de reserva o confirmación no respaldada
 - `MEMORY_MAX_ITEMS` limita por separado preferencias y restricciones.
 - Se conservan varios resúmenes de pedidos anteriores dentro del límite de
   preferencias.
-- Un pedido idéntico incrementa su contador y actualiza su fecha, en lugar de
-  duplicarse.
+- Un pedido idéntico se cuenta una vez por conversación (visita), no una vez
+  por turno: incrementa su contador y actualiza su fecha, en lugar de
+  duplicarse. Si se corrige o se borra, el mismo borrador de esa conversación
+  no lo vuelve a crear.
 - «Lo de siempre» utiliza directamente la memoria solo si existe una opción.
   Con varias, las muestra ordenadas por frecuencia y recencia sin elegir ni
   revelar al cliente esos metadatos internos. Las opciones solapadas se

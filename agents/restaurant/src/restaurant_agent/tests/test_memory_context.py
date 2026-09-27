@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -330,6 +331,52 @@ async def test_development_fallback_identity_persists_structured_candidates(
     recreated = SQLiteMemoryStore(tmp_path / "memory.db")
     assert recreated.list_memories("Majo") == memories
     assert recreated.list_memories("Other") == []
+
+
+@pytest.mark.asyncio
+async def test_development_fallback_counts_unchanged_order_once_per_session(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteMemoryStore(tmp_path / "memory.db")
+    provider = DurableMemoryContextProvider(
+        store,
+        fallback_actor_id="Majo",
+        persist_fallback_candidates=True,
+    )
+    session = AgentSession(session_id="conv-dev")
+    for _ in range(2):
+        # The hosted server restores the session from its JSON store each turn.
+        session = AgentSession.from_dict(json.loads(json.dumps(session.to_dict())))
+        context = SessionContext(input_messages=[])
+        state: dict[str, object] = {}
+        await provider.before_run(
+            agent=object(),
+            session=session,
+            context=context,
+            state=state,
+        )
+        context._response = AgentResponse(
+            value=WaiterModelResult(
+                reply="Anotado.",
+                customer=CustomerSnapshot(presented_name="Majo"),
+                order_draft=OrderDraft(
+                    items=[OrderItemDraft(name="tortilla de patatas")]
+                ),
+                pending_fields=[],
+                memory_intent=MemoryIntent.NONE,
+            )
+        )
+        await provider.after_run(
+            agent=object(),
+            session=session,
+            context=context,
+            state=state,
+        )
+
+    memories = store.list_memories("Majo")
+    assert [(item.value, item.occurrence_count) for item in memories] == [
+        ("Preferencia de pedido: tortilla de patatas", 1)
+    ]
 
 
 @pytest.mark.asyncio

@@ -19,7 +19,7 @@ indicadas en el propio plan.
 | Fase | Estado de implementación | Revisión conjunta | Evidencia principal |
 |---|---|---|---|
 | 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas; pendiente de aprobación |
-| 2. Memoria persistente automática | Implementada y validada localmente | Pendiente | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
+| 2. Memoria persistente automática | Implementada y validada localmente | En curso | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
 | 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente | Pendiente | 127 pruebas locales totales, incluidos CLI y contratos actualizados; 3B/3C/3D pendientes |
 | 4. Recorrido local completo y dos HITL | Pendiente | Pendiente | Sin implementación |
 | 5. Validación temprana de Hosted Agent | Pendiente | Pendiente | El agente solo se ha ejecutado localmente |
@@ -234,6 +234,30 @@ versión y deben sustituirse por pruebas de memoria automática y borrado total.
   no verificado; no confirma la comanda ni reafirma restricciones recordadas.
 - Validación real con la identidad `david`: «Ponme lo de siempre» recupera
   tortilla de patata y agua con gas y los añade a `order_draft`.
+
+### Revisión del 27/09/2026
+
+Revisión manual en un Codespace con `gpt-5.6-luna`. Funcionaron:
+
+- guardado automático y recuperación después de reiniciar;
+- aislamiento entre identidades y para invitados;
+- «lo de siempre» con uno y con varios pedidos recordados;
+- corrección, borrado y `/memory clear`;
+- rechazo de `/memory consent`.
+
+Se encontró un fallo: el resumen del pedido se contaba por turno, no por
+conversación. En una sola conversación, «Hola, soy Ana. Quiero una tortilla de
+patatas», «Somos dos» y «Gracias» dejaron «Preferencia de pedido: tortilla de
+patatas» con `occurrence_count: 3`. Además, después de `/memory clear`, el
+siguiente mensaje de esa conversación volvía a crear el resumen a partir del
+borrador sin cambios.
+
+La corrección se propone en la PR «Fase 2: contar cada pedido una vez por
+conversación»: cada resumen de pedido se guarda como máximo una vez por
+conversación, tanto en la CLI como en el servidor local con la identidad falsa.
+Está pendiente de validación: `./scripts/test.sh` (138 pruebas esperadas) y la
+repetición de la prueba manual. La fase no se cierra ni se marca ninguna
+casilla.
 
 ### Pendiente de revisión
 
