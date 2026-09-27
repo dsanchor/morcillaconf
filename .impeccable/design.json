@@ -1,0 +1,417 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-27T23:54:14.851+02:00",
+  "title": "Design System: Mesón Burgalés Agéntico",
+  "extensions": {
+    "colorMeta": {
+      "noche": {
+        "role": "neutral",
+        "displayName": "Noche castellana",
+        "canonical": "#0a0f1f",
+        "tonalRamp": [
+          "#050712",
+          "#070b18",
+          "#0a0f1f",
+          "#11182e",
+          "#1a2240",
+          "#37405f",
+          "#6d7698",
+          "#d8ddf0"
+        ]
+      },
+      "nogal": {
+        "role": "neutral",
+        "displayName": "Nogal de sala",
+        "canonical": "#140e0b",
+        "tonalRamp": [
+          "#070403",
+          "#0e0907",
+          "#140e0b",
+          "#1c140f",
+          "#2e1f15",
+          "#5b3c29",
+          "#9b7658",
+          "#ead9c8"
+        ]
+      },
+      "roble": {
+        "role": "neutral",
+        "displayName": "Roble oscuro",
+        "canonical": "#231811",
+        "tonalRamp": [
+          "#090504",
+          "#140b06",
+          "#231811",
+          "#3a2719",
+          "#462b19",
+          "#6f4a2d",
+          "#a07a52",
+          "#e7d7b5"
+        ]
+      },
+      "roble-medio": {
+        "role": "neutral",
+        "displayName": "Roble medio",
+        "canonical": "#3a2719",
+        "tonalRamp": [
+          "#110905",
+          "#1d1510",
+          "#231811",
+          "#3a2719",
+          "#4a3322",
+          "#6b4a2f",
+          "#9a7550",
+          "#ead9b4"
+        ]
+      },
+      "veta": {
+        "role": "neutral",
+        "displayName": "Veta de madera",
+        "canonical": "#8a6644",
+        "tonalRamp": [
+          "#1d120a",
+          "#3a2719",
+          "#5f503d",
+          "#8a6644",
+          "#9a7550",
+          "#b08457",
+          "#cdba95",
+          "#efe6cf"
+        ]
+      },
+      "piedra": {
+        "role": "neutral",
+        "displayName": "Piedra de Hontoria",
+        "canonical": "#e7d7b5",
+        "tonalRamp": [
+          "#2a2218",
+          "#5f503d",
+          "#9a8664",
+          "#b9a685",
+          "#cdba95",
+          "#d6c195",
+          "#e7d7b5",
+          "#f6ead3"
+        ]
+      },
+      "piedra-tenue": {
+        "role": "neutral",
+        "displayName": "Piedra tenue",
+        "canonical": "#b9a685",
+        "tonalRamp": [
+          "#2a2218",
+          "#4c4033",
+          "#8a7a63",
+          "#9a8664",
+          "#b9a685",
+          "#cdba95",
+          "#ead9b4",
+          "#f6ead3"
+        ]
+      },
+      "tinta": {
+        "role": "neutral",
+        "displayName": "Tinta tostada",
+        "canonical": "#24180f",
+        "tonalRamp": [
+          "#090503",
+          "#140e0b",
+          "#1a120d",
+          "#24180f",
+          "#3a2719",
+          "#6b4a2f",
+          "#b08457",
+          "#ead7b3"
+        ]
+      },
+      "luz": {
+        "role": "primary",
+        "displayName": "Luz de farol",
+        "canonical": "#f2b04a",
+        "tonalRamp": [
+          "#3b1d10",
+          "#6b3714",
+          "#a0643a",
+          "#f1ad48",
+          "#f2b04a",
+          "#ffc766",
+          "#ffd27a",
+          "#ffe6a6"
+        ]
+      },
+      "vino": {
+        "role": "primary",
+        "displayName": "Vino Ribera",
+        "canonical": "#8c1c2b",
+        "tonalRamp": [
+          "#27060b",
+          "#4d0f18",
+          "#6f1723",
+          "#8c1c2b",
+          "#a63a48",
+          "#c8757e",
+          "#e6b6bb",
+          "#f6ead3"
+        ]
+      },
+      "forja": {
+        "role": "neutral",
+        "displayName": "Forja",
+        "canonical": "#1d1816",
+        "tonalRamp": [
+          "#050403",
+          "#0e0907",
+          "#15110f",
+          "#1d1816",
+          "#39312c",
+          "#6d625a",
+          "#9a928b",
+          "#ded8d0"
+        ]
+      },
+      "carbon": {
+        "role": "neutral",
+        "displayName": "Carbón de comandos",
+        "canonical": "#0e0907",
+        "tonalRamp": [
+          "#030201",
+          "#0e0907",
+          "#110b08",
+          "#1a120d",
+          "#1c140f",
+          "#3a2719",
+          "#6b4a2f",
+          "#d6c195"
+        ]
+      },
+      "lumbre": {
+        "role": "primary",
+        "displayName": "Lumbre clara",
+        "canonical": "#ffd27a",
+        "tonalRamp": [
+          "#3b1d10",
+          "#6b3714",
+          "#a0643a",
+          "#f2a93f",
+          "#ffcf7a",
+          "#ffd27a",
+          "#ffe6a6",
+          "#fff4d6"
+        ]
+      },
+      "cuero": {
+        "role": "neutral",
+        "displayName": "Cuero de taburete",
+        "canonical": "#6b4a2f",
+        "tonalRamp": [
+          "#140e0b",
+          "#231811",
+          "#3a2719",
+          "#4a3322",
+          "#6b4a2f",
+          "#9a7550",
+          "#b08457",
+          "#ead9b4"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Nombre de visitante",
+        "purpose": "Identidad personal en el lateral."
+      },
+      "headline": {
+        "displayName": "Voz del camarero",
+        "purpose": "Burbujas claras del camarero."
+      },
+      "title": {
+        "displayName": "Nombre en umbral",
+        "purpose": "Campo de identidad en la puerta."
+      },
+      "body": {
+        "displayName": "Operación de sala",
+        "purpose": "Comandos, redactor, conversación y textos funcionales."
+      },
+      "label": {
+        "displayName": "Acción breve",
+        "purpose": "Botones principales y envío."
+      },
+      "mono": {
+        "displayName": "Comando literal",
+        "purpose": "Slash commands y códigos de memoria."
+      }
+    },
+    "shadows": [
+      {
+        "name": "umbral-proyectado",
+        "value": "drop-shadow(0 12px 18px rgba(0, 0, 0, .75))",
+        "purpose": "Fijar el formulario sobre la piedra."
+      },
+      {
+        "name": "ventana-pesada",
+        "value": "inset 0 0 0 1px var(--veta), 0 16px 30px -14px rgba(0, 0, 0, .8)",
+        "purpose": "Dar masa al marco de roble y forja."
+      },
+      {
+        "name": "burbuja-apoyada",
+        "value": "0 2px 0 rgba(0, 0, 0, .35)",
+        "purpose": "Separar mensajes sin hacerlos flotar."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-salida",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Easing principal de apertura, aparición y llegada."
+      },
+      {
+        "name": "puerta-tiembla",
+        "value": ".5s cubic-bezier(.36, .07, .19, .97)",
+        "purpose": "Nombre vacío: llamada fallida a la puerta."
+      },
+      {
+        "name": "puerta-abre",
+        "value": "1.7s var(--ease-salida) .15s",
+        "purpose": "Hojas del portón al confirmar identidad."
+      },
+      {
+        "name": "cruce-umbral",
+        "value": "1.15s cubic-bezier(.7, 0, .84, 0) 1.25s",
+        "purpose": "Zoom de entrada hacia la sala."
+      },
+      {
+        "name": "llegada-camarero",
+        "value": "1.7s cubic-bezier(.45, 0, .2, 1) 2.8s",
+        "purpose": "Camarero acercándose en el plano."
+      },
+      {
+        "name": "menu-movil",
+        "value": "transform .35s var(--ease-salida)",
+        "purpose": "Cajón lateral de comandos en móvil."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "760px"
+      },
+      {
+        "name": "portrait-scene",
+        "value": "max-aspect-ratio: 4/5"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción ámbar para entrar o enviar.",
+      "html": "<button class=\"ds-btn-primary\">Entrar</button>",
+      "css": ".ds-btn-primary{border:0;border-radius:var(--radius-sm,4px);cursor:pointer;background:var(--luz,#f2b04a);color:var(--tinta,#24180f);font:700 1.05rem/1 var(--sans, Alegreya Sans, Segoe UI, system-ui, sans-serif);padding:0 1.5rem;height:44px}.ds-btn-primary:hover{background:#ffc766}.ds-btn-primary:focus-visible{outline:3px solid var(--lumbre,#ffd27a);outline-offset:2px}"
+    },
+    {
+      "name": "Doorstep Input",
+      "kind": "input",
+      "refersTo": "input-doorstep",
+      "description": "Campo de nombre apoyado en el umbral.",
+      "html": "<input class=\"ds-input-doorstep\" placeholder=\"Tu nombre\">",
+      "css": ".ds-input-doorstep{min-width:0;padding:.78rem 1rem;background:rgba(14,9,7,.9);color:var(--piedra,#e7d7b5);border:1px solid var(--veta,#8a6644);border-radius:var(--radius-sm,4px);font:500 1.2rem/1.2 var(--serif,Alegreya,Georgia,serif)}.ds-input-doorstep::placeholder{color:var(--piedra-tenue,#b9a685)}.ds-input-doorstep:focus-visible{outline:3px solid var(--lumbre,#ffd27a);outline-offset:2px}"
+    },
+    {
+      "name": "Command Row",
+      "kind": "nav",
+      "refersTo": "command-row",
+      "description": "Comando literal del lateral.",
+      "html": "<button class=\"ds-command\"><code>/memory <span>&lt;id&gt;</span></code></button>",
+      "css": ".ds-command{display:block;width:100%;padding:9px 12px;background:none;border:0;border-radius:var(--radius-sm,4px);cursor:pointer;color:var(--piedra,#e7d7b5);text-align:left;font:400 18px/1.5 var(--sans,Alegreya Sans,Segoe UI,system-ui,sans-serif)}.ds-command code{font:500 1.06rem/1.35 ui-monospace,SF Mono,Menlo,monospace}.ds-command span{color:var(--piedra-tenue,#b9a685);font-style:italic}.ds-command:hover{background:rgba(242,176,74,.08)}.ds-command:hover code{color:var(--luz,#f2b04a)}"
+    },
+    {
+      "name": "Conversation Frame",
+      "kind": "card",
+      "refersTo": "conversation-frame",
+      "description": "Ventana de conversación con marco de roble y forja.",
+      "html": "<section class=\"ds-frame\"><div>Hombre, Ana, ¿qué tal, maja?</div></section>",
+      "css": ".ds-frame{border:10px solid transparent;border-radius:6px;padding:26px 28px;color:var(--piedra,#e7d7b5);background:radial-gradient(120% 70% at 50% 0%,rgba(242,176,74,.1),transparent 62%) padding-box,linear-gradient(#1a120d,#1a120d) padding-box,linear-gradient(#2e1f15,#2e1f15) border-box;box-shadow:inset 0 0 0 1px var(--veta,#8a6644),0 16px 30px -14px rgba(0,0,0,.8)}"
+    },
+    {
+      "name": "Waiter Bubble",
+      "kind": "custom",
+      "refersTo": "message-waiter",
+      "description": "Burbuja clara del camarero.",
+      "html": "<div class=\"ds-bubble-waiter\">Hombre, Ana, ¿qué tal, maja?</div>",
+      "css": ".ds-bubble-waiter{display:inline-block;max-width:62ch;padding:.7rem 1rem;background:var(--piedra,#e7d7b5);color:var(--tinta,#24180f);font:400 1.24rem/1.45 var(--serif,Alegreya,Georgia,serif);border-radius:3px 12px 12px 12px;box-shadow:0 2px 0 rgba(0,0,0,.35)}"
+    },
+    {
+      "name": "Customer Bubble",
+      "kind": "custom",
+      "refersTo": "message-customer",
+      "description": "Burbuja vino para el cliente.",
+      "html": "<div class=\"ds-bubble-customer\">Prefiero el agua con gas.</div>",
+      "css": ".ds-bubble-customer{display:inline-block;max-width:62ch;padding:.7rem 1rem;background:var(--vino,#8c1c2b);color:#f6ead3;font:400 1.12rem/1.5 var(--sans,Alegreya Sans,Segoe UI,system-ui,sans-serif);border-radius:12px 3px 12px 12px;box-shadow:0 2px 0 rgba(0,0,0,.35)}"
+    },
+    {
+      "name": "Memory Card",
+      "kind": "card",
+      "refersTo": "card-memory",
+      "description": "Recuerdo confirmado en la conversación.",
+      "html": "<div class=\"ds-memory\"><p>Lo que recuerdo de ti:</p><ul><li><code>m1</code> Preferencia: agua con gas</li></ul></div>",
+      "css": ".ds-memory{width:min(46ch,100%);padding:.8rem 1.1rem;border:1px dashed var(--veta,#8a6644);border-radius:var(--radius-sm,4px);background:rgba(231,215,181,.05);color:var(--piedra,#e7d7b5);font:400 1rem/1.5 var(--sans,Alegreya Sans,Segoe UI,system-ui,sans-serif)}.ds-memory p{margin:0}.ds-memory ul{margin:.4rem 0 0;padding:0;list-style:none;display:grid;gap:.25rem}.ds-memory code{color:var(--luz,#f2b04a);font:.88rem ui-monospace,SF Mono,Menlo,monospace}"
+    },
+    {
+      "name": "Typing Indicator",
+      "kind": "custom",
+      "refersTo": "typing-indicator",
+      "description": "Tres puntos ámbar mientras el camarero escribe.",
+      "html": "<span class=\"ds-typing\" aria-label=\"El camarero está escribiendo\"><i></i><i></i><i></i></span>",
+      "css": ".ds-typing{display:inline-flex;gap:6px;padding:1rem 1.1rem}.ds-typing i{width:8px;height:8px;border-radius:50%;background:var(--luz,#f2b04a);animation:ds-pensar 1.1s ease-in-out infinite}.ds-typing i:nth-child(2){animation-delay:.15s}.ds-typing i:nth-child(3){animation-delay:.3s}@keyframes ds-pensar{0%,70%,100%{opacity:.25;transform:none}35%{opacity:1;transform:translateY(-4px)}}@media (prefers-reduced-motion:reduce){.ds-typing i{animation:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "La Puerta Confirmada",
+    "overview": "El sistema visual convierte la puerta nocturna de un mesón burgalés en la interfaz. La primera pantalla no anuncia una app: muestra piedra de Hontoria, roble claveteado, forja y un farol; el formulario vive sobre el umbral, de modo que identificarse es literalmente llamar y entrar.\n\nDentro, la sala sigue siendo una escena de restaurante, no un chatbot con cabecera. Los comandos quedan en un lateral austero, la conversación se aloja en una ventana de roble con esquinas de forja, y el plano cenital muestra solo estados confirmados: cliente, camarero, mesas vacías y barra.",
+    "keyCharacteristics": [
+      "Fachada a sangre antes de cualquier UI interior.",
+      "Ámbar como único color de estado y acción.",
+      "Piedra clara para habla del camarero; vino Ribera para habla del cliente.",
+      "Textos mínimos; el restaurante explica el sistema sin carteles.",
+      "Movimiento escénico: llamar, abrir, cruzar, saludar y acercarse."
+    ],
+    "rules": [
+      {
+        "name": "Farol Único",
+        "body": "El ámbar no compite con otros acentos: señaliza entrar, hover, foco, error de nombre, escritura y confirmación.",
+        "section": "colors"
+      },
+      {
+        "name": "Material Native",
+        "body": "No se prohíben texturas, clavos, dovelas ni vetas: son el lenguaje nativo de este mundo y deben seguir subordinados a la escena.",
+        "section": "colors"
+      },
+      {
+        "name": "Slash Literal",
+        "body": "El monospace se reserva a comandos ejecutables (`/memory`, `/new`, `/exit`) porque son código operativo, no ornamento.",
+        "section": "typography"
+      },
+      {
+        "name": "No Card UI",
+        "body": "La profundidad debe parecer puerta, marco, piedra o mesa; no introduzcas tarjetas genéricas con sombras SaaS.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do tratar la puerta, el plano y la conversación como la interfaz principal, no como fondo decorativo.",
+      "Do usar ámbar solo para acción, estado, foco o confirmación.",
+      "Do mantener pocos textos visibles y hacer que las formas del mesón expliquen el sistema.",
+      "Do respetar `prefers-reduced-motion` en toda apertura, llegada y escritura.",
+      "Do etiquetar lo simulado con discreción, como `Camarero simulado`."
+    ],
+    "donts": [
+      "Don't añadir una cabecera de chatbot, panel de mando genérico o burbujas sin materialidad del mesón.",
+      "Don't introducir acentos nuevos para estados que ya resuelve el farol.",
+      "Don't usar monospace fuera de comandos literales o identificadores de memoria.",
+      "Don't mover mesa, camarero, cliente, pedido o memoria por texto no confirmado.",
+      "Don't canonizar ornamentos de una sola aparición como tokens globales."
+    ]
+  }
+}
