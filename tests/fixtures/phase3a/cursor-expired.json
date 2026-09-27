@@ -1,0 +1,6 @@
+{
+  "code": "cursor_expired",
+  "message": "El cursor ha caducado. Recupera un nuevo snapshot.",
+  "correlation_id": "corr_reconnect",
+  "recovery": "fetch_snapshot"
+}

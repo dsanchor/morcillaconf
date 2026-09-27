@@ -56,7 +56,7 @@ def waiter_result(
 
 
 @pytest.mark.asyncio
-async def test_memory_is_written_only_after_consent(tmp_path: Path) -> None:
+async def test_memory_is_written_automatically_from_the_first_turn(tmp_path: Path) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
     candidate = MemoryCandidate(
         kind=MemoryKind.PREFERENCE,
@@ -79,23 +79,18 @@ async def test_memory_is_written_only_after_consent(tmp_path: Path) -> None:
         actor_id="customer-1",
         message="Prefiero agua con gas.",
     )
-    assert store.list_memories("customer-1") == []
-
-    manager.grant_memory_consent(
-        conversation_id=conversation_id,
-        actor_id="customer-1",
-        source="test",
-    )
+    assert store.list_memories("customer-1")[0].value == "agua con gas"
     await manager.send_message(
         conversation_id=conversation_id,
         actor_id="customer-1",
-        message="Recuerda que prefiero agua con gas.",
+        message="Prefiero agua con gas.",
     )
 
     memories = store.list_memories("customer-1")
     assert [(item.kind, item.value) for item in memories] == [
         (MemoryKind.PREFERENCE, "agua con gas")
     ]
+    assert memories[0].occurrence_count == 2
 
 
 @pytest.mark.asyncio
@@ -120,12 +115,6 @@ async def test_order_draft_is_summarized_as_long_term_preference(
         actor_id="customer-1",
         authenticated=True,
     )
-    manager.grant_memory_consent(
-        conversation_id=conversation_id,
-        actor_id="customer-1",
-        source="test",
-    )
-
     await manager.send_message(
         conversation_id=conversation_id,
         actor_id="customer-1",
@@ -168,12 +157,6 @@ async def test_restriction_is_stored_separately_and_is_non_binding(
         actor_id="customer-1",
         authenticated=True,
     )
-    manager.grant_memory_consent(
-        conversation_id=conversation_id,
-        actor_id="customer-1",
-        source="test",
-    )
-
     response = await manager.send_message(
         conversation_id=conversation_id,
         actor_id="customer-1",
@@ -198,18 +181,17 @@ def test_guest_cannot_create_durable_profile(tmp_path: Path) -> None:
     conversation_id = manager.start_conversation(actor_id="guest-1")
 
     with pytest.raises(GuestMemoryError):
-        manager.grant_memory_consent(
+        manager.memory_snapshot(
             conversation_id=conversation_id,
             actor_id="guest-1",
         )
 
-    assert store.get_consent("guest-1") is None
+    assert store.list_memories("guest-1") == []
 
 
 def test_new_manager_recovers_only_same_identity_memories(tmp_path: Path) -> None:
     database_path = tmp_path / "memory.db"
     first_store = SQLiteMemoryStore(database_path)
-    first_store.grant_consent("customer-1", source="test")
     first_store.remember_memory(
         "customer-1",
         kind=MemoryKind.RESTRICTION,
@@ -243,11 +225,10 @@ def test_new_manager_recovers_only_same_identity_memories(tmp_path: Path) -> Non
 
 
 @pytest.mark.asyncio
-async def test_revocation_is_seen_by_other_active_conversations(
+async def test_clear_is_seen_by_other_active_conversations(
     tmp_path: Path,
 ) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
-    store.grant_consent("customer-1", source="test")
     store.remember_memory(
         "customer-1",
         kind=MemoryKind.PREFERENCE,
@@ -283,10 +264,9 @@ async def test_revocation_is_seen_by_other_active_conversations(
         actor_id="customer-1",
         message="Continuemos.",
     )
-    manager.revoke_memory_consent(
+    manager.clear_memories(
         conversation_id=first_id,
         actor_id="customer-1",
-        source="test",
     )
     response = await manager.send_message(
         conversation_id=second_id,
@@ -296,3 +276,45 @@ async def test_revocation_is_seen_by_other_active_conversations(
 
     assert response.remembered_memories == []
     assert all("agua con gas" not in prompt for prompt in agent.prompts)
+
+
+@pytest.mark.asyncio
+async def test_guest_turn_does_not_persist_candidates(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "memory.db")
+    manager = ConversationManager(
+        FakeAgent(waiter_result(memory_candidates=[
+            MemoryCandidate(kind=MemoryKind.PREFERENCE, value="agua con gas")
+        ])),
+        memory_store=store,
+    )
+    conversation_id = manager.start_conversation(actor_id="guest")
+    response = await manager.send_message(
+        conversation_id=conversation_id, actor_id="guest", message="Prefiero agua."
+    )
+    assert response.remembered_memories == []
+    assert store.list_memories("guest") == []
+
+
+@pytest.mark.asyncio
+async def test_clear_allows_new_memories_in_later_turns(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "memory.db")
+    manager = ConversationManager(
+        FakeAgent(*[
+            waiter_result(memory_candidates=[
+                MemoryCandidate(kind=MemoryKind.PREFERENCE, value=value)
+            ])
+            for value in ("agua con gas", "agua sin gas")
+        ]),
+        memory_store=store,
+    )
+    conversation_id = manager.start_conversation(actor_id="customer", authenticated=True)
+    await manager.send_message(
+        conversation_id=conversation_id, actor_id="customer", message="Agua con gas."
+    )
+    assert manager.clear_memories(
+        conversation_id=conversation_id, actor_id="customer"
+    ).memories == []
+    response = await manager.send_message(
+        conversation_id=conversation_id, actor_id="customer", message="Agua sin gas."
+    )
+    assert [item.value for item in response.remembered_memories] == ["agua sin gas"]

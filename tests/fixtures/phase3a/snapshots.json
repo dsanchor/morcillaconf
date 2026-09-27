@@ -1,0 +1,90 @@
+[
+  {
+    "schema_version": 1,
+    "visit_id": "visit_demo",
+    "conversation_id": "conv_demo",
+    "identity": {"actor_id": "customer_demo", "authenticated": true},
+    "cursor": 0,
+    "messages": [],
+    "customer": {
+      "presented_name": null,
+      "party_size": 1,
+      "preferences": [],
+      "restrictions": []
+    },
+    "order_draft": {"items": []},
+    "pending_fields": ["customer_name"],
+    "memory": {"memories": []},
+    "process_status": "idle",
+    "allowed_actions": ["conversation.message_sent", "memory.read_requested"]
+  },
+  {
+    "schema_version": 1,
+    "visit_id": "visit_demo",
+    "conversation_id": "conv_demo",
+    "identity": {"actor_id": "customer_demo", "authenticated": true},
+    "cursor": 3,
+    "messages": [
+      {
+        "message_id": "msg_user",
+        "role": "user",
+        "text": "Soy Majo, ponme una morcilla y agua.",
+        "occurred_at": "2026-09-27T08:00:01Z",
+        "command_event_id": "cmd_message"
+      },
+      {
+        "message_id": "msg_assistant",
+        "role": "assistant",
+        "text": "Lo anoto en el borrador, Majo. Aun no he comprobado disponibilidad.",
+        "occurred_at": "2026-09-27T08:00:02Z",
+        "command_event_id": "cmd_message"
+      }
+    ],
+    "customer": {
+      "presented_name": "Majo",
+      "party_size": 1,
+      "preferences": [],
+      "restrictions": []
+    },
+    "order_draft": {
+      "items": [
+        {"name": "morcilla", "quantity": 1, "notes": [], "status": "unverified"},
+        {"name": "agua", "quantity": 1, "notes": [], "status": "unverified"}
+      ]
+    },
+    "pending_fields": [],
+    "memory": {"memories": []},
+    "process_status": "idle",
+    "allowed_actions": ["conversation.message_sent", "memory.read_requested"]
+  },
+  {
+    "schema_version": 1,
+    "visit_id": "visit_memory",
+    "conversation_id": "conv_memory",
+    "identity": {"actor_id": "customer_memory", "authenticated": true},
+    "cursor": 0,
+    "messages": [],
+    "customer": {
+      "presented_name": null,
+      "party_size": null,
+      "preferences": [],
+      "restrictions": []
+    },
+    "order_draft": {"items": []},
+    "pending_fields": ["customer_name", "party_size"],
+    "memory": {
+      "memories": [
+        {
+          "memory_id": "mem_demo",
+          "kind": "restriction",
+          "value": "Sin gluten",
+          "source": "conv_previous",
+          "recorded_at": "2026-09-26T10:01:00Z",
+          "requires_reconfirmation": true
+        }
+      ]
+    },
+    "process_status": "processing",
+    "allowed_actions": []
+  }
+]

@@ -1,0 +1,99 @@
+[
+  {
+    "schema_version": 1,
+    "event_id": "stream_1",
+    "event_type": "command.status_changed",
+    "conversation_id": "conv_demo",
+    "command_event_id": "cmd_message",
+    "correlation_id": "corr_message",
+    "occurred_at": "2026-09-27T08:00:01Z",
+    "cursor": 1,
+    "result": {
+      "schema_version": 1,
+      "event_id": "cmd_message",
+      "correlation_id": "corr_message",
+      "status": "pending"
+    }
+  },
+  {
+    "schema_version": 1,
+    "event_id": "stream_2",
+    "event_type": "conversation.text_delta",
+    "conversation_id": "conv_demo",
+    "command_event_id": "cmd_message",
+    "correlation_id": "corr_message",
+    "occurred_at": "2026-09-27T08:00:02Z",
+    "cursor": 2,
+    "message_id": "msg_assistant",
+    "delta": "Lo anoto en el borrador",
+    "provisional": true
+  },
+  {
+    "schema_version": 1,
+    "event_id": "stream_3",
+    "event_type": "snapshot.updated",
+    "conversation_id": "conv_demo",
+    "command_event_id": "cmd_message",
+    "correlation_id": "corr_message",
+    "occurred_at": "2026-09-27T08:00:02Z",
+    "cursor": 3,
+    "snapshot": {
+      "schema_version": 1,
+      "visit_id": "visit_demo",
+      "conversation_id": "conv_demo",
+      "identity": {"actor_id": "customer_demo", "authenticated": true},
+      "cursor": 3,
+      "messages": [
+        {
+          "message_id": "msg_user",
+          "role": "user",
+          "text": "Soy Majo, ponme una morcilla y agua.",
+          "occurred_at": "2026-09-27T08:00:01Z",
+          "command_event_id": "cmd_message"
+        },
+        {
+          "message_id": "msg_assistant",
+          "role": "assistant",
+          "text": "Lo anoto en el borrador, Majo. Aun no he comprobado disponibilidad.",
+          "occurred_at": "2026-09-27T08:00:02Z",
+          "command_event_id": "cmd_message"
+        }
+      ],
+      "customer": {
+        "presented_name": "Majo",
+        "party_size": 1,
+        "preferences": [],
+        "restrictions": []
+      },
+      "order_draft": {
+        "items": [
+          {"name": "morcilla", "quantity": 1, "notes": [], "status": "unverified"},
+          {"name": "agua", "quantity": 1, "notes": [], "status": "unverified"}
+        ]
+      },
+      "pending_fields": [],
+      "memory": {"memories": []},
+      "process_status": "idle",
+      "allowed_actions": ["conversation.message_sent", "memory.read_requested"]
+    }
+  },
+  {
+    "schema_version": 1,
+    "event_id": "stream_4",
+    "event_type": "command.status_changed",
+    "conversation_id": "conv_demo",
+    "command_event_id": "cmd_message",
+    "correlation_id": "corr_message",
+    "occurred_at": "2026-09-27T08:00:02Z",
+    "cursor": 4,
+    "result": {
+      "schema_version": 1,
+      "event_id": "cmd_message",
+      "correlation_id": "corr_message",
+      "status": "completed",
+      "visit_id": "visit_demo",
+      "conversation_id": "conv_demo",
+      "cursor": 3
+    }
+  }
+]

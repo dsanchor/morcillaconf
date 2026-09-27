@@ -6,19 +6,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
-class ConsentStatus(StrEnum):
-    """Current permission to persist durable memories."""
-
-    GRANTED = "granted"
-    REVOKED = "revoked"
-
-
-class MemoryKind(StrEnum):
-    """Category used to keep preferences and restrictions distinct."""
-
-    PREFERENCE = "preference"
-    RESTRICTION = "restriction"
+from restaurant_contracts.memory import MemoryCandidate, MemoryKind
 
 
 class MemoryIntent(StrEnum):
@@ -26,15 +14,6 @@ class MemoryIntent(StrEnum):
 
     NONE = "none"
     REUSE_LATEST_ORDER = "reuse_latest_order"
-
-
-class MemoryCandidate(BaseModel):
-    """Non-binding memory proposed from the current customer message."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    kind: MemoryKind
-    value: str = Field(min_length=1, max_length=200)
 
 
 ORDER_PREFERENCE_PREFIX = "Preferencia de pedido: "
@@ -67,20 +46,8 @@ def summarize_order_preference(
     )
 
 
-class MemoryConsent(BaseModel):
-    """Auditable consent state for one authenticated identity."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    actor_id: str
-    status: ConsentStatus
-    source: str
-    recorded_at: datetime
-    includes_sensitive_restrictions: bool = True
-
-
 class DurableMemoryRecord(BaseModel):
-    """A consented but non-binding memory with provenance."""
+    """A non-binding memory with provenance."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -120,6 +87,5 @@ class MemorySnapshot(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    consent: MemoryConsent | None
     memories: list[DurableMemoryRecord]
     order_history: list[CompletedOrderHistory] = Field(default_factory=list)

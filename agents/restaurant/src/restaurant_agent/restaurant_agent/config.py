@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     app_environment: Literal["development", "test", "production"] = "development"
     enable_dev_fake_identity: bool = False
     dev_fake_actor_id: str | None = None
-    dev_fake_memory_consent: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -47,8 +46,4 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "DEV_FAKE_ACTOR_ID is required when fake identity is enabled"
                 )
-        elif self.dev_fake_memory_consent:
-            raise ValueError(
-                "DEV_FAKE_MEMORY_CONSENT requires ENABLE_DEV_FAKE_IDENTITY"
-            )
         return self

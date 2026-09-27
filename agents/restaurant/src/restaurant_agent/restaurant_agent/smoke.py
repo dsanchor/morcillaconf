@@ -67,16 +67,11 @@ async def run_smoke() -> None:
         actor_id=memory_actor,
         authenticated=True,
     )
-    manager.grant_memory_consent(
-        conversation_id=memory_id,
-        actor_id=memory_actor,
-        source="foundry-smoke",
-    )
     try:
         await manager.send_message(
             conversation_id=memory_id,
             actor_id=memory_actor,
-            message="Recuerda que prefiero el agua con gas.",
+            message="Prefiero el agua con gas.",
         )
         persisted = memory_store.list_memories(memory_actor)
         assert len(persisted) == 1
@@ -87,7 +82,7 @@ async def run_smoke() -> None:
         assert len(recreated) == 1
         assert "agua con gas" in recreated[0].value.casefold()
     finally:
-        memory_store.revoke_consent(memory_actor, source="foundry-smoke-cleanup")
+        memory_store.delete_all_memories(memory_actor)
 
     print("Foundry smoke test passed.")
 

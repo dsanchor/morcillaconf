@@ -1029,6 +1029,17 @@ wheels = [
 ]
 
 [[package]]
+name = "morcillaconf-contracts"
+version = "0.1.0"
+source = { editable = "../../../../packages/contracts" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.12" }]
+
+[[package]]
 name = "morcillaconf-restaurant-agent"
 version = "0.1.0"
 source = { editable = "." }
@@ -1036,6 +1047,7 @@ dependencies = [
     { name = "agent-framework-foundry" },
     { name = "agent-framework-foundry-hosting" },
     { name = "debugpy" },
+    { name = "morcillaconf-contracts" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
@@ -1051,6 +1063,7 @@ requires-dist = [
     { name = "agent-framework-foundry" },
     { name = "agent-framework-foundry-hosting", specifier = ">=1.0.0b260813" },
     { name = "debugpy" },
+    { name = "morcillaconf-contracts", editable = "../../../../packages/contracts" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-settings", specifier = ">=2.12" },
 ]

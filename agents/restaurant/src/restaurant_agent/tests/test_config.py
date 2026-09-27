@@ -26,9 +26,13 @@ def test_fake_identity_requires_development_environment() -> None:
         )
 
 
-def test_fake_consent_requires_fake_identity() -> None:
-    with pytest.raises(ValidationError):
-        settings(dev_fake_memory_consent=True)
+def test_fake_identity_does_not_require_a_memory_consent_setting() -> None:
+    configured = settings(
+        enable_dev_fake_identity=True,
+        dev_fake_actor_id="customer-1",
+    )
+    assert configured.dev_fake_actor_id == "customer-1"
+    assert "dev_fake_memory_consent" not in configured.model_dump()
 
 
 def test_fake_identity_requires_actor_id() -> None:

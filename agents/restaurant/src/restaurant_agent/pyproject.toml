@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Camarero orquestador para la demo del restaurante multiagente."
 requires-python = ">=3.13"
 dependencies = [
+    "morcillaconf-contracts",
     "agent-framework-foundry",
     "agent-framework-foundry-hosting>=1.0.0b260813",
     "debugpy",
@@ -18,6 +19,9 @@ waiter-smoke = "restaurant_agent.smoke:main"
 [build-system]
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+morcillaconf-contracts = { path = "../../../../packages/contracts", editable = true }
 
 [tool.setuptools.packages.find]
 include = ["restaurant_agent*"]

@@ -188,21 +188,6 @@ class ConversationManager:
                 ],
             )
 
-    def grant_memory_consent(
-        self,
-        *,
-        conversation_id: str,
-        actor_id: str,
-        source: str = "development-cli",
-    ) -> MemorySnapshot:
-        record = self._get_memory_record(conversation_id, actor_id)
-        assert self._memory_store is not None
-        self._memory_store.grant_consent(record.actor_id, source=source)
-        record.remembered_memories = self._memory_store.list_memories(
-            record.actor_id
-        )
-        return self._memory_store.snapshot(record.actor_id)
-
     def memory_snapshot(
         self,
         *,
@@ -251,16 +236,15 @@ class ConversationManager:
         )
         return self._memory_store.snapshot(record.actor_id)
 
-    def revoke_memory_consent(
+    def clear_memories(
         self,
         *,
         conversation_id: str,
         actor_id: str,
-        source: str = "development-cli",
     ) -> MemorySnapshot:
         record = self._get_memory_record(conversation_id, actor_id)
         assert self._memory_store is not None
-        self._memory_store.revoke_consent(record.actor_id, source=source)
+        self._memory_store.delete_all_memories(record.actor_id)
         record.remembered_memories = []
         return self._memory_store.snapshot(record.actor_id)
 
@@ -304,7 +288,6 @@ class ConversationManager:
         if (
             not record.authenticated
             or self._memory_store is None
-            or not self._memory_store.has_active_consent(record.actor_id)
         ):
             return
         for candidate in candidates:

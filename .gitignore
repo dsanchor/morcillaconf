@@ -5,3 +5,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.py[cod]
+*.egg-info/
+packages/contracts/build/
+packages/contracts/dist/

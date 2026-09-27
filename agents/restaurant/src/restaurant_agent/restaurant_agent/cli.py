@@ -27,12 +27,7 @@ def handle_memory_command(
     parts = shlex.split(command)
     action = parts[1] if len(parts) > 1 else "list"
 
-    if action == "consent" and len(parts) == 2:
-        snapshot = manager.grant_memory_consent(
-            conversation_id=conversation_id,
-            actor_id=actor_id,
-        )
-    elif action == "list" and len(parts) in (1, 2):
+    if action == "list" and len(parts) in (1, 2):
         snapshot = manager.memory_snapshot(
             conversation_id=conversation_id,
             actor_id=actor_id,
@@ -50,14 +45,14 @@ def handle_memory_command(
             actor_id=actor_id,
             preference_id=parts[2],
         )
-    elif action == "revoke" and len(parts) == 2:
-        snapshot = manager.revoke_memory_consent(
+    elif action == "clear" and len(parts) == 2:
+        snapshot = manager.clear_memories(
             conversation_id=conversation_id,
             actor_id=actor_id,
         )
     else:
         raise ValueError(
-            "Uso: /memory consent|list|correct <id> <texto>|delete <id>|revoke"
+            "Uso: /memory list|correct <id> <texto>|delete <id>|clear"
         )
     print_memory(snapshot)
 
@@ -131,7 +126,7 @@ def main() -> None:
     parser.add_argument(
         "--authenticated",
         action="store_true",
-        help="Permite gestionar memoria duradera consentida para actor-id.",
+        help="Usa memoria duradera automática para esta identidad local.",
     )
     args = parser.parse_args()
     asyncio.run(run_cli(args.actor_id, authenticated=args.authenticated))

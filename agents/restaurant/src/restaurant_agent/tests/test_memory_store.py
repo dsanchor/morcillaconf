@@ -4,9 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from restaurant_agent.memory.contracts import ConsentStatus, MemoryKind
+from restaurant_agent.memory.contracts import MemoryKind
 from restaurant_agent.memory.store import (
-    ConsentRequiredError,
     MemoryNotFoundError,
     SQLiteMemoryStore,
 )
@@ -16,19 +15,17 @@ def create_store(path: Path, *, max_memories: int = 20) -> SQLiteMemoryStore:
     return SQLiteMemoryStore(path, max_memories=max_memories)
 
 
-def test_memory_requires_consent(tmp_path: Path) -> None:
+def test_memory_is_stored_automatically_for_a_new_identity(tmp_path: Path) -> None:
     store = create_store(tmp_path / "memory.db")
 
-    with pytest.raises(ConsentRequiredError):
-        store.remember_memory(
-            "customer-1",
-            kind=MemoryKind.PREFERENCE,
-            value="agua con gas",
-            source_conversation_id="conv-1",
-        )
-
-    assert store.get_consent("customer-1") is None
-    assert store.list_memories("customer-1") == []
+    memory = store.remember_memory(
+        "customer-1",
+        kind=MemoryKind.PREFERENCE,
+        value="agua con gas",
+        source_conversation_id="conv-1",
+    )
+    assert store.list_memories("customer-1") == [memory]
+    assert "consent" not in store.snapshot("customer-1").model_dump()
 
 
 def test_preferences_and_restrictions_survive_recreation_and_are_isolated(
@@ -36,7 +33,6 @@ def test_preferences_and_restrictions_survive_recreation_and_are_isolated(
 ) -> None:
     database_path = tmp_path / "memory.db"
     first_store = create_store(database_path)
-    consent = first_store.grant_consent("customer-1", source="test")
     first_store.remember_memory(
         "customer-1",
         kind=MemoryKind.PREFERENCE,
@@ -53,7 +49,6 @@ def test_preferences_and_restrictions_survive_recreation_and_are_isolated(
     recreated_store = create_store(database_path)
     memories = recreated_store.list_memories("customer-1")
 
-    assert consent.includes_sensitive_restrictions is True
     assert {(item.kind, item.value) for item in memories} == {
         (MemoryKind.PREFERENCE, "agua con gas"),
         (MemoryKind.RESTRICTION, "alergia a frutos secos"),
@@ -62,10 +57,9 @@ def test_preferences_and_restrictions_survive_recreation_and_are_isolated(
     assert recreated_store.list_memories("customer-2") == []
 
 
-def test_correction_deletion_and_revocation_are_persistent(tmp_path: Path) -> None:
+def test_correction_deletion_and_clear_are_persistent(tmp_path: Path) -> None:
     database_path = tmp_path / "memory.db"
     store = create_store(database_path)
-    store.grant_consent("customer-1", source="test")
     memory = store.remember_memory(
         "customer-1",
         kind=MemoryKind.RESTRICTION,
@@ -90,26 +84,30 @@ def test_correction_deletion_and_revocation_are_persistent(tmp_path: Path) -> No
         value="mesa tranquila",
         source_conversation_id="conv-1",
     )
-    revoked = store.revoke_consent("customer-1", source="test")
-
-    assert revoked.status is ConsentStatus.REVOKED
+    assert store.delete_all_memories("customer-1") == 1
     assert store.list_memories("customer-1") == []
-    with pytest.raises(ConsentRequiredError):
-        store.remember_memory(
-            "customer-1",
-            kind=MemoryKind.PREFERENCE,
-            value="cerca de la ventana",
-            source_conversation_id="conv-2",
-        )
 
     recreated_store = create_store(database_path)
     assert recreated_store.snapshot("customer-1").memories == []
-    assert recreated_store.get_consent("customer-1").status is ConsentStatus.REVOKED
+    recreated_store.remember_memory(
+        "customer-1",
+        kind=MemoryKind.PREFERENCE,
+        value="cerca de la ventana",
+        source_conversation_id="conv-2",
+    )
+    assert [item.value for item in store.list_memories("customer-1")] == [
+        "cerca de la ventana"
+    ]
 
 
-def test_delete_all_memories_keeps_consent(tmp_path: Path) -> None:
+def test_delete_all_memories_is_scoped_to_identity(tmp_path: Path) -> None:
     store = create_store(tmp_path / "memory.db")
-    store.grant_consent("customer-1", source="test")
+    other = store.remember_memory(
+        "customer-2",
+        kind=MemoryKind.PREFERENCE,
+        value="agua",
+        source_conversation_id="conv-other",
+    )
     for kind in MemoryKind:
         store.remember_memory(
             "customer-1",
@@ -122,14 +120,13 @@ def test_delete_all_memories_keeps_consent(tmp_path: Path) -> None:
 
     assert deleted == 2
     assert store.list_memories("customer-1") == []
-    assert store.has_active_consent("customer-1") is True
+    assert store.list_memories("customer-2") == [other]
 
 
 def test_selective_delete_is_atomic_when_an_id_is_unknown(
     tmp_path: Path,
 ) -> None:
     store = create_store(tmp_path / "memory.db")
-    store.grant_consent("customer-1", source="test")
     memory = store.remember_memory(
         "customer-1",
         kind=MemoryKind.PREFERENCE,
@@ -152,7 +149,6 @@ def test_store_keeps_only_the_configured_number_of_memories(
     tmp_path: Path,
 ) -> None:
     store = create_store(tmp_path / "memory.db", max_memories=2)
-    store.grant_consent("customer-1", source="test")
 
     for value in ("primera", "segunda", "tercera"):
         store.remember_memory(
@@ -169,7 +165,6 @@ def test_memory_limit_is_applied_independently_by_category(
     tmp_path: Path,
 ) -> None:
     store = create_store(tmp_path / "memory.db", max_memories=2)
-    store.grant_consent("customer-1", source="test")
 
     for kind in MemoryKind:
         for index in range(3):
@@ -189,7 +184,6 @@ def test_order_preferences_keep_bounded_history(
     tmp_path: Path,
 ) -> None:
     store = create_store(tmp_path / "memory.db", max_memories=2)
-    store.grant_consent("customer-1", source="test")
     first = store.remember_memory(
         "customer-1",
         kind=MemoryKind.PREFERENCE,
@@ -218,7 +212,6 @@ def test_order_preferences_keep_bounded_history(
 
 def test_repeated_memory_increments_occurrence_count(tmp_path: Path) -> None:
     store = create_store(tmp_path / "memory.db")
-    store.grant_consent("customer-1", source="test")
 
     first = store.remember_memory(
         "customer-1",
@@ -285,7 +278,6 @@ def test_existing_database_adds_occurrence_count(tmp_path: Path) -> None:
 def test_recreation_preserves_existing_order_summaries(tmp_path: Path) -> None:
     database_path = tmp_path / "memory.db"
     store = create_store(database_path)
-    store.grant_consent("customer-1", source="test")
     store.remember_memory(
         "customer-1",
         kind=MemoryKind.PREFERENCE,
@@ -328,7 +320,6 @@ def test_recreation_preserves_existing_order_summaries(tmp_path: Path) -> None:
 
 def test_concurrent_writes_do_not_corrupt_memory(tmp_path: Path) -> None:
     store = create_store(tmp_path / "memory.db")
-    store.grant_consent("customer-1", source="test")
 
     def remember(index: int) -> None:
         store.remember_memory(

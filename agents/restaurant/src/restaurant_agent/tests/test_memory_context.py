@@ -59,11 +59,10 @@ class FakeOptionMerger:
 
 
 @pytest.mark.asyncio
-async def test_context_provider_injects_only_consented_authenticated_memory(
+async def test_context_provider_injects_identified_memory_without_consent(
     tmp_path: Path,
 ) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
-    store.grant_consent("customer-1", source="test")
     store.remember_memory(
         "customer-1",
         kind=MemoryKind.RESTRICTION,
@@ -91,15 +90,15 @@ async def test_context_provider_injects_only_consented_authenticated_memory(
     assert "requires_reconfirmation" in context.instructions[0]
     assert "`remembered_memories`" in context.instructions[0]
 
-    store.revoke_consent("customer-1", source="test")
-    context_after_revocation = SessionContext(input_messages=[])
+    store.delete_all_memories("customer-1")
+    context_after_clear = SessionContext(input_messages=[])
     await provider.before_run(
         agent=object(),
         session=session,
-        context=context_after_revocation,
+        context=context_after_clear,
         state={},
     )
-    assert context_after_revocation.instructions == []
+    assert context_after_clear.instructions == []
 
 
 @pytest.mark.asyncio
@@ -107,7 +106,6 @@ async def test_context_identifies_habitual_order_preference_for_repeat_intent(
     tmp_path: Path,
 ) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
-    store.grant_consent("customer-1", source="test")
     store.remember_memory(
         "customer-1",
         kind=MemoryKind.PREFERENCE,
@@ -149,7 +147,6 @@ def test_habitual_orders_are_ranked_by_frequency_then_recency(
     tmp_path: Path,
 ) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
-    store.grant_consent("customer-1", source="test")
     water = "Preferencia de pedido: agua con gas"
     cola = "Preferencia de pedido: coca cola"
 
@@ -199,7 +196,6 @@ async def test_context_merges_overlapping_habitual_orders_into_one_question(
     tmp_path: Path,
 ) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
-    store.grant_consent("customer-1", source="test")
     for value in (
         "Preferencia de pedido: agua con gas, pincho de tortilla",
         "Preferencia de pedido: coca cola",
@@ -271,7 +267,6 @@ async def test_development_fallback_identity_persists_structured_candidates(
     tmp_path: Path,
 ) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
-    store.grant_consent("Majo", source="development-environment")
     provider = DurableMemoryContextProvider(
         store,
         fallback_actor_id="Majo",
@@ -331,3 +326,52 @@ async def test_development_fallback_identity_persists_structured_candidates(
         (MemoryKind.RESTRICTION, "alergia a frutos secos"),
         (MemoryKind.PREFERENCE, "Preferencia de pedido: tortilla de patatas"),
     }
+
+    recreated = SQLiteMemoryStore(tmp_path / "memory.db")
+    assert recreated.list_memories("Majo") == memories
+    assert recreated.list_memories("Other") == []
+
+
+@pytest.mark.asyncio
+async def test_clear_invalidates_habitual_order_state(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "memory.db")
+    store.remember_memory(
+        "customer", kind=MemoryKind.PREFERENCE,
+        value="Preferencia de pedido: agua", source_conversation_id="old",
+    )
+    provider = DurableMemoryContextProvider(store, intent_classifier=FakeClassifier())
+    session = AgentSession(session_id="current")
+    session.state["memory_identity"] = {"actor_id": "customer", "authenticated": True}
+    state: dict[str, object] = {}
+    await provider.before_run(
+        agent=object(), session=session,
+        context=SessionContext(input_messages=[Message("user", ["Lo de siempre"])]),
+        state=state,
+    )
+    assert session.state["habitual_order_preference"] == "agua"
+    store.delete_all_memories("customer")
+    context = SessionContext(input_messages=[])
+    await provider.before_run(agent=object(), session=session, context=context, state=state)
+    assert context.instructions == []
+    for key in ("habitual_order_preference", "habitual_order_options", "memory_intent"):
+        assert key not in session.state
+
+
+@pytest.mark.asyncio
+async def test_guest_never_inherits_fallback_identity_or_previous_turn_state(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteMemoryStore(tmp_path / "memory.db")
+    provider = DurableMemoryContextProvider(
+        store, fallback_actor_id="Majo", persist_fallback_candidates=True,
+    )
+    session = AgentSession(session_id="current")
+    session.state["memory_identity"] = {"actor_id": "guest", "authenticated": False}
+    state: dict[str, object] = {"actor_id": "Majo", "using_fallback": True}
+    context = SessionContext(input_messages=[])
+    await provider.before_run(agent=object(), session=session, context=context, state=state)
+    await provider.after_run(agent=object(), session=session, context=context, state=state)
+    assert state == {}
+    assert context.instructions == []
+    assert store.list_memories("Majo") == []
+    assert store.list_memories("guest") == []

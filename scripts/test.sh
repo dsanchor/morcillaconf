@@ -5,4 +5,4 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 agent_dir="$repo_root/agents/restaurant/src/restaurant_agent"
 
 cd "$agent_dir"
-uv run --frozen pytest
+uv run --frozen pytest tests "$repo_root/packages/contracts/tests" "$repo_root/tests/contract"

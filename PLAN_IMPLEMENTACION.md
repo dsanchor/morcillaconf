@@ -89,9 +89,10 @@ ni evidencias de una implementacion previa.
 - El nombre escrito en el chat no es identidad autenticada.
 - La memoria de preferencias no sustituye la persistencia de visita, pedido,
   cuenta o checkpoint. Cada una tiene su contrato y ciclo de vida.
-- El consentimiento debe preceder a la escritura de preferencias o
-  restricciones recordadas; la politica de guardado automatico, si se utiliza,
-  debe respetar revocacion y borrado. Todo recuerdo es no vinculante.
+- El camarero lee y guarda automaticamente preferencias y restricciones de la
+  identidad autenticada resuelta por el servidor, incluida la falsa local.
+  Los invitados no generan perfil duradero. Todo recuerdo es no vinculante;
+  corregir o borrar no bloquea el guardado de interacciones futuras.
 - Cada incremento sustituye adaptadores simulados por integraciones reales sin
   cambiar la experiencia unica del cliente ni relajar los controles.
 
@@ -150,7 +151,7 @@ despues de la validacion y aprobacion de ambas partes. No se asignan responsable
 | Fase | Incremento | Dependencia | Capacidad empresarial visible |
 |---|---|---|---|
 | 1 | Proyecto y primer camarero conectado a Foundry | Ninguna | Contratos y aislamiento de conversacion |
-| 2 | Memoria persistente consentida | 1 | Personalizacion y gobierno de datos |
+| 2 | Memoria persistente automatica | 1 | Personalizacion, aislamiento y control de recuerdos |
 | 3 | Vista unica, BFF y recuperacion | 1-2 | Identidad, comandos, eventos y continuidad |
 | 4 | Recorrido local completo y dos HITL | 3 | Control humano y efectos transaccionales |
 | 5 | Validacion temprana de Hosted Agent | 4 | Portabilidad, identidad de servicio y reanudacion remota |
@@ -197,17 +198,26 @@ preferencias sin inventar carta, disponibilidad ni asignacion de mesa.
 - No afirma haber reservado, preparado o cobrado: aun no existen herramientas.
 - El smoke acredita inferencia real en Foundry, no hosting remoto del workflow.
 
-### Fase 2. Memoria persistente consentida
+### Fase 2. Memoria persistente automatica
 
 **Demostracion:** con la misma identidad, una nueva conversacion recuerda una
-preferencia autorizada tras reiniciar el proceso; otra identidad no la recupera.
+preferencia guardada automaticamente tras reiniciar el proceso; otra identidad
+no la recupera.
 
 - [ ] Definir contratos distintos para sesion, preferencias e historial de
   pedidos. No guardar un borrador como pedido efectivamente realizado.
 - [ ] Implementar adaptador SQLite y context provider de Agent Framework,
   desacoplados del transporte y preparados para un almacen gestionado.
-- [ ] Registrar consentimiento, procedencia y fecha antes de escribir recuerdos;
-  ofrecer consulta, correccion, borrado y revocacion desde el cliente de pruebas.
+- [ ] Leer y guardar recuerdos automaticamente para la identidad autenticada
+  resuelta por el servidor, incluida la falsa local, con procedencia y fecha.
+  Ofrecer consulta, correccion, borrado individual y `/memory clear` para olvidar
+  todos los recuerdos; no crear perfiles duraderos de invitados.
+- [ ] Eliminar APIs, comandos y campos de consentimiento, tanto de `MemoryView`
+  como del snapshot interno. Rechazar entradas antiguas de alta/revocacion,
+  sin aceptarlas silenciosamente ni reinterpretarlas.
+- [ ] Migrar SQLite en una transaccion eliminando el acoplamiento al
+  consentimiento y preservando recuerdos existentes, contadores e historial.
+  No restaurar recuerdos ya borrados, tampoco desde tablas antiguas.
 - [ ] Exponer la memoria recuperada separada del estado actual para distinguir
   recuerdos persistidos de datos reafirmados durante la visita.
 - [ ] Persistir alergias y restricciones en una categoria separada de las
@@ -219,7 +229,7 @@ preferencia autorizada tras reiniciar el proceso; otra identidad no la recupera.
   resúmenes de pedido, contar repeticiones y deduplicar los idénticos, sin
   sumarizacion generativa.
 - [ ] Resumir los productos de un borrador como preferencia de pedido
-  consentida y no vinculante, sin convertirlos en historial completado.
+  automatica y no vinculante, sin convertirlos en historial completado.
 - [ ] Interpretar peticiones como "lo de siempre" para proponer la preferencia
   recordada cuando sea única; si existen varias, presentarlas por frecuencia y
   recencia para que el cliente elija, sin exponer esos metadatos internos ni
@@ -227,14 +237,24 @@ preferencia autorizada tras reiniciar el proceso; otra identidad no la recupera.
   preguntar una sola vez por cada alternativa o complemento.
 - [ ] Configurar explicitamente ruta/almacen y dependencias para que el arranque
   no intente usar infraestructura no configurada ni oculte errores.
+- [ ] Eliminar `DEV_FAKE_MEMORY_CONSENT` de la configuracion y del `.env` local
+  existente; regenerar `./scripts/init-local-env.sh --force` y recargar el
+  entorno. La variable antigua exportada ya no se necesita.
 - [ ] Probar persistencia al recrear proceso, concurrencia basica, borrado y
   aislamiento; documentar limites del almacenamiento local.
 
 **Aceptacion y pruebas**
 
-- Sin consentimiento no se escribe memoria; un invitado no genera perfil duradero.
-- Revocar elimina recuerdos y bloquea nuevas escrituras hasta nuevo consentimiento.
-- Corregir o borrar cambia lo recuperado, tambien despues del reinicio.
+- Una identidad autenticada lee y guarda automaticamente sin alta previa;
+  la falsa local sigue la misma regla y un invitado no genera perfil duradero.
+- Borrar todos los recuerdos los olvida sin bloquear escrituras de interacciones
+  futuras. No hay revocacion permanente.
+- Corregir o borrar cambia lo recuperado en conversaciones activas y despues
+  del reinicio, sin recrear datos borrados desde contexto antiguo.
+- La migracion conserva recuerdos, contadores e historial existentes, no
+  resucita datos eliminados y es segura ante reaperturas.
+- Los comandos antiguos de consentimiento/revocacion se rechazan y los snapshots
+  publico e interno no exponen consentimiento.
 - Recordar preferencias no se presenta como recuperacion de una visita activa;
   esta ultima se implementa en fase 3.
 
@@ -248,6 +268,15 @@ La ejecución paralela de contratos, frontend, BFF e integración se detalla en
 La fase mantiene una única aceptación conjunta y no se considera completada por
 terminar uno de esos carriles de forma aislada.
 
+**Progreso parcial:** 3A (contratos públicos, fixtures y pruebas) implementado;
+revisión conjunta pendiente. La actualización a memoria automática está
+implementada y validada localmente con 127 pruebas; la revisión conjunta sigue
+pendiente y la evidencia anterior se conserva como histórica.
+Ver [contratos de 3A](packages/contracts/README.md)
+y [evidencia en PROGRESO](PROGRESO.md#fase-3a-contratos-publicos).
+3B, 3C y 3D permanecen pendientes. Se puede adelantar dominio de fase 4 tras
+3A, pero no aceptar el recorrido completo sin integrar la fase 3.
+
 - [ ] Crear Streamlit y FastAPI con contratos independientes del transporte del
   agente. Adaptador local explicito al principio, remoto en fase 5.
 - [ ] Resolver identidad fuera del chat; usar identidades sinteticas solo en
@@ -260,8 +289,10 @@ terminar uno de esos carriles de forma aislada.
   desde Streamlit, cierre de suscripcion y reconexion tras rerun.
 - [ ] Persistir visita y borrador aparte de las preferencias. Una conversacion
   nueva puede recuperar una visita activa autorizada sin crear otra mesa.
-- [ ] Integrar consulta, correccion, borrado y revocacion de memoria. Documentar
-  en la UI la politica de consentimiento y guardado definida en fase 2.
+- [ ] Integrar consulta, correccion y borrado individual o total de memoria.
+  Documentar en la UI el guardado automatico de fase 2 y que olvidar los
+  recuerdos actuales no desactiva el guardado futuro, sin controles de alta
+  o revocacion.
 - [ ] Iniciar spans de BFF/agente y eventos de dominio sin exponer datos sensibles.
 
 **Aceptacion y pruebas**
@@ -493,7 +524,7 @@ no del `actor` declarado por el navegador o por el modelo.
 | Contrato | Contenido minimo | Fase |
 |---|---|---|
 | Turno/borrador inicial | Texto, datos conocidos, restricciones actuales y campos pendientes | 1 |
-| Memoria consentida | Cliente, tipo preferencia/restriccion, dato, origen, fecha, consentimiento, reconfirmacion y borrado | 2 |
+| Memoria automatica | Cliente autenticado, tipo preferencia/restriccion, dato, origen, fecha, reconfirmacion y borrado; sin consentimiento | 2 |
 | Visita/sesion | Cliente verificado, visita, conversacion, workflow y pertenencia | 3 |
 | Comando | `event_id`, tipo, version, recursos, payload y clave de idempotencia | 3 |
 | Evento/snapshot | Secuencia, cursor, recursos autorizados, estado confirmado y acciones permitidas | 3 |
@@ -512,15 +543,27 @@ no del `actor` declarado por el navegador o por el modelo.
 |---|---|
 | `customer.arrived` | Abrir/recuperar visita y asignar mesa cuando se conocen los datos |
 | `conversation.message_sent` | Conversar y completar datos; nunca inferir una aprobacion por defecto |
+| `memory.read_requested` | Consultar recuerdos de la identidad propia |
+| `memory.correction_requested` | Corregir un recuerdo propio |
+| `memory.deletion_requested` | Eliminar un recuerdo propio |
+| `memory.clear_requested` | Olvidar todos los recuerdos propios sin desactivar escrituras futuras |
 | `order.submitted` | Validar borrador con cocina, todavia sin preparar |
 | `order.confirmation_decided` | Confirmar/modificar/cancelar la version presentada |
 | `bill.requested` | Generar cuenta y abrir HITL de pago; no cobrar |
 | `payment.confirmation_decided` | Autorizar/cancelar el cobro concreto |
 | `table.release_requested` | Liberar la asignacion propia tras verificar pago |
 
+El alcance publico de 3A incluye solo llegada, mensaje y los cuatro comandos
+de memoria. La llegada aun no asigna mesa; los otros comandos de negocio
+llegan en fase 4. `memory.consent_granted` y `memory.consent_revoked` se rechazan.
+La lectura y escritura automatica dependen de identidad autenticada resuelta
+por servidor, nunca de un campo o permiso declarado en el mensaje.
+
 Las confirmaciones via controles explicitos incluyen los IDs/versiones pendientes.
 Un texto ambiguo, memoria de una aprobacion anterior o decision de cocina no
-autoriza una escritura. Un reintento del mismo comando conserva su clave.
+autoriza una escritura de negocio protegida por HITL. Esta regla no impide
+guardar automaticamente recuerdos no vinculantes. Un reintento del mismo
+comando conserva su clave.
 
 ### Estados e invariantes
 

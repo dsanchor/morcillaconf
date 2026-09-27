@@ -58,9 +58,10 @@ de modificar ambos consumidores.
 
 El carril 3A debe acordar como mínimo:
 
-- sobre común de comandos con `event_id`, tipo, fecha, actor y correlación;
+- sobre común de comandos con `event_id`, tipo, versión y fecha; identidad
+  validada separada y correlación generada por el servidor;
 - resultado de comando con estados `pending`, `completed` y `failed`;
-- snapshot de conversación, visita, mesa, borrador, pedido, cuenta y workflow;
+- snapshot de conversación, visita, cliente, borrador, memoria y proceso;
 - lista explícita de `allowed_actions`;
 - evento de stream con identificador, secuencia o cursor y estado confirmado;
 - errores públicos distinguibles de fallos internos;
@@ -68,8 +69,24 @@ El carril 3A debe acordar como mínimo:
 - fixtures de camino feliz, estado pendiente, error, reconexión y ausencia de
   acciones permitidas.
 
+Los comandos de 3A son llegada (`customer.arrived`), mensaje
+(`conversation.message_sent`), `memory.read_requested`,
+`memory.correction_requested`, `memory.deletion_requested` y
+`memory.clear_requested`. La lectura y escritura de recuerdos es automática
+para la identidad autenticada resuelta por el servidor, incluida la falsa de
+desarrollo. Un invitado no tiene perfil duradero. `MemoryView` no expone
+consentimiento y no hay controles de concesión o revocación; sus comandos
+antiguos se rechazan, no se ignoran. La UI explica que borrar todos los
+recuerdos no impide recordar interacciones futuras y mantiene las restricciones
+recordadas separadas de las reafirmadas en la visita.
+
 Los modelos compartidos viven en `packages/contracts/`. No deben depender de
 Streamlit, FastAPI, Agent Framework ni de adaptadores de infraestructura.
+
+La [versión inicial de 3A](../packages/contracts/README.md) está implementada con
+pruebas y fixtures. No incluye todavía modelos de mesa, propuesta, cuenta, pago
+ni HITL: se incorporarán con sus consumidores en fase 4. Los contratos no
+constituyen una implementación de BFF ni de autenticación.
 
 ## 5. Alcance autónomo del frontend
 
@@ -142,11 +159,14 @@ agentes ni reglas de dominio para adaptar la UI.
 - aislamiento de snapshot y eventos entre clientes;
 - reconexión mediante cursor sin huecos;
 - recuperación explícita mediante snapshot cuando el cursor caduca;
-- memoria consultable, corregible, borrable y revocable desde la vista;
+- memoria automática consultable, corregible y borrable (individual o
+  totalmente) desde la vista, sin controles de consentimiento;
 - pruebas de contrato e integración superadas.
 
-Solo el hito 3 permite aplicar los criterios de aceptación de la fase 3 y
-continuar formalmente con la fase 4.
+Solo el hito 3 permite aplicar los criterios de aceptación de la fase 3.
+Después de 3A se puede adelantar dominio y servicios deterministas de fase 4,
+coordinando sus contratos nuevos, sin esperar al frontend. Su integración y
+aceptación del recorrido completo siguen dependiendo de la fase 3.
 
 ## 8. Validación del trabajo paralelo
 
@@ -161,4 +181,3 @@ Cada cambio debe indicar:
 La integración debe realizarse de forma continua mediante cortes verticales
 pequeños. No se esperará a terminar por separado todo el frontend y todo el BFF
 para conectarlos por primera vez.
-

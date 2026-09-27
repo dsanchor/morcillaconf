@@ -103,7 +103,6 @@ memory_path="$repo_root/agents/restaurant/src/restaurant_agent/data/memory.db"
   printf 'export APP_ENVIRONMENT=%q\n' "development"
   printf 'export ENABLE_DEV_FAKE_IDENTITY=%q\n' "true"
   printf 'export DEV_FAKE_ACTOR_ID=%q\n' "$actor_id"
-  printf 'export DEV_FAKE_MEMORY_CONSENT=%q\n' "true"
 } >"$output_path"
 
 chmod 600 "$output_path"

@@ -1,0 +1,49 @@
+[
+  {
+    "schema_version": 1,
+    "event_id": "cmd_arrive",
+    "event_type": "customer.arrived",
+    "occurred_at": "2026-09-27T08:00:00Z",
+    "payload": {"resume_visit_id": null}
+  },
+  {
+    "schema_version": 1,
+    "event_id": "cmd_message",
+    "event_type": "conversation.message_sent",
+    "occurred_at": "2026-09-27T08:00:01Z",
+    "conversation_id": "conv_demo",
+    "payload": {"message": "Soy Majo, ponme una morcilla y agua."}
+  },
+  {
+    "schema_version": 1,
+    "event_id": "cmd_memory_read",
+    "event_type": "memory.read_requested",
+    "occurred_at": "2026-09-27T08:00:03Z",
+    "conversation_id": "conv_demo",
+    "payload": {}
+  },
+  {
+    "schema_version": 1,
+    "event_id": "cmd_memory_correct",
+    "event_type": "memory.correction_requested",
+    "occurred_at": "2026-09-27T08:00:04Z",
+    "conversation_id": "conv_demo",
+    "payload": {"memory_id": "mem_demo", "value": "Agua con gas"}
+  },
+  {
+    "schema_version": 1,
+    "event_id": "cmd_memory_delete",
+    "event_type": "memory.deletion_requested",
+    "occurred_at": "2026-09-27T08:00:05Z",
+    "conversation_id": "conv_demo",
+    "payload": {"memory_id": "mem_demo"}
+  },
+  {
+    "schema_version": 1,
+    "event_id": "cmd_memory_clear",
+    "event_type": "memory.clear_requested",
+    "occurred_at": "2026-09-27T08:00:06Z",
+    "conversation_id": "conv_demo",
+    "payload": {}
+  }
+]

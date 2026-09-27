@@ -1,4 +1,4 @@
-"""SQLite adapter for consented durable memory."""
+"""SQLite adapter for automatic, identity-scoped durable memory."""
 
 import json
 import sqlite3
@@ -11,20 +11,14 @@ from uuid import uuid4
 
 from restaurant_agent.memory.contracts import (
     CompletedOrderHistory,
-    ConsentStatus,
     DurableMemoryRecord,
     MemoryKind,
-    MemoryConsent,
     MemorySnapshot,
 )
 
 
 class DurableMemoryError(RuntimeError):
     """Base error for durable memory operations."""
-
-
-class ConsentRequiredError(DurableMemoryError):
-    """Raised when a write is attempted without active consent."""
 
 
 class MemoryNotFoundError(DurableMemoryError):
@@ -37,12 +31,6 @@ class MemoryConflictError(DurableMemoryError):
 
 class DurableMemoryRepository(Protocol):
     """Persistence boundary used by the conversation and context layers."""
-
-    def grant_consent(self, actor_id: str, *, source: str) -> MemoryConsent: ...
-
-    def revoke_consent(self, actor_id: str, *, source: str) -> MemoryConsent: ...
-
-    def has_active_consent(self, actor_id: str) -> bool: ...
 
     def remember_memory(
         self,
@@ -78,7 +66,7 @@ class DurableMemoryRepository(Protocol):
 
 
 class SQLiteMemoryStore:
-    """Persist bounded, consented, non-binding memories in SQLite."""
+    """Persist bounded, non-binding memories in SQLite."""
 
     def __init__(
         self,
@@ -98,89 +86,6 @@ class SQLiteMemoryStore:
     @property
     def database_path(self) -> Path:
         return self._database_path
-
-    def grant_consent(self, actor_id: str, *, source: str) -> MemoryConsent:
-        actor = self._normalize_required(actor_id, "actor_id")
-        consent_source = self._normalize_required(source, "source")
-        recorded_at = self._clock()
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            connection.execute(
-                """
-                INSERT INTO memory_consents(actor_id, status, source, recorded_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(actor_id) DO UPDATE SET
-                    status = excluded.status,
-                    source = excluded.source,
-                    recorded_at = excluded.recorded_at
-                """,
-                (
-                    actor,
-                    ConsentStatus.GRANTED.value,
-                    consent_source,
-                    recorded_at.isoformat(),
-                ),
-            )
-        return MemoryConsent(
-            actor_id=actor,
-            status=ConsentStatus.GRANTED,
-            source=consent_source,
-            recorded_at=recorded_at,
-        )
-
-    def revoke_consent(self, actor_id: str, *, source: str) -> MemoryConsent:
-        actor = self._normalize_required(actor_id, "actor_id")
-        consent_source = self._normalize_required(source, "source")
-        recorded_at = self._clock()
-        with self._connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            connection.execute(
-                "DELETE FROM durable_memories WHERE actor_id = ?",
-                (actor,),
-            )
-            connection.execute(
-                "DELETE FROM completed_order_history WHERE actor_id = ?",
-                (actor,),
-            )
-            connection.execute(
-                """
-                INSERT INTO memory_consents(actor_id, status, source, recorded_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(actor_id) DO UPDATE SET
-                    status = excluded.status,
-                    source = excluded.source,
-                    recorded_at = excluded.recorded_at
-                """,
-                (
-                    actor,
-                    ConsentStatus.REVOKED.value,
-                    consent_source,
-                    recorded_at.isoformat(),
-                ),
-            )
-        return MemoryConsent(
-            actor_id=actor,
-            status=ConsentStatus.REVOKED,
-            source=consent_source,
-            recorded_at=recorded_at,
-        )
-
-    def get_consent(self, actor_id: str) -> MemoryConsent | None:
-        actor = self._normalize_required(actor_id, "actor_id")
-        with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT actor_id, status, source, recorded_at
-                FROM memory_consents
-                WHERE actor_id = ?
-                """,
-                (actor,),
-            ).fetchone()
-        return self._consent_from_row(row) if row else None
-
-    def has_active_consent(self, actor_id: str) -> bool:
-        consent = self.get_consent(actor_id)
-        return consent is not None and consent.status is ConsentStatus.GRANTED
 
     def remember_memory(
         self,
@@ -202,7 +107,6 @@ class SQLiteMemoryStore:
 
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            self._require_consent(connection, actor)
             existing = connection.execute(
                 """
                 SELECT preference_id, created_at, occurrence_count
@@ -278,8 +182,6 @@ class SQLiteMemoryStore:
 
     def list_memories(self, actor_id: str) -> list[DurableMemoryRecord]:
         actor = self._normalize_required(actor_id, "actor_id")
-        if not self.has_active_consent(actor):
-            return []
         with self._connect() as connection:
             rows = connection.execute(
                 """
@@ -307,7 +209,6 @@ class SQLiteMemoryStore:
 
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            self._require_consent(connection, actor)
             row = connection.execute(
                 """
                 SELECT kind, occurrence_count, source_conversation_id, created_at
@@ -373,7 +274,6 @@ class SQLiteMemoryStore:
         placeholders = ", ".join("?" for _ in selected_ids)
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            self._require_consent(connection, actor)
             rows = connection.execute(
                 f"""
                 SELECT preference_id
@@ -412,27 +312,15 @@ class SQLiteMemoryStore:
 
     def snapshot(self, actor_id: str) -> MemorySnapshot:
         actor = self._normalize_required(actor_id, "actor_id")
-        consent = self.get_consent(actor)
         return MemorySnapshot(
-            consent=consent,
             memories=self.list_memories(actor),
-            order_history=self._list_completed_orders(actor)
-            if consent and consent.status is ConsentStatus.GRANTED
-            else [],
+            order_history=self._list_completed_orders(actor),
         )
 
     def _initialize_schema(self) -> None:
         with self._connect() as connection:
-            connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS memory_consents (
-                    actor_id TEXT PRIMARY KEY,
-                    status TEXT NOT NULL CHECK(status IN ('granted', 'revoked')),
-                    source TEXT NOT NULL,
-                    recorded_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS durable_memories (
+            connection.execute("BEGIN IMMEDIATE")
+            memory_schema = """(
                     preference_id TEXT PRIMARY KEY,
                     actor_id TEXT NOT NULL,
                     kind TEXT NOT NULL CHECK(kind IN ('preference', 'restriction')),
@@ -443,23 +331,19 @@ class SQLiteMemoryStore:
                     updated_at TEXT NOT NULL,
                     occurrence_count INTEGER NOT NULL DEFAULT 1
                         CHECK(occurrence_count >= 1),
-                    FOREIGN KEY(actor_id) REFERENCES memory_consents(actor_id)
-                        ON DELETE CASCADE,
                     UNIQUE(actor_id, kind, normalized_value)
-                );
-
-                CREATE TABLE IF NOT EXISTS completed_order_history (
+                )"""
+            history_schema = """(
                     order_id TEXT PRIMARY KEY,
                     actor_id TEXT NOT NULL,
                     items_json TEXT NOT NULL,
-                    completed_at TEXT NOT NULL,
-                    FOREIGN KEY(actor_id) REFERENCES memory_consents(actor_id)
-                        ON DELETE CASCADE
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_memories_actor_updated
-                ON durable_memories(actor_id, updated_at DESC);
-                """
+                    completed_at TEXT NOT NULL
+                )"""
+            connection.execute(
+                f"CREATE TABLE IF NOT EXISTS durable_memories {memory_schema}"
+            )
+            connection.execute(
+                f"CREATE TABLE IF NOT EXISTS completed_order_history {history_schema}"
             )
             memory_columns = {
                 row["name"]
@@ -475,6 +359,31 @@ class SQLiteMemoryStore:
                     CHECK(occurrence_count >= 1)
                     """
                 )
+            # Rebuild legacy tables without the consent foreign key, preserving data.
+            for table, schema, columns in (
+                (
+                    "durable_memories",
+                    memory_schema,
+                    "preference_id, actor_id, kind, normalized_value, value, "
+                    "source_conversation_id, created_at, updated_at, occurrence_count",
+                ),
+                (
+                    "completed_order_history",
+                    history_schema,
+                    "order_id, actor_id, items_json, completed_at",
+                ),
+            ):
+                foreign_keys = connection.execute(
+                    f"PRAGMA foreign_key_list({table})"
+                ).fetchall()
+                if any(row["table"] == "memory_consents" for row in foreign_keys):
+                    connection.execute(f"CREATE TABLE {table}_automatic {schema}")
+                    connection.execute(
+                        f"INSERT INTO {table}_automatic ({columns}) "
+                        f"SELECT {columns} FROM {table}"
+                    )
+                    connection.execute(f"DROP TABLE {table}")
+                    connection.execute(f"ALTER TABLE {table}_automatic RENAME TO {table}")
             legacy_table = connection.execute(
                 """
                 SELECT 1
@@ -507,6 +416,11 @@ class SQLiteMemoryStore:
                     """
                 )
                 connection.execute("DROP TABLE preference_memories")
+            connection.execute("DROP TABLE IF EXISTS memory_consents")
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memories_actor_updated "
+                "ON durable_memories(actor_id, updated_at DESC)"
+            )
             actors = connection.execute(
                 "SELECT DISTINCT actor_id FROM durable_memories"
             ).fetchall()
@@ -530,17 +444,6 @@ class SQLiteMemoryStore:
             raise
         finally:
             connection.close()
-
-    @staticmethod
-    def _require_consent(connection: sqlite3.Connection, actor_id: str) -> None:
-        row = connection.execute(
-            "SELECT status FROM memory_consents WHERE actor_id = ?",
-            (actor_id,),
-        ).fetchone()
-        if row is None or row["status"] != ConsentStatus.GRANTED.value:
-            raise ConsentRequiredError(
-                f"Identity {actor_id!r} has not granted durable memory consent"
-            )
 
     def _trim_memories(
         self,
@@ -596,15 +499,6 @@ class SQLiteMemoryStore:
         if len(normalized) > max_length:
             raise ValueError(f"{field_name} cannot exceed {max_length} characters")
         return normalized
-
-    @staticmethod
-    def _consent_from_row(row: sqlite3.Row) -> MemoryConsent:
-        return MemoryConsent(
-            actor_id=row["actor_id"],
-            status=ConsentStatus(row["status"]),
-            source=row["source"],
-            recorded_at=datetime.fromisoformat(row["recorded_at"]),
-        )
 
     @staticmethod
     def _memory_from_row(row: sqlite3.Row) -> DurableMemoryRecord:

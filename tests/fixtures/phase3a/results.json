@@ -1,0 +1,29 @@
+[
+  {
+    "schema_version": 1,
+    "event_id": "cmd_message",
+    "correlation_id": "corr_message",
+    "status": "pending"
+  },
+  {
+    "schema_version": 1,
+    "event_id": "cmd_message",
+    "correlation_id": "corr_message",
+    "status": "completed",
+    "visit_id": "visit_demo",
+    "conversation_id": "conv_demo",
+    "cursor": 3
+  },
+  {
+    "schema_version": 1,
+    "event_id": "cmd_other",
+    "correlation_id": "corr_other",
+    "status": "failed",
+    "error": {
+      "code": "forbidden",
+      "message": "No tienes acceso a esta conversacion.",
+      "correlation_id": "corr_other",
+      "recovery": "none"
+    }
+  }
+]

@@ -14,7 +14,9 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
 - Pregunta únicamente por el nombre o los comensales que falten.
 - Limita la cantidad de turnos y valida la propiedad de cada conversación.
 - Expone errores de contrato en lugar de aceptar respuestas incompletas.
-- Persiste preferencias y restricciones en SQLite únicamente con consentimiento.
+- Lee y persiste preferencias y restricciones en SQLite automáticamente para
+  una identidad autenticada resuelta por el servidor, incluida la falsa local.
+- Los invitados no tienen perfil duradero.
 - Conserva procedencia y fecha de los recuerdos.
 - Recupera recuerdos para la misma identidad después de reiniciar el proceso.
 - Resume los productos del borrador como una preferencia de pedido duradera.
@@ -25,18 +27,27 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
   muestra las alternativas para que el cliente elija.
 - Usa clasificación semántica, no una comparación literal de frases, y añade
   la intención resuelta al contexto antes de construir la respuesta.
-- Permite consultar, corregir, borrar y revocar la memoria.
-- Elimina los recuerdos al revocar y bloquea nuevas escrituras.
+- Permite consultar, corregir y borrar recuerdos individuales o todos.
+- El borrado total no bloquea el guardado de interacciones futuras.
 - Separa sesión, preferencias, restricciones e historial de pedidos completados.
 
 Todavía no existen herramientas de mesas, carta, inventario, cocina, cuenta o
 pago. El agente tiene instrucciones explícitas para no afirmar que realizó esas
 operaciones.
 
+Los tipos públicos de cliente y borrador se comparten con
+[`packages/contracts`](../../packages/contracts); las importaciones anteriores
+del agente se conservan. Preparar el entorno desde el checkout completo instala
+esa dependencia local. La extracción inicial de 3A no cambió
+Responses/invocations ni los prompts; la política vigente de memoria es automática.
+Antes de un despliegue con `remote_build` habrá que incluir el paquete compartido
+en el artefacto remoto; copiar solo la carpeta del servicio ya no es suficiente.
+Esa validación de empaquetado y hosting permanece pendiente en fase 5.
+
 Las alergias y restricciones se guardan en una categoría separada. Todos los
 recuerdos son contexto no vinculante, llevan procedencia y fecha, y requieren
 reconfirmación durante la visita. Los borradores no se incorporan al historial.
-Si hay consentimiento, sus productos se condensan sin cantidades en una
+Para la identidad autenticada, sus productos se condensan sin cantidades en una
 preferencia como `Preferencia de pedido: tortilla de patatas, agua con gas`.
 
 ## Configuración local
@@ -81,6 +92,12 @@ El fichero generado está ignorado por Git, tiene permisos `600` y no se
 sobrescribe salvo que se indique `--force`. Este script configura el acceso
 local, pero no crea recursos ni deployments en Azure.
 
+Al actualizar una instalación existente, elimina `DEV_FAKE_MEMORY_CONSENT` de
+tu `.env` local y regenera el fichero con `./scripts/init-local-env.sh --force`
+(o con los argumentos anteriores y `--force`). Carga de nuevo
+`.local/restaurant.env.sh`. La variable antigua ya no se necesita; si sigue
+exportada en la terminal, retírala con `unset DEV_FAKE_MEMORY_CONSENT`.
+
 ## Administrar la memoria local
 
 Después de cargar el entorno, lista las memorias para obtener sus IDs:
@@ -103,8 +120,11 @@ Borra todas las memorias de la identidad:
 ./scripts/manage-memory.sh --actor-id Majo clear --yes
 ```
 
-`clear` requiere `--yes` y conserva el consentimiento. Para revocar además el
-consentimiento debe utilizarse `/memory revoke` desde la CLI del camarero.
+`clear` requiere `--yes` y olvida los recuerdos existentes. No hay revocación
+permanente: las interacciones futuras pueden crear nuevos recuerdos
+automáticamente. Solo borra preferencias y restricciones: conserva visita,
+borrador y `completed_order_history`. No hay herramientas de borrado mediante
+lenguaje natural; una frase de chat no equivale a ejecutar estos comandos.
 
 ## Preparar el entorno
 
@@ -134,15 +154,18 @@ aislamiento entre sesiones, propiedad de la conversación y límite de turnos.
 Dentro de la CLI:
 
 - `/new` abre una conversación independiente;
-- `/memory consent` autoriza la memoria duradera;
-- `/memory` o `/memory list` muestra consentimiento y recuerdos;
-- `/memory correct <id> <texto>` corrige una preferencia;
-- `/memory delete <id>` elimina una preferencia;
-- `/memory revoke` elimina los recuerdos y revoca el consentimiento;
+- `/memory` o `/memory list` muestra recuerdos;
+- `/memory correct <id> <texto>` corrige un recuerdo;
+- `/memory delete <id>` elimina un recuerdo;
+- `/memory clear` olvida todos los recuerdos sin bloquear escrituras futuras;
 - `/exit` termina el proceso.
 
 Si se omite `--authenticated`, la identidad se trata como invitada y no puede
 crear un perfil duradero.
+
+No se requiere una acción de alta para recordar. Los antiguos comandos
+`/memory consent` y `/memory revoke` se rechazan; no son alias de operaciones
+nuevas ni se aceptan silenciosamente.
 
 La salida estructurada clasifica cada recuerdo como `preference` o
 `restriction`. Esta clasificación no convierte el recuerdo en una instrucción:
@@ -152,7 +175,6 @@ el camarero debe reconfirmarlo y el pedido seguirá requiriendo su HITL.
 
 ```bash
 DEV_FAKE_ACTOR_ID=Majo \
-DEV_FAKE_MEMORY_CONSENT=true \
 ENABLE_DEV_FAKE_IDENTITY=true \
 ./scripts/run-local.sh
 ```
@@ -167,8 +189,7 @@ identidad falsa exclusivamente de variables de entorno:
 - `ENABLE_DEV_FAKE_IDENTITY=true` activa el mecanismo;
 - `DEV_FAKE_ACTOR_ID` identifica el perfil persistente y, en esta simulación,
   es también el nombre con el que el camarero saluda al cliente;
-- `DEV_FAKE_MEMORY_CONSENT=true` registra consentimiento de desarrollo al
-  arrancar.
+- la lectura y escritura de recuerdos es automática para esa identidad.
 
 La configuración falla si se intenta activar esta identidad con
 `APP_ENVIRONMENT` distinto de `development`. El cliente no puede seleccionar la
@@ -216,12 +237,17 @@ otra sesión y ausencia de afirmaciones de reserva o confirmación no respaldada
   consolidan por producto para preguntar una sola vez por alternativas y
   complementos.
 - La compactación es determinista y no usa un modelo generativo.
-- El consentimiento incluye de forma explícita preferencias y restricciones.
+- No existe estado de consentimiento ni en el snapshot interno ni en la
+  proyección pública `MemoryView`.
 - Las restricciones se etiquetan como tales y siempre requieren reconfirmación.
 - Los recuerdos se tratan como contexto no confiable y nunca acreditan precio,
   carta o disponibilidad.
 - La sesión activa sigue siendo memoria de proceso. Su recuperación se
   implementará junto con el BFF en la fase 3.
+- La migración SQLite es transaccional: desacopla la memoria del antiguo
+  consentimiento y conserva recuerdos existentes, contadores e historial.
+  No restaura recuerdos eliminados ni reintroduce datos borrados desde tablas
+  antiguas.
 
 ## Estructura
 

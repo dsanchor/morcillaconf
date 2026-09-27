@@ -36,8 +36,8 @@ La historia principal debe funcionar de extremo a extremo antes de incorporar
 variantes avanzadas. Cada capacidad técnica debe corresponder a algo visible en
 la demo:
 
-- Memoria: recordar preferencias y restricciones consentidas como contexto no
-  vinculante entre visitas.
+- Memoria: recordar automáticamente preferencias y restricciones de la identidad
+  autenticada como contexto no vinculante entre visitas.
 - RAG o búsqueda: responder preguntas sobre la carta.
 - MCP: consultar datos operativos como mesas o existencias.
 - Multiagente: delegar la preparación del pedido en especialistas.
@@ -181,27 +181,39 @@ Comandos mínimos del frontal:
 |---|---|---|
 | `customer.arrived` | Cliente | Sesión creada y búsqueda de mesa |
 | `conversation.message_sent` | Cliente | Respuesta del camarero y estado actualizado |
+| `memory.read_requested` | Cliente | Recuerdos de la identidad propia |
+| `memory.correction_requested` | Cliente | Recuerdo propio corregido |
+| `memory.deletion_requested` | Cliente | Recuerdo propio eliminado |
+| `memory.clear_requested` | Cliente | Todos los recuerdos propios eliminados; guardado futuro automático |
 | `order.submitted` | Cliente | Propuesta enviada a cocina para validación |
 | `order.confirmation_decided` | Cliente | Pedido confirmado, modificado o cancelado |
 | `bill.requested` | Cliente | Cuenta generada y pago pendiente de confirmación |
 | `payment.confirmation_decided` | Cliente | Pago autorizado o cancelado |
 | `table.release_requested` | Cliente | Mesa liberada si el pago está confirmado |
 
-Cada comando utiliza un sobre común:
+En 3A el contrato público se limita a llegada, mensaje y los cuatro comandos
+de memoria anteriores. La llegada solo abre o recupera la visita; la asignación
+de mesa y los comandos restantes se incorporan en fase 4. No hay comandos ni
+API de concesión o revocación: `memory.consent_granted` y
+`memory.consent_revoked` se rechazan, no se ignoran ni se traducen a borrado.
+
+Cada comando utiliza un sobre común versionado. Este ejemplo ilustra un
+comando de cuenta futuro (fase 4), no el alcance inicial de 3A:
 
 ```json
 {
+  "schema_version": 1,
   "event_id": "evt_...",
   "event_type": "bill.requested",
   "occurred_at": "2026-09-24T11:28:00Z",
-  "actor": {
-    "actor_id": "customer_..."
-  },
   "conversation_id": "conv_...",
-  "table_id": "table_07",
   "payload": {}
 }
 ```
+
+La identidad no forma parte del comando: el servidor construye el contexto
+autenticado y resuelve la pertenencia de los recursos. No acepta `actor`,
+`actor_id` ni `authenticated` enviados por el cliente como identidad.
 
 El BFF debe:
 
@@ -238,7 +250,8 @@ Mensaje de ejemplo:
 
 > Hola, soy Majo y venimos dos.
 
-El camarero detecta que ya dispone de identidad y número de comensales. Consulta
+El camarero detecta que ya dispone de nombre presentado y número de comensales.
+La identidad persistente procede del servidor, no de ese nombre. Consulta
 la disponibilidad y asigna una mesa con capacidad suficiente. La mesa cambia de
 libre a ocupada en la interfaz.
 
@@ -265,7 +278,7 @@ comprensible para el cliente. La comanda definitiva todavía no se crea.
 ### Escena 3: cierre y recuperación
 
 Se cierra la conversación y se abre una sesión nueva con la misma identidad. El
-camarero recupera las preferencias y restricciones autorizadas, diferenciadas
+camarero recupera automáticamente las preferencias y restricciones propias, diferenciadas
 por categoría y siempre como contexto no vinculante.
 
 Ejemplo:
@@ -373,10 +386,12 @@ Es el único agente que conversa directamente con el cliente.
 Responsabilidades:
 
 - identificar al cliente o tratarlo como invitado;
-- extraer identidad, número de comensales y petición del mensaje;
+- extraer nombre presentado, número de comensales y petición del mensaje,
+  sin sustituir la identidad resuelta por el servidor;
 - solicitar únicamente la información obligatoria que falte;
 - consultar y comunicar la mesa asignada;
-- recuperar memoria autorizada, diferenciando preferencias y restricciones
+- recuperar y guardar automáticamente memoria de la identidad autenticada,
+  diferenciando preferencias y restricciones
   pendientes de reconfirmación;
 - responder sobre la carta utilizando la fuente documental;
 - construir un borrador estructurado del pedido;
@@ -462,7 +477,7 @@ completo después de conocer la disponibilidad, sustituciones y tiempo estimado.
 | Necesidad | Fuente correcta | Motivo |
 |---|---|---|
 | Pedido en curso | Estado de sesión | Cambia durante la conversación |
-| Preferencias y restricciones autorizadas | Memoria persistente | Sobreviven a una sesión como contexto no vinculante y diferenciado |
+| Preferencias y restricciones de la identidad autenticada | Memoria persistente automática | Sobreviven a una sesión como contexto no vinculante y diferenciado |
 | Pedidos anteriores | Historial | Permite repetir sin confundirlo con stock |
 | Carta, ingredientes y alérgenos | Búsqueda documental | Información descriptiva y versionada |
 | Mesas disponibles | Servicio operacional o MCP | Estado que cambia en tiempo real |
@@ -494,11 +509,36 @@ Se distinguen tres niveles:
 
 1. **Sesión:** mesa, comensales y pedido actual.
 2. **Historial:** visitas y pedidos finalizados.
-3. **Memoria persistente:** preferencias y restricciones guardadas con
-   consentimiento, procedencia y fecha, diferenciadas por categoría.
+3. **Memoria persistente:** preferencias y restricciones guardadas
+   automáticamente con procedencia y fecha, diferenciadas por categoría.
+
+El camarero lee y guarda recuerdos automáticamente para la identidad
+autenticada resuelta por el servidor, incluida la identidad falsa de desarrollo
+local. El nombre presentado en el chat no permite elegir un perfil ni acredita
+autenticación. Los invitados no tienen perfil duradero. Se conservan el
+aislamiento entre identidades y la validación de pertenencia en cada operación.
+No existe estado de consentimiento en `MemoryView` ni en el snapshot interno.
+
+El cliente puede consultar, corregir y borrar recuerdos individuales o todos
+los recuerdos. `/memory clear` en la CLI equivale a olvidar los recuerdos
+existentes, no a una revocación permanente: las interacciones futuras siguen
+guardándose automáticamente. Los comandos antiguos de alta y revocación se
+rechazan. Una corrección o eliminación debe reflejarse en las conversaciones
+activas y después de reiniciar sin recuperar el dato antiguo desde el contexto.
+El borrado total afecta solo a preferencias y restricciones: no modifica
+visita, borrador ni `completed_order_history`. La gestión explícita se ofrece
+mediante CLI/administración y contratos públicos; no se han incorporado
+herramientas para ejecutar borrados mediante frases de chat como «olvida eso».
+
+La migración SQLite elimina el acoplamiento al consentimiento en una
+transacción, preservando recuerdos existentes, contadores e historial.
+Nunca restaura recuerdos previamente eliminados, tampoco desde tablas antiguas.
+En instalaciones locales existentes se elimina `DEV_FAKE_MEMORY_CONSENT` del
+`.env` y se regenera el entorno con `./scripts/init-local-env.sh --force`;
+la antigua variable exportada ya no se necesita.
 
 Mientras un pedido siga siendo borrador, sus productos pueden resumirse como
-una preferencia de pedido de largo plazo si existe consentimiento. El resumen
+una preferencia de pedido de largo plazo para la identidad autenticada. El resumen
 omite cantidades y estado operacional, es no vinculante y no convierte el
 borrador en historial ni demuestra que el cliente consumiera esos productos.
 La respuesta estructurada expone estos recuerdos en un campo separado del
@@ -530,7 +570,7 @@ El recorrido principal es secuencial y fácil de seguir. Cada bloque comienza co
 un evento o una invocación procedente del frontal:
 
 1. El frontal envía el evento de llegada o el mensaje al camarero.
-2. El camarero combina mensaje, sesión y memoria autorizada sin convertir los
+2. El camarero combina mensaje, sesión y memoria propia recuperada automáticamente sin convertir los
    recuerdos en instrucciones vigentes.
 3. Si faltan datos obligatorios o una restricción recordada requiere
    reconfirmación, los solicita y pausa el flujo.
@@ -577,7 +617,7 @@ La traza debe permitir localizar:
 
 - mensaje recibido;
 - datos extraídos y campos pendientes;
-- lectura de memoria, categoría, consentimiento y reconfirmación;
+- lectura/escritura de memoria propia, categoría, procedencia y reconfirmación;
 - consulta de carta;
 - consulta y asignación de mesa;
 - transferencia del camarero a cocina;
@@ -613,8 +653,8 @@ prioriza siempre un incremento demostrable.
 - identidad opcional;
 - extracción de datos proporcionados por el usuario;
 - preguntas solo para datos ausentes;
-- sesión y memoria persistente consentida;
-- consulta, corrección, borrado y revocación de recuerdos;
+- sesión y memoria persistente automática para identidades autenticadas;
+- consulta, corrección y borrado individual o total de recuerdos;
 - separación explícita entre preferencias y restricciones no vinculantes;
 - recuperación tras cerrar y abrir;
 - representación inicial de mesas, aunque utilice datos locales.
@@ -678,6 +718,10 @@ La demo se considera preparada cuando:
 - refleja visualmente la ocupación;
 - recupera contexto después de reiniciar la conversación;
 - distingue recuerdos de instrucciones actuales y reconfirma las restricciones;
+- lee y guarda automáticamente recuerdos de la identidad autenticada sin crear
+  perfiles duraderos de invitados ni mezclar identidades;
+- permite corregir y olvidar recuerdos sin bloquear escrituras futuras ni
+  restaurar datos eliminados durante la migración o tras reiniciar;
 - consulta la carta y la despensa desde fuentes diferentes;
 - muestra al menos una transferencia del camarero a cocina;
 - consolida la respuesta de los especialistas;

@@ -1,4 +1,4 @@
-"""Consented durable memory for the restaurant agent."""
+"""Automatic durable memory for the restaurant agent."""
 
 from restaurant_agent.config import Settings
 from restaurant_agent.memory.context import DurableMemoryContextProvider
