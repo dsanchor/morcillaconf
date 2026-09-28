@@ -77,11 +77,15 @@ jobs:
 
       - name: Smoke test container health
         run: |
-          docker run -d --name frontend -p 8501:8501 "$IMAGE:$GITHUB_SHA"
+          # Shorter interval so the image's own HEALTHCHECK is exercised quickly.
+          docker run -d --name frontend -p 8501:8501 --health-interval 2s "$IMAGE:$GITHUB_SHA"
           for _ in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8501/_stcore/health; then
+            status="$(docker inspect --format '{{.State.Health.Status}}' frontend)"
+            if [ "$status" = healthy ]; then
+              curl -fsS http://127.0.0.1:8501/_stcore/health
               echo
-              docker exec frontend id -u | grep -vx 0
+              echo "uid: $(docker exec frontend id -u)"
+              docker exec frontend id -u | grep -vxq 0
               exit 0
             fi
             sleep 2
