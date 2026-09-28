@@ -26,7 +26,110 @@ Configuración por variables de entorno:
 |---|---|---|
 | `FRONTEND_BFF_CLIENT` | `fake`; `http` falla con un mensaje claro hasta 3C | `fake` |
 | `FRONTEND_FAKE_PAUSE_SECONDS` | Pausa simulada del camarero antes de responder, 0-10 | `0.9` |
-| `FRONTEND_PORT` | Puerto de `run-frontend.sh` | `8501` |
+| `FRONTEND_PORT` | Puerto de `run-frontend.sh` y de la imagen | `8501` |
+
+## Imagen de contenedor y despliegue en Container Apps
+
+El frontend se empaqueta en su propia imagen, independiente del resto de
+componentes, según [CONVENCIONES](../../CONVENCIONES.md#contenedores-y-workflows-de-imagen).
+
+### Construir y ejecutar en local
+
+El contexto es la raíz del repositorio, porque el frontend depende de
+`packages/contracts` por ruta relativa:
+
+```bash
+docker build -f apps/frontend/Dockerfile -t morcillaconf-frontend .
+docker run --rm -p 8501:8501 morcillaconf-frontend
+```
+
+Abre `http://localhost:8501`. La imagen:
+
+- usa `python:3.13-slim` y `uv sync --frozen --no-dev` con `apps/frontend/uv.lock`;
+- instala las dependencias en una capa previa al código de la aplicación;
+- solo incluye `packages/contracts` y `apps/frontend` sin pruebas ni `preview`
+  (lo filtra `apps/frontend/Dockerfile.dockerignore`); no copia `.env` ni
+  secretos;
+- se ejecuta con un usuario sin privilegios desde `apps/frontend`, de modo que
+  se aplica `.streamlit/config.toml`;
+- arranca Streamlit sin navegador en `0.0.0.0:$FRONTEND_PORT` y comprueba su
+  salud con `/_stcore/health`.
+
+Las variables `FRONTEND_*` de la tabla anterior se pasan con `-e` y no requieren
+reconstruir la imagen; así funcionará también el modo `http` cuando exista el
+BFF de 3C:
+
+```bash
+docker run --rm -p 8080:8080 -e FRONTEND_PORT=8080 \
+  -e FRONTEND_FAKE_PAUSE_SECONDS=0.3 morcillaconf-frontend
+```
+
+### Imagen publicada
+
+El workflow [`frontend-image.yml`](../../.github/workflows/frontend-image.yml)
+se activa en `push` solo con cambios en `apps/frontend/**`,
+`packages/contracts/**` o el propio YAML (también a mano con
+`workflow_dispatch`). Ejecuta las pruebas del frontend, construye la imagen,
+comprueba que arranca y responde en `/_stcore/health` y la publica en GitHub
+Packages asociada al repositorio:
+
+```text
+ghcr.io/dsanchor/morcillaconf/frontend:<sha-del-commit>
+```
+
+No se publica la etiqueta `latest`. El paquete es privado mientras el
+repositorio lo sea.
+
+### Desplegar en Azure Container Apps
+
+> Este despliegue **todavía no se ha ejecutado**. Crear estos recursos tiene
+> coste y requiere aprobación previa.
+
+Pasos con la CLI de Azure (`az extension add --name containerapp`):
+
+```bash
+RG=rg-morcillaconf
+LOCATION=swedencentral
+ENV_NAME=cae-morcillaconf
+APP_NAME=ca-morcillaconf-frontend
+IMAGE=ghcr.io/dsanchor/morcillaconf/frontend:<sha-del-commit>
+
+az group create --name "$RG" --location "$LOCATION"
+az containerapp env create --name "$ENV_NAME" --resource-group "$RG" \
+  --location "$LOCATION"
+
+az containerapp create --name "$APP_NAME" --resource-group "$RG" \
+  --environment "$ENV_NAME" \
+  --image "$IMAGE" \
+  --registry-server ghcr.io \
+  --registry-username <usuario-github> \
+  --registry-password <PAT con read:packages> \
+  --target-port 8501 --ingress external \
+  --min-replicas 1 --max-replicas 1 \
+  --env-vars FRONTEND_BFF_CLIENT=fake FRONTEND_PORT=8501
+
+az containerapp show --name "$APP_NAME" --resource-group "$RG" \
+  --query properties.configuration.ingress.fqdn --output tsv
+```
+
+Para una versión nueva, `az containerapp update --name "$APP_NAME"
+--resource-group "$RG" --image ghcr.io/dsanchor/morcillaconf/frontend:<sha>`.
+Cuando exista el BFF, basta con cambiar las variables (`FRONTEND_BFF_CLIENT=http`
+y las que defina 3C) con `az containerapp update --set-env-vars ...`.
+
+Particularidades de Streamlit:
+
+- El estado de cada sesión vive en la memoria de la réplica y la conexión usa
+  WebSockets. Usa una sola réplica (`--min-replicas 1 --max-replicas 1`) o, si
+  se escala, activa la afinidad de sesión (`az containerapp ingress sticky-sessions
+  set --affinity sticky`).
+- Con `--min-replicas 0` la aplicación escala a cero y la primera visita paga
+  un arranque en frío.
+- El camarero simulado guarda su estado en memoria: se pierde al reiniciar o
+  redesplegar la réplica.
+- El PAT solo necesita `read:packages`; Container Apps lo guarda como secreto
+  de la aplicación. Si el paquete se hace público, se pueden omitir las
+  credenciales del registro.
 
 ## Recorrido
 
