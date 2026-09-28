@@ -36,9 +36,10 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
 - El borrado total no bloquea el guardado de interacciones futuras.
 - Separa sesión, preferencias, restricciones e historial de pedidos completados.
 
-Todavía no existen herramientas de mesas, carta, inventario, cocina, cuenta o
-pago. El agente tiene instrucciones explícitas para no afirmar que realizó esas
-operaciones.
+El camarero consulta y crea propuestas temporales de asiento mediante las tools
+directas del MCP de asientos. La propuesta no confirma una ocupación y el modelo
+no puede invocar todavía confirmación o liberación. Todavía no existen
+herramientas de carta, inventario, cocina, cuenta o pago.
 
 Los tipos públicos de cliente y borrador se comparten con
 [`packages/contracts`](../../packages/contracts); las importaciones anteriores
@@ -72,6 +73,8 @@ AZURE_AI_MODEL_DEPLOYMENT_NAME="gpt-5.6-luna"
 WAITER_MAX_TURNS="20"
 MEMORY_DATABASE_PATH="./data/memory.db"
 MEMORY_MAX_ITEMS="20"
+SEATING_MCP_URL="http://morcillaconf-mcp:8080/mcp"
+SEATING_MCP_TIMEOUT_SECONDS="5"
 ```
 
 La configuración local debe coincidir con el entorno de `azd`, porque
@@ -190,6 +193,8 @@ Para ejecutar el contenedor, se requieren siempre:
 | `MEMORY_MAX_ITEMS` | Límite de recuerdos por identidad |
 | `APP_ENVIRONMENT` | `development`, `test` o `production` |
 | `ENABLE_DEV_FAKE_IDENTITY` y `DEV_FAKE_ACTOR_ID` | Ambos necesarios para la identidad local de desarrollo |
+| `SEATING_MCP_URL` | Endpoint Streamable HTTP del MCP de asientos; si se omite, el agente no declara tools de asientos |
+| `SEATING_MCP_TIMEOUT_SECONDS` | Tiempo máximo de cada llamada MCP, entre 1 y 60 segundos |
 
 El contenedor también necesita una credencial válida para Azure. En desarrollo
 puede recibir `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` y `AZURE_CLIENT_SECRET`
@@ -197,23 +202,74 @@ desde el mismo fichero de entorno; no se incorporan a la imagen ni se
 versionan. En un despliegue se sustituirán por la identidad administrada del
 servicio.
 
-Crear un volumen para la memoria y arrancar el servidor Responses:
+Para probar el recorrido de asientos con contenedores levantados manualmente en
+tu equipo, sigue primero la sección «Construir y ejecutar localmente» del
+[README del MCP](../../services/mcp/README.md) para construir
+`morcillaconf-mcp:local` y definir `SEATING_LAYOUT_*`.
+
+Si ejecutas el camarero directamente en el host (por ejemplo, mediante
+`./scripts/run-local.sh` o Agent Inspector), publica el MCP en el puerto 8080
+y configura `SEATING_MCP_URL=http://localhost:8080/mcp`. Este es el caso en el
+que `localhost` conecta ambos procesos:
 
 ```bash
-docker volume create morcillaconf-restaurant-memory
+docker volume create morcillaconf-mcp-data
 
+docker run --rm --name morcillaconf-mcp \
+  --publish 8080:8080 \
+  --volume morcillaconf-mcp-data:/data \
+  --env SEATING_LAYOUT_ID \
+  --env SEATING_LAYOUT_JSON \
+  --env SEATING_LAYOUT_SHA256 \
+  --env SEATING_HOLD_MINUTES=5 \
+  --env SEATING_DATABASE_PATH=/data/seating.db \
+  morcillaconf-mcp:local
+```
+
+En otra terminal, arrancar el servidor Responses:
+
+```bash
 docker run --rm --name morcillaconf-restaurant-agent \
   --publish 8088:8088 \
   --volume morcillaconf-restaurant-memory:/data \
   --env-file agents/restaurant/src/restaurant_agent/.env \
   --env MEMORY_DATABASE_PATH=/data/memory.db \
+  --env SEATING_MCP_URL=http://localhost:8080/mcp \
   morcillaconf-restaurant-agent:local
 ```
 
-El servidor escucha en `http://localhost:8088`. Con el contenedor en ejecución,
-Agent Inspector podrá conectarse al endpoint Responses local en el siguiente
-paso. Detener el contenedor con `Ctrl+C`; el volumen mantiene los recuerdos
-entre arranques.
+Para ejecutar también el camarero en un contenedor, los dos contenedores no
+comparten `localhost`; deben pertenecer a una red Docker común y el camarero
+usa el nombre del contenedor MCP:
+
+```bash
+docker volume create morcillaconf-restaurant-memory
+docker network create morcillaconf-local
+
+docker run --rm --name morcillaconf-mcp \
+  --network morcillaconf-local \
+  --volume morcillaconf-mcp-data:/data \
+  --env SEATING_LAYOUT_ID \
+  --env SEATING_LAYOUT_JSON \
+  --env SEATING_LAYOUT_SHA256 \
+  --env SEATING_HOLD_MINUTES=5 \
+  --env SEATING_DATABASE_PATH=/data/seating.db \
+  morcillaconf-mcp:local
+
+docker run --rm --name morcillaconf-restaurant-agent \
+  --network morcillaconf-local \
+  --publish 8088:8088 \
+  --volume morcillaconf-restaurant-memory:/data \
+  --env-file agents/restaurant/src/restaurant_agent/.env \
+  --env MEMORY_DATABASE_PATH=/data/memory.db \
+  --env SEATING_MCP_URL=http://morcillaconf-mcp:8080/mcp \
+  morcillaconf-restaurant-agent:local
+```
+
+El servidor Responses escucha en `http://localhost:8088`; Agent Inspector
+puede conectarse ahí. Una solicitud de mesa debe generar un bloqueo y una
+propuesta confirmada por la tool. Detener los contenedores con `Ctrl+C`; los
+volúmenes mantienen memoria y bloqueos entre arranques.
 
 ## CLI de desarrollo
 

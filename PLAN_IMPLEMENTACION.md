@@ -307,6 +307,14 @@ recorrido completo sin integrar la fase 3.
   desde Streamlit, cierre de suscripcion y reconexion tras rerun.
 - [ ] Persistir visita y borrador aparte de las preferencias. Una conversacion
   nueva puede recuperar una visita activa autorizada sin crear otra mesa.
+- [ ] Construir el BFF que persiste y proyecta la visita y su propuesta de
+  asiento. El MCP sigue siendo una herramienta interna del agente/workflow:
+  BFF, frontend y sus eventos no importan ni exponen sus herramientas,
+  transporte, claves ni errores técnicos.
+- [ ] Al conectar la UI, ampliar solo el contrato público con el resultado de
+  negocio confirmado (propuesta de mesa o barra, indisponibilidad, ocupación o
+  liberación); mantener `snapshot.updated` como evento suficiente para el
+  primer corte vertical.
 - [ ] Integrar consulta, correccion y borrado individual o total de memoria.
   Documentar en la UI el guardado automatico de fase 2 y que olvidar los
   recuerdos actuales no desactiva el guardado futuro, sin controles de alta
@@ -346,6 +354,14 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   asigna puestos contiguos y minimiza huecos; el layout llega por JSON, ID y
   hash en variables de entorno. Al cambiar la huella, el arranque invalida y
   recrea solamente la persistencia del servicio de asientos.
+- [x] Conectar directamente el camarero/workflow al MCP de asientos mediante
+  `MCPStreamableHTTPTool`, limitado a disponibilidad y bloqueo. El middleware
+  asocia autoritativamente `visit_id` e `idempotency_key` con la sesión y
+  mantiene estado interno de visita/propuesta (asignación, versión y
+  vencimiento), sin exponer el contrato MCP fuera de los agentes.
+- [ ] Probar conversación real de extremo a extremo local: solicitud de mesa,
+  bloqueo temporal y propuesta al cliente. Una frase ambigua no confirma una
+  propuesta; la confirmación usa una decisión explícita y versionada.
 - [ ] Proponer una mesa bloqueada al cliente y persistir la decisión pendiente;
   confirmar la ocupa y rechazarla o caducar el bloqueo la libera. Guardar
   visita, versión y `seated_at` solo al ocupar; preguntar comensales solo si
@@ -370,6 +386,8 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   referencia persistida y consulta por clave antes de repetir una escritura.
 - [ ] Liberar mesa solo por solicitud del cliente propietario y con cuenta
   pagada. El pago no la libera automaticamente ni lo hace cerrar el navegador.
+- [ ] Añadir pedido, pago y liberación integrada: la liberación invoca el MCP
+  solo después de verificar el pago y la pertenencia de la visita.
 - [ ] Registrar decisiones y efectos, con checkpoints duraderos en local.
 
 **Aceptacion y pruebas**
@@ -509,6 +527,9 @@ reinicios, mientras los servicios se siguen con trazas distribuidas.
 - [ ] Activar Cosmos DB/adaptadores duraderos para memoria, visitas, negocio,
   decisiones, eventos y checkpoints. Elegir particiones, operaciones condicionales
   y limites transaccionales para conservar las invariantes locales.
+- [ ] Sustituir la persistencia SQLite del MCP de asientos por su adaptador
+  Cosmos DB, manteniendo layout por ID/hash, idempotencia, concurrencia y
+  semántica de invalidación al arrancar.
 - [ ] Validar compatibilidad de checkpoints con versiones de grafo y definir
   politica de workflows pendientes durante actualizaciones y rollback.
 - [ ] Mantener la identidad de demo basada en nombre y sesión para aislar

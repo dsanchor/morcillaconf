@@ -8,6 +8,7 @@ dependencies = [
     "agent-framework-foundry",
     "agent-framework-foundry-hosting>=1.0.0b260813",
     "debugpy",
+    "mcp>=1.30,<2",
     "pydantic>=2.12",
     "pydantic-settings>=2.12",
 ]

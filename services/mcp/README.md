@@ -75,8 +75,10 @@ docker run --rm --name morcillaconf-mcp \
 
 El servidor expone MCP Streamable HTTP en `http://localhost:8080/mcp`. El
 navegador nunca lo invoca directamente; el workflow del camarero es su
-consumidor. Para detenerlo, usar `Ctrl+C`; el volumen conserva SQLite entre
-arranques mientras el ID y hash de layout no cambien.
+consumidor. `visit_id` e `idempotency_key` de `hold_seating` los inyecta el
+estado de sesión del camarero, no el modelo ni el navegador. Para detenerlo,
+usar `Ctrl+C`; el volumen conserva SQLite entre arranques mientras el ID y hash
+de layout no cambien.
 
 ## Imagen y CI
 
