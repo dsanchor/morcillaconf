@@ -41,4 +41,7 @@ def actor_id_for(raw: str) -> str:
                 kept.append(char)
             continue
         kept.append(char)
-    return unicodedata.normalize("NFC", "".join(kept)).casefold()
+    actor_id = " ".join(unicodedata.normalize("NFC", "".join(kept)).casefold().split())
+    if not actor_id:
+        raise InvalidNameError("El nombre no puede estar vacío.")
+    return actor_id

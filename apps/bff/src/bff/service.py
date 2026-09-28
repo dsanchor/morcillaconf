@@ -561,6 +561,30 @@ class RestaurantService:
     # Waiter turns
 
     async def _run_turn(self, job: _TurnJob) -> None:
+        """Run one turn and always leave the conversation idle with a terminal result."""
+
+        try:
+            await self._turn(job)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # Only the type: storage or validation errors may carry customer content.
+            logger.error(
+                "Could not finish the waiter turn (correlation %s): %s",
+                job.correlation_id,
+                type(exc).__name__,
+            )
+            try:
+                self._finish_turn(job, (ErrorCode.INTERNAL_ERROR, WAITER_FAILED))
+            except Exception as fallback:
+                logger.error(
+                    "Could not record the failed turn (correlation %s): %s",
+                    job.correlation_id,
+                    type(fallback).__name__,
+                )
+        self._notifier.notify(job.conversation_id)
+
+    async def _turn(self, job: _TurnJob) -> None:
         with tracer.start_as_current_span(
             "bff.waiter.turn",
             attributes={
@@ -615,7 +639,6 @@ class RestaurantService:
             if succeeded:
                 span.set_attribute("bff.waiter.turn_number", outcome.turn_count)
             self._finish_turn(job, outcome)
-        self._notifier.notify(job.conversation_id)
 
     def _finish_turn(
         self, job: _TurnJob, outcome: WaiterTurnResult | tuple[ErrorCode, str]

@@ -29,7 +29,7 @@ def test_different_names_are_different_customers() -> None:
     assert actor_id_for("Ana") != actor_id_for("Anna")
 
 
-@pytest.mark.parametrize("raw", ["", "   ", "a" * 41, "Ana\u0000", "Ana\u200b"])
+@pytest.mark.parametrize("raw", ["", "   ", "a" * 41, "Ana\u0000", "Ana\u200b", "\u0301", "\u0301 \u0308"])
 def test_invalid_names_are_rejected(raw) -> None:
     with pytest.raises(InvalidNameError):
         actor_id_for(raw)

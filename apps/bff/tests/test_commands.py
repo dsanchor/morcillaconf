@@ -333,3 +333,25 @@ async def test_stream_cursor_validation(make_service, commands) -> None:
     assert error.value.to_error().recovery == "fetch_snapshot"
     service.check_stream(session, arrival.conversation_id, 5)
     service.check_stream(session, arrival.conversation_id, 6)
+
+
+async def test_a_failure_after_the_waiter_still_ends_the_turn(make_service, commands) -> None:
+    service = make_service()
+    session, arrival = await enter(service, commands)
+    original = service._finish_turn
+    calls = []
+
+    def flaky(job, outcome):
+        calls.append(outcome)
+        if len(calls) == 1:
+            raise RuntimeError("disco lleno con datos de Ana")
+        original(job, outcome)
+
+    service._finish_turn = flaky
+    _, result = await say(service, commands, session, arrival.conversation_id, "Hola")
+
+    assert result.status == "failed"
+    assert result.error.code == ErrorCode.INTERNAL_ERROR
+    snapshot = service.get_snapshot(session, arrival.conversation_id)
+    assert snapshot.process_status == "idle"
+    assert Action.SEND_MESSAGE in snapshot.allowed_actions

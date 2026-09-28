@@ -449,7 +449,7 @@ contrato modificado.
 ### Evidencia y pendientes
 
 - Evidencia no oficial en un Mac sin acceso a PyPI, con wheels en caché y sin
-  `uv run`: 88 pruebas del BFF, 116 del frontend (sin `AppTest`, porque no hay
+  `uv run`: 92 pruebas del BFF, 116 del frontend (sin `AppTest`, porque no hay
   Streamlit en caché) y 140 del camarero y los contratos superadas. Queda fuera
   una prueba que lanza Python aislado y el módulo de la CLI, que importa
   Foundry.

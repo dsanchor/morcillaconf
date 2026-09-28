@@ -141,7 +141,7 @@ def _parse_cursor(raw: str | None) -> int:
     if raw is None:
         return 0
     value = raw.strip()
-    if not value.isdigit():
+    if not (value.isascii() and value.isdigit()):
         raise PublicFailure(ErrorCode.INVALID_COMMAND, "El cursor no es válido.")
     return int(value)
 
@@ -183,11 +183,18 @@ def install(app: FastAPI) -> None:
         response.status_code = exc.status_code
         return response
 
-    @app.exception_handler(Exception)
-    async def unexpected(request: Request, exc: Exception) -> JSONResponse:
-        # Only the type: exceptions may carry customer content.
-        logger.error("Unexpected BFF error on %s: %s", request.url.path, type(exc).__name__)
-        return _error_response(PublicFailure(ErrorCode.INTERNAL_ERROR, INTERNAL_ERROR))
+    @app.middleware("http")
+    async def unexpected(request: Request, call_next):
+        # Handled here, not with an Exception handler: Starlette's
+        # ServerErrorMiddleware would re-raise and log the full traceback,
+        # which may contain customer content. Only the type is logged.
+        try:
+            return await call_next(request)
+        except Exception as exc:
+            logger.error(
+                "Unexpected BFF error on %s: %s", request.url.path, type(exc).__name__
+            )
+            return _error_response(PublicFailure(ErrorCode.INTERNAL_ERROR, INTERNAL_ERROR))
 
 
 def _error_response(failure: PublicFailure) -> JSONResponse:

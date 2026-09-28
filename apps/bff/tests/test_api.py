@@ -163,8 +163,14 @@ def test_stream_cursor_errors(client) -> None:
     assert_public_error(
         client.get(f"{path}?after_cursor=99", headers=auth(session)), 409, "conflict"
     )
+    for bad in ("abc", " 1a"):
+        assert_public_error(
+            client.get(path, headers={**auth(session), "Last-Event-ID": bad}),
+            422,
+            "invalid_command",
+        )
     assert_public_error(
-        client.get(path, headers={**auth(session), "Last-Event-ID": "abc"}),
+        client.get(f"{path}?after_cursor=%C2%B2", headers=auth(session)),
         422,
         "invalid_command",
     )
@@ -172,3 +178,18 @@ def test_stream_cursor_errors(client) -> None:
 
 def test_unknown_routes_answer_with_a_public_error(client) -> None:
     assert_public_error(client.get("/v1/nada"), 404, "not_found")
+
+
+def test_unexpected_errors_are_public_and_not_re_raised(settings, caplog) -> None:
+    with TestClient(create_app(settings), raise_server_exceptions=True) as client:
+        session = enter(client)
+
+        def explode(*args, **kwargs):
+            raise RuntimeError("secreto de Ana")
+
+        client.app.state.service.get_result = explode
+        response = client.get("/v1/commands/cmd_x", headers=auth(session))
+
+    error = assert_public_error(response, 500, "internal_error")
+    assert "secreto" not in error["message"]
+    assert "secreto" not in caplog.text
