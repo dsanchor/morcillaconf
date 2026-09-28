@@ -485,11 +485,13 @@ contrato modificado.
   y fija las mismas versiones que el lockfile del camarero para todos los
   paquetes compartidos (`constraint-dependencies` y
   `tests/test_lock_alignment.py`).
-- CI: «Publish BFF image» superado en e13744a
-  ([run 36452412522](https://github.com/dsanchor/morcillaconf/actions/runs/36452412522)),
-  con **94 pruebas** en la etapa `test` y la imagen
-  `ghcr.io/dsanchor/morcillaconf-bff:e13744aba7347640d16e93ef52e3f46f37ce25a4`
-  publicada.
+- CI tras integrar `main` (56321d6, asientos por MCP): «Publish BFF image»
+  superado en cee51fb
+  ([run 36464211413](https://github.com/dsanchor/morcillaconf/actions/runs/36464211413)),
+  con **96 pruebas** en la etapa `test`, incluida la que construye el camarero
+  de Foundry con `VisitContextProvider` y sin herramienta MCP, y la imagen
+  `ghcr.io/dsanchor/morcillaconf-bff:cee51fb45f6e47fb39f37e3b30c6709739980833` publicada. «Publish restaurant
+  agent image» (69 pruebas) y «Publish MCP image» (8) también se superaron.
 - Pendiente en el Codespace: ejecutar las tres suites y validar el camarero
   real con Foundry (`gpt-5.6-luna`), incluida la serialización del historial
   con mensajes reales.
