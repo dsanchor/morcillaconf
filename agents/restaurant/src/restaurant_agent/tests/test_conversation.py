@@ -315,3 +315,124 @@ async def test_unexpected_programming_errors_are_not_masked() -> None:
             actor_id="owner",
             message="Hola",
         )
+
+
+@pytest.mark.asyncio
+async def test_presented_name_is_fixed_by_the_application() -> None:
+    agent = FakeAgent(
+        WaiterModelResult(
+            reply="Encantado, Pepe.",
+            customer=CustomerSnapshot(presented_name="Pepe", party_size=3),
+            memory_intent=MemoryIntent.NONE,
+        ),
+        WaiterModelResult(
+            reply="¿Cómo te llamas?",
+            customer=CustomerSnapshot(presented_name=None, party_size=3),
+            memory_intent=MemoryIntent.NONE,
+        ),
+    )
+    manager = ConversationManager(agent)
+    conversation_id = manager.start_conversation(
+        actor_id="ana", presented_name="  Ana   García "
+    )
+
+    first = await manager.send_message(
+        conversation_id=conversation_id,
+        actor_id="ana",
+        message="Soy Pepe y venimos tres.",
+    )
+    second = await manager.send_message(
+        conversation_id=conversation_id,
+        actor_id="ana",
+        message="Hola",
+    )
+
+    assert first.customer.presented_name == "Ana García"
+    assert first.customer.party_size == 3
+    assert second.customer.presented_name == "Ana García"
+    assert second.pending_fields == []
+    assert '"presented_name": "Ana García"' in agent.prompts[0]
+    assert "no repitas el saludo" in agent.prompts[0]
+    assert '"presented_name": "Ana García"' in agent.prompts[1]
+
+
+@pytest.mark.asyncio
+async def test_prompt_without_presented_name_has_no_application_context() -> None:
+    agent = FakeAgent(
+        WaiterModelResult(
+            reply="¿Cómo te llamas?",
+            customer=CustomerSnapshot(),
+            memory_intent=MemoryIntent.NONE,
+        )
+    )
+    manager = ConversationManager(agent)
+    conversation_id = manager.start_conversation(actor_id="local-guest")
+
+    response = await manager.send_message(
+        conversation_id=conversation_id,
+        actor_id="local-guest",
+        message="Hola",
+    )
+
+    assert response.pending_fields == [PendingField.CUSTOMER_NAME]
+    assert agent.prompts[0].startswith("Estado confirmado antes de este turno:")
+
+
+@pytest.mark.asyncio
+async def test_exported_conversation_can_be_restored_in_another_manager() -> None:
+    agent = FakeAgent(
+        WaiterModelResult(
+            reply="Venís dos.",
+            customer=CustomerSnapshot(presented_name="Ana", party_size=2),
+            memory_intent=MemoryIntent.NONE,
+        ),
+        WaiterModelResult(
+            reply="Sigo aquí.",
+            customer=CustomerSnapshot(presented_name="Ana", party_size=2),
+            memory_intent=MemoryIntent.NONE,
+        ),
+    )
+    first_manager = ConversationManager(agent, max_turns=2)
+    conversation_id = first_manager.start_conversation(
+        actor_id="ana", presented_name="Ana", conversation_id="conv_1"
+    )
+    await first_manager.send_message(
+        conversation_id=conversation_id, actor_id="ana", message="Somos dos."
+    )
+    exported = first_manager.export_conversation(
+        conversation_id=conversation_id, actor_id="ana"
+    )
+    exported.agent_session.state["memory_identity"] = {
+        "actor_id": "intruder",
+        "authenticated": True,
+    }
+
+    second_manager = ConversationManager(agent, max_turns=2)
+    second_manager.restore_conversation(
+        conversation_id=conversation_id,
+        actor_id="ana",
+        authenticated=True,
+        presented_name="Ana",
+        agent_session=exported.agent_session,
+        state=exported.state,
+        persisted_order_preferences=exported.persisted_order_preferences,
+    )
+    response = await second_manager.send_message(
+        conversation_id=conversation_id, actor_id="ana", message="¿Sigues ahí?"
+    )
+
+    assert exported.state.turn_count == 1
+    assert response.turn_number == 2
+    assert '"party_size": 2' in agent.prompts[1]
+    assert exported.agent_session.state["memory_identity"] == {
+        "actor_id": "ana",
+        "authenticated": True,
+    }
+    with pytest.raises(TurnLimitExceededError):
+        await second_manager.send_message(
+            conversation_id=conversation_id, actor_id="ana", message="Otra"
+        )
+    with pytest.raises(ConversationAccessError):
+        second_manager.export_conversation(
+            conversation_id=conversation_id, actor_id="other"
+        )

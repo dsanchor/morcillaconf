@@ -236,3 +236,51 @@ def test_retryable_transport_error_is_reported_once() -> None:
         visit.resolve_pending()
     assert [card.title for card in visit.cards].count("El BFF no responde.") == 1
     assert visit.pending is not None
+
+
+def test_resumed_visit_follows_a_turn_still_running() -> None:
+    from datetime import UTC, datetime
+
+    from restaurant_contracts.application import Action, ChatMessage, SnapshotUpdated
+
+    restaurant = FakeRestaurant()
+    inner = restaurant.client(ActorContext(actor_id="Ana", authenticated=True))
+    first = VisitSession(inner)
+    first.arrive()
+
+    class StillAnswering:
+        """The BFF is still running a message sent before the reload."""
+
+        async def submit(self, command):
+            return await inner.submit(command)
+
+        async def get_snapshot(self, conversation_id):
+            snapshot = await inner.get_snapshot(conversation_id)
+            return snapshot.model_copy(
+                update={"process_status": "processing", "allowed_actions": [Action.ARRIVE]}
+            )
+
+        async def events(self, conversation_id, *, after_cursor):
+            snapshot = await inner.get_snapshot(conversation_id)
+            reply = ChatMessage(
+                message_id="msg_reply", role="assistant", text="Aquí tienes.",
+                occurred_at=datetime.now(UTC), command_event_id="cmd_before_reload",
+            )
+            yield SnapshotUpdated(
+                schema_version=1, event_id="evt_idle", conversation_id=conversation_id,
+                command_event_id="cmd_before_reload", correlation_id="corr_x",
+                occurred_at=datetime.now(UTC), cursor=after_cursor + 1,
+                event_type="snapshot.updated",
+                snapshot=snapshot.model_copy(
+                    update={"cursor": after_cursor + 1, "messages": [*snapshot.messages, reply]}
+                ),
+            )
+            raise AssertionError("the view must stop once the waiter is idle")
+
+    resumed = VisitSession(StillAnswering())
+    resumed.arrive(inner.active_visit_id)
+
+    assert resumed.snapshot.process_status == "idle"
+    assert resumed.view().messages[-1].text == "Aquí tienes."
+    assert resumed.allows(Action.SEND_MESSAGE)
+    assert len(restaurant._conversations) == 1

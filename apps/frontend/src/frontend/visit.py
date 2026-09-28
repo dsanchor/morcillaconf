@@ -302,6 +302,14 @@ class VisitSession:
                     result = await self._client.get_result(command.event_id)
             if result.status == "completed":
                 await self._refresh(result.conversation_id, result.cursor)
+                if (
+                    isinstance(command, ArriveCommand)
+                    and self.snapshot is not None
+                    and self.snapshot.process_status == "processing"
+                ):
+                    # A resumed visit whose waiter is still answering a message
+                    # sent before the reload: follow it until it is idle.
+                    await self._follow(None, on_update, until_idle=True)
         except BffClientError as exc:
             self._fail_in_transport(exc)
             return
@@ -317,10 +325,11 @@ class VisitSession:
 
     async def _follow(
         self,
-        command_event_id: str,
+        command_event_id: str | None,
         on_update: Updater | None,
         *,
         until_cursor: int | None = None,
+        until_idle: bool = False,
     ) -> CommandResult | None:
         """Apply confirmed events until the command resolves or its known cursor is reached.
 
@@ -352,7 +361,8 @@ class VisitSession:
                 ):
                     terminal = event.result
                 _notify(on_update)
-                if terminal is not None or (
+                idle = until_idle and self.snapshot.process_status != "processing"
+                if idle or terminal is not None or (
                     until_cursor is not None and self.cursor >= until_cursor
                 ):
                     break

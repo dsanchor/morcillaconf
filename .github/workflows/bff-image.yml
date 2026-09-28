@@ -1,0 +1,43 @@
+name: Publish BFF image
+
+on:
+  push:
+    paths:
+      - apps/bff/**
+      - packages/contracts/**
+      - agents/restaurant/src/restaurant_agent/pyproject.toml
+      - agents/restaurant/src/restaurant_agent/uv.toml
+      - agents/restaurant/src/restaurant_agent/uv.lock
+      - agents/restaurant/src/restaurant_agent/restaurant_agent/**
+      - .dockerignore
+      - .github/workflows/bff-image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  validate-build-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the BFF lockfile
+        run: |
+          if [ ! -f apps/bff/uv.lock ]; then
+            echo "::error file=apps/bff/uv.lock::Falta apps/bff/uv.lock. Genéralo con ./scripts/setup-bff.sh y versiónalo."
+            exit 1
+          fi
+      - run: docker build --file apps/bff/Dockerfile --target test --tag morcillaconf-bff:test .
+      - run: docker run --rm morcillaconf-bff:test
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/bff/Dockerfile
+          target: runtime
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/morcillaconf-bff:${{ github.sha }}
