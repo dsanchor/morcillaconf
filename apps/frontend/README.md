@@ -68,6 +68,91 @@ Desde la raíz del repositorio:
 usan `--frozen`. Si falta el lockfile, `setup-frontend.sh` lo genera y hay que
 versionarlo. En el Codespace abre el puerto 8501 reenviado.
 
+## Imagen de contenedor y despliegue en Container Apps
+
+El frontend se empaqueta en su propia imagen, independiente del resto de
+componentes, según [CONVENCIONES](../../CONVENCIONES.md#contenedores-y-workflows-de-imagen).
+La etapa `runtime` del [`Dockerfile`](Dockerfile):
+
+- usa `python:3.13-slim` y `uv sync --frozen --no-dev` con `apps/frontend/uv.lock`,
+  primero las dependencias en una capa propia y después el propio frontend;
+- solo incluye `packages/contracts`, `src` y `.streamlit`; el
+  [`.dockerignore`](../../.dockerignore) de la raíz excluye `.env`, entornos
+  virtuales y cachés;
+- se ejecuta con un usuario sin privilegios desde `apps/frontend`, de modo que
+  se aplica `.streamlit/config.toml`;
+- arranca Streamlit sin navegador en `0.0.0.0:$FRONTEND_PORT` y comprueba su
+  salud con `/_stcore/health`.
+
+Las variables `FRONTEND_*` se pasan en tiempo de ejecución (`--env-file` o
+`-e`) y no requieren reconstruir la imagen; así funcionará también el modo
+`http` cuando exista el BFF de 3C.
+
+### Imagen publicada
+
+El workflow [`frontend-image.yml`](../../.github/workflows/frontend-image.yml)
+se activa en `push` solo con cambios en `apps/frontend/**`,
+`packages/contracts/**`, `.dockerignore` o el propio YAML. Ejecuta la etapa
+`test`, comprueba que la etapa `runtime` importa la aplicación y publica la
+imagen `runtime` en GitHub Packages:
+
+```text
+ghcr.io/dsanchor/morcillaconf-frontend:<sha-del-commit>
+```
+
+No se publica la etiqueta `latest`.
+
+### Desplegar en Azure Container Apps
+
+> Este despliegue **todavía no se ha ejecutado**. Crear estos recursos tiene
+> coste y requiere aprobación previa.
+
+Pasos con la CLI de Azure (`az extension add --name containerapp`):
+
+```bash
+RG=rg-morcillaconf
+LOCATION=swedencentral
+ENV_NAME=cae-morcillaconf
+APP_NAME=ca-morcillaconf-frontend
+IMAGE=ghcr.io/dsanchor/morcillaconf-frontend:<sha-del-commit>
+
+az group create --name "$RG" --location "$LOCATION"
+az containerapp env create --name "$ENV_NAME" --resource-group "$RG" \
+  --location "$LOCATION"
+
+az containerapp create --name "$APP_NAME" --resource-group "$RG" \
+  --environment "$ENV_NAME" \
+  --image "$IMAGE" \
+  --registry-server ghcr.io \
+  --registry-username <usuario-github> \
+  --registry-password <PAT con read:packages> \
+  --target-port 8501 --ingress external \
+  --min-replicas 1 --max-replicas 1 \
+  --env-vars FRONTEND_BFF_CLIENT=fake FRONTEND_PORT=8501
+
+az containerapp show --name "$APP_NAME" --resource-group "$RG" \
+  --query properties.configuration.ingress.fqdn --output tsv
+```
+
+Para una versión nueva, `az containerapp update --name "$APP_NAME"
+--resource-group "$RG" --image ghcr.io/dsanchor/morcillaconf-frontend:<sha>`.
+Cuando exista el BFF, basta con cambiar las variables (`FRONTEND_BFF_CLIENT=http`
+y las que defina 3C) con `az containerapp update --set-env-vars ...`.
+
+Particularidades de Streamlit:
+
+- El estado de cada sesión vive en la memoria de la réplica y la conexión usa
+  WebSockets. Usa una sola réplica (`--min-replicas 1 --max-replicas 1`) o, si
+  se escala, activa la afinidad de sesión (`az containerapp ingress sticky-sessions
+  set --affinity sticky`).
+- Con `--min-replicas 0` la aplicación escala a cero y la primera visita paga
+  un arranque en frío.
+- El camarero simulado guarda su estado en memoria: se pierde al reiniciar o
+  redesplegar la réplica.
+- El PAT solo necesita `read:packages`; Container Apps lo guarda como secreto
+  de la aplicación. Si el paquete se hace público, se pueden omitir las
+  credenciales del registro.
+
 ## Recorrido
 
 1. **Fuera:** fachada nocturna con el nombre y «Entrar» sobre el umbral. Sin

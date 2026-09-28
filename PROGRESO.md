@@ -422,8 +422,9 @@ contrato modificado.
 - El Codespace generó `apps/frontend/uv.lock` (Streamlit 1.64.0, 49 paquetes),
   versionado en el commit f7b300c.
 - `./scripts/test-frontend.sh` dio **106 pruebas superadas** en f7b300c,
-  incluidas las 6 de `AppTest`. Las correcciones posteriores añaden 2 pruebas
-  (108 en total), que todavía no se han vuelto a ejecutar ni a informar.
+  incluidas las 6 de `AppTest`. Con las 2 pruebas de las correcciones
+  posteriores, las 108 pasaron en la etapa `test` de la imagen en la
+  [ejecución 36452320460](https://github.com/dsanchor/morcillaconf/actions/runs/36452320460).
 - El recorrido manual en la vista real se superó en escritorio y en emulación
   móvil: la puerta tiembla con el nombre vacío, animación de apertura y saludo,
   comandos de memoria, `/new`, `/exit` y aislamiento frente a otra identidad.
@@ -432,7 +433,18 @@ contrato modificado.
   dos líneas y el botón de envío debajo del campo (db5e9b3 y 57c80e0), y la
   pared izquierda del plano ausente (a5aefc8).
 - El CSS depende de detalles internos de Streamlit 1.64.0, fijado por el
-  lockfile; hay que revisarlo al actualizar Streamlit.
+  lockfile; hay que revisarlo- Imagen de contenedor: la imagen publicada desde main en c5dd00b no
+  funcionaba: las etapas `test` y `runtime` solo instalaban dependencias
+  (`--no-install-project`) y fallaban con `No module named 'frontend'`. El
+  PR #5 instala el propio frontend en ambas etapas y añade al workflow una
+  comprobación de importación de la etapa `runtime` antes de publicar. La
+  [ejecución 36452320460](https://github.com/dsanchor/morcillaconf/actions/runs/36452320460) pasó las 108 pruebas, incluidas las de `AppTest`, y la comprobación, y
+  publicó `ghcr.io/dsanchor/morcillaconf-frontend:a46c0b040e1bd289a12f45442a8e1f1441bcefbc`
+  (`sha256:1b19511f801dd17194586fc6b566735e05325e53638ba49719b95a8840b6c902`).
+  El despliegue en Container Apps está documentado en
+  [apps/frontend](apps/frontend/README.md#imagen-de-contenedor-y-despliegue-en-container-apps),
+  pero todavía no se ha ejecutado.
+davía no se ha ejecutado.
 - Revisión conjunta pendiente; no se marca ninguna casilla de la fase 3.
 
 ## Próximo trabajo previsto
