@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     app_environment: Literal["development", "test", "production"] = "development"
     enable_dev_fake_identity: bool = False
     dev_fake_actor_id: str | None = None
+    seating_mcp_url: HttpUrl | None = None
+    seating_mcp_timeout_seconds: int = Field(default=5, ge=1, le=60)
 
     model_config = SettingsConfigDict(
         env_file=".env",

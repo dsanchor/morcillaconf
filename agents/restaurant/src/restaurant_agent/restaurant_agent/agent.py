@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from agent_framework import Agent
+from agent_framework import Agent, MCPStreamableHTTPTool
 from agent_framework.foundry import FoundryChatClient
 from azure.identity import DefaultAzureCredential
 
@@ -15,6 +15,10 @@ from restaurant_agent.memory.middleware import (
 )
 from restaurant_agent.memory.options import HabitualOrderQuestion
 from restaurant_agent.memory.store import DurableMemoryRepository
+from restaurant_agent.seating import (
+    SeatingToolContextMiddleware,
+    VisitContextProvider,
+)
 
 INSTRUCTIONS_PATH = Path(__file__).with_name("instructions.md")
 
@@ -71,9 +75,9 @@ def create_waiter_agent(
             "response_format": HabitualOrderQuestion,
         },
     )
-    context_providers = None
+    context_providers = [VisitContextProvider()]
     if memory_store:
-        context_providers = [
+        context_providers.append(
             DurableMemoryContextProvider(
                 memory_store,
                 fallback_actor_id=(
@@ -85,6 +89,21 @@ def create_waiter_agent(
                 intent_classifier=intent_classifier,
                 option_merger=option_merger,
             )
+        )
+    tools = None
+    if settings.seating_mcp_url is not None:
+        tools = [
+            MCPStreamableHTTPTool(
+                name="seating",
+                url=str(settings.seating_mcp_url),
+                tool_name_prefix="seating",
+                allowed_tools=(
+                    "get_seating_availability",
+                    "hold_seating",
+                ),
+                request_timeout=settings.seating_mcp_timeout_seconds,
+                description="Disponibilidad y bloqueos temporales de asientos.",
+            )
         ]
     default_options = {"store": False}
     if settings.enable_dev_fake_identity:
@@ -95,7 +114,11 @@ def create_waiter_agent(
         description="Atiende al cliente y mantiene un borrador del pedido.",
         client=client,
         instructions=load_instructions(),
+        tools=tools,
         context_providers=context_providers,
-        middleware=[HabitualOrderMiddleware(intent_classifier)],
+        middleware=[
+            HabitualOrderMiddleware(intent_classifier),
+            SeatingToolContextMiddleware(),
+        ],
         default_options=default_options,
     )

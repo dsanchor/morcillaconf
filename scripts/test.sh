@@ -6,3 +6,6 @@ agent_dir="$repo_root/agents/restaurant/src/restaurant_agent"
 
 cd "$agent_dir"
 uv run --frozen pytest tests "$repo_root/packages/contracts/tests" "$repo_root/tests/contract"
+
+cd "$repo_root/services/mcp"
+uv run --frozen pytest

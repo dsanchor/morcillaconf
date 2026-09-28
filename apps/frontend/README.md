@@ -6,7 +6,55 @@ una única vista de cliente que habla solo con el contrato público del BFF
 BFF del carril 3C, el camarero es **simulado** mediante `FakeBffClient` y la
 vista lo indica con «Camarero simulado».
 
-## Preparar, probar y arrancar (Codespace)
+## Probar y ejecutar localmente con Docker
+
+El frontend se prueba y ejecuta sin instalar Python, `uv`, `pip` ni
+dependencias en el host. Desde la raíz del repositorio, construir y ejecutar la
+etapa de pruebas:
+
+```bash
+docker build \
+  --file apps/frontend/Dockerfile \
+  --target test \
+  --tag morcillaconf-frontend:test \
+  .
+
+docker run --rm morcillaconf-frontend:test
+```
+
+Construir la imagen de ejecución:
+
+```bash
+docker build \
+  --file apps/frontend/Dockerfile \
+  --target runtime \
+  --tag morcillaconf-frontend:local \
+  .
+```
+
+Copiar [`.env.example`](.env.example) a un `.env` local no versionado. Las
+variables disponibles son:
+
+| Variable | Valores | Por defecto |
+|---|---|---|
+| `FRONTEND_BFF_CLIENT` | `fake`; `http` falla con un mensaje claro hasta 3C | `fake` |
+| `FRONTEND_FAKE_PAUSE_SECONDS` | Pausa simulada del camarero antes de responder, 0-10 | `0.9` |
+| `FRONTEND_PORT` | Puerto del servidor Streamlit dentro del contenedor | `8501` |
+
+Ejecutar la imagen:
+
+```bash
+docker run --rm --name morcillaconf-frontend \
+  --publish 8501:8501 \
+  --env-file apps/frontend/.env \
+  morcillaconf-frontend:local
+```
+
+La vista queda disponible en `http://localhost:8501`. Mientras no exista el
+BFF, usar `FRONTEND_BFF_CLIENT=fake`; no hay que configurar credenciales de
+Foundry, MCP o agentes en este contenedor.
+
+## Preparar, probar y arrancar en Codespaces
 
 Desde la raíz del repositorio:
 
@@ -19,14 +67,6 @@ Desde la raíz del repositorio:
 `apps/frontend/uv.lock` está versionado y fija Streamlit 1.64.0; los scripts
 usan `--frozen`. Si falta el lockfile, `setup-frontend.sh` lo genera y hay que
 versionarlo. En el Codespace abre el puerto 8501 reenviado.
-
-Configuración por variables de entorno:
-
-| Variable | Valores | Por defecto |
-|---|---|---|
-| `FRONTEND_BFF_CLIENT` | `fake`; `http` falla con un mensaje claro hasta 3C | `fake` |
-| `FRONTEND_FAKE_PAUSE_SECONDS` | Pausa simulada del camarero antes de responder, 0-10 | `0.9` |
-| `FRONTEND_PORT` | Puerto de `run-frontend.sh` | `8501` |
 
 ## Recorrido
 
