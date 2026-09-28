@@ -64,8 +64,32 @@ de implementación ni asignan responsables:
 - Iniciado el MCP de asientos en `services/mcp/`: servidor oficial `mcp` con
   FastMCP y Streamable HTTP, repositorio SQLite transaccional, bloqueos y
   confirmaciones idempotentes, barra contigua que minimiza huecos, Dockerfile y
-  workflow de imagen filtrado por ruta. Pendiente su integración con BFF,
-  contratos públicos, pago y el adaptador final Cosmos DB.
+  workflow de imagen filtrado por ruta. La primera versión de la integración
+  directa con el camarero está implementada: declara `MCPStreamableHTTPTool`
+  únicamente para disponibilidad y bloqueo, inicializa `visit_id` y
+  idempotencia en la sesión del servidor, y conserva la propuesta devuelta por
+  el MCP. Debe revisarse con una conversación real contra ambos procesos
+  locales antes de considerarla aceptada.
+- Esta primera versión solo crea una propuesta temporal; no confirma una
+  ocupación. Pendiente: incorporar la decisión explícita del usuario mediante
+  HITL, validar vigencia y versión antes de habilitar `confirm_seating`,
+  permitir rechazo o cancelación de la propuesta, y habilitar
+  `release_seating` exclusivamente después de la verificación del pago. El BFF
+  y la UI proyectarán resultados de negocio sin exponer el contrato MCP; pedido,
+  pago y el adaptador final Cosmos DB permanecen posteriores.
+- Relación actual entre sesión y visita: `ResponsesHostServer` recupera o crea
+  una `AgentSession` a partir de la conversación Responses; en la primera
+  ejecución de esa sesión, `VisitContextProvider` genera un `visit_id` nuevo
+  (`visit_<uuid>`) y lo guarda bajo `session.state["visit_context"]`. El
+  `visit_id` no copia ni deriva del identificador público de la conversación:
+  es un identificador operacional interno y estable mientras se recupere la
+  misma sesión. Por tanto, todos los turnos de una conversación comparten
+  visita, secuencia de bloqueos y propuestas; una conversación/sesión nueva
+  crea otra visita. Antes de cada `hold_seating`, el middleware construye o
+  reutiliza una clave `seating:<visit_id>:<secuencia>` por combinación de
+  comensales y preferencia y sustituye los argumentos equivalentes del modelo.
+  El BFF futuro será responsable de persistir y recuperar el vínculo entre su
+  sesión de cliente, la conversación Responses y esta visita.
 - Alineado el camarero con el empaquetado local: Dockerfile con etapas `test` y
   `runtime`, contexto que incorpora contratos compartidos, workflow de imagen
   filtrado por agente/contratos y guía de variables de entorno, volumen SQLite
@@ -425,9 +449,12 @@ Con 3A implementada y la vista 3B validada en el Codespace contra
 - persistencia y recuperación de la visita activa;
 - sustitución de la identidad falsa de desarrollo.
 
-En paralelo, la fase 4 puede construir el servicio determinista de mesas y su
-contrato de bloqueo temporal; su aceptación extremo a extremo sigue dependiendo
-de la integración de fase 3.
+En paralelo, la fase 4 ya dispone del servicio determinista de mesas y el
+camarero declara sus tools MCP directas de disponibilidad y bloqueo. Cada
+sesión Responses inicializa un `visit_id`, el middleware sustituye los
+argumentos de autoridad suministrados por el modelo y guarda la propuesta MCP
+confirmada en el estado de sesión. Queda pendiente la prueba de conversación
+real con el MCP levantado, seguida por la integración del BFF de fase 3.
 
 ## Ejecución y validación
 

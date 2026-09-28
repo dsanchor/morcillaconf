@@ -30,7 +30,12 @@ def create_server(settings: Settings) -> FastMCP:
         return repository.availability()
 
     @server.tool()
-    def hold_seating(visit_id: str, party_size: int, preference: str, idempotency_key: str) -> dict[str, object]:
+    def hold_seating(
+        party_size: int,
+        preference: str,
+        visit_id: str = "",
+        idempotency_key: str = "",
+    ) -> dict[str, object]:
         """Temporarily hold one table or contiguous bar seats for a visit."""
         if preference not in ("table", "bar", "any"):
             raise ValueError("preference must be table, bar or any")
