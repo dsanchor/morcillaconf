@@ -381,8 +381,9 @@ contrato modificado.
 - El Codespace generó `apps/frontend/uv.lock` (Streamlit 1.64.0, 49 paquetes),
   versionado en el commit f7b300c.
 - `./scripts/test-frontend.sh` dio **106 pruebas superadas** en f7b300c,
-  incluidas las 6 de `AppTest`. Las correcciones posteriores añaden 2 pruebas
-  (108 en total), que todavía no se han vuelto a ejecutar ni a informar.
+  incluidas las 6 de `AppTest`. Con las 2 pruebas de las correcciones
+  posteriores, las 108 pasaron en CI en la
+  [ejecución 36446579098](https://github.com/dsanchor/morcillaconf/actions/runs/36446579098).
 - El recorrido manual en la vista real se superó en escritorio y en emulación
   móvil: la puerta tiembla con el nombre vacío, animación de apertura y saludo,
   comandos de memoria, `/new`, `/exit` y aislamiento frente a otra identidad.
