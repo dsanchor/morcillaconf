@@ -55,6 +55,10 @@ def waiter_result(
     )
 
 
+def draft_with(*item_names: str) -> OrderDraft:
+    return OrderDraft(items=[OrderItemDraft(name=name) for name in item_names])
+
+
 @pytest.mark.asyncio
 async def test_memory_is_written_automatically_from_the_first_turn(tmp_path: Path) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
@@ -318,3 +322,160 @@ async def test_clear_allows_new_memories_in_later_turns(tmp_path: Path) -> None:
         conversation_id=conversation_id, actor_id="customer", message="Agua sin gas."
     )
     assert [item.value for item in response.remembered_memories] == ["agua sin gas"]
+
+
+@pytest.mark.asyncio
+async def test_unchanged_order_draft_is_counted_once_per_conversation(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteMemoryStore(tmp_path / "memory.db")
+    manager = ConversationManager(
+        FakeAgent(*[
+            waiter_result(order_draft=draft_with("tortilla de patatas"))
+            for _ in range(3)
+        ]),
+        memory_store=store,
+    )
+    conversation_id = manager.start_conversation(
+        actor_id="customer-1",
+        authenticated=True,
+    )
+    for message in (
+        "Hola, soy Ana. Quiero una tortilla de patatas.",
+        "Somos dos.",
+        "Gracias.",
+    ):
+        await manager.send_message(
+            conversation_id=conversation_id,
+            actor_id="customer-1",
+            message=message,
+        )
+
+    memories = store.list_memories("customer-1")
+    assert [(item.value, item.occurrence_count) for item in memories] == [
+        ("Preferencia de pedido: tortilla de patatas", 1)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_same_order_in_a_new_conversation_is_counted_again(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteMemoryStore(tmp_path / "memory.db")
+    manager = ConversationManager(
+        FakeAgent(*[
+            waiter_result(order_draft=draft_with("tortilla de patatas"))
+            for _ in range(4)
+        ]),
+        memory_store=store,
+    )
+    for _ in range(2):
+        conversation_id = manager.start_conversation(
+            actor_id="customer-1",
+            authenticated=True,
+        )
+        for message in ("Quiero una tortilla de patatas.", "Gracias."):
+            await manager.send_message(
+                conversation_id=conversation_id,
+                actor_id="customer-1",
+                message=message,
+            )
+
+    memories = store.list_memories("customer-1")
+    assert [(item.value, item.occurrence_count) for item in memories] == [
+        ("Preferencia de pedido: tortilla de patatas", 2)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_changed_order_draft_stores_each_summary_once(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteMemoryStore(tmp_path / "memory.db")
+    manager = ConversationManager(
+        FakeAgent(
+            waiter_result(order_draft=draft_with("tortilla de patatas")),
+            waiter_result(
+                order_draft=draft_with("tortilla de patatas", "agua con gas")
+            ),
+            waiter_result(order_draft=draft_with("tortilla de patatas")),
+        ),
+        memory_store=store,
+    )
+    conversation_id = manager.start_conversation(
+        actor_id="customer-1",
+        authenticated=True,
+    )
+    for message in (
+        "Quiero una tortilla de patatas.",
+        "Añade un agua con gas.",
+        "Mejor sin el agua.",
+    ):
+        await manager.send_message(
+            conversation_id=conversation_id,
+            actor_id="customer-1",
+            message=message,
+        )
+
+    memories = store.list_memories("customer-1")
+    assert len(memories) == 2
+    assert {(item.value, item.occurrence_count) for item in memories} == {
+        ("Preferencia de pedido: tortilla de patatas", 1),
+        ("Preferencia de pedido: tortilla de patatas, agua con gas", 1),
+    }
+
+
+@pytest.mark.asyncio
+async def test_clear_is_not_undone_by_the_unchanged_order_draft(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteMemoryStore(tmp_path / "memory.db")
+    manager = ConversationManager(
+        FakeAgent(
+            waiter_result(order_draft=draft_with("tortilla de patatas")),
+            waiter_result(order_draft=draft_with("tortilla de patatas")),
+            waiter_result(
+                order_draft=draft_with("tortilla de patatas"),
+                memory_candidates=[
+                    MemoryCandidate(
+                        kind=MemoryKind.PREFERENCE,
+                        value="agua con gas",
+                    )
+                ],
+            ),
+        ),
+        memory_store=store,
+    )
+    conversation_id = manager.start_conversation(
+        actor_id="customer-1",
+        authenticated=True,
+    )
+    await manager.send_message(
+        conversation_id=conversation_id,
+        actor_id="customer-1",
+        message="Quiero una tortilla de patatas.",
+    )
+    manager.clear_memories(
+        conversation_id=conversation_id,
+        actor_id="customer-1",
+    )
+
+    response = await manager.send_message(
+        conversation_id=conversation_id,
+        actor_id="customer-1",
+        message="¿Me traes la carta?",
+    )
+    assert response.remembered_memories == []
+    assert store.list_memories("customer-1") == []
+
+    response = await manager.send_message(
+        conversation_id=conversation_id,
+        actor_id="customer-1",
+        message="Prefiero agua con gas.",
+    )
+    assert [item.value for item in response.remembered_memories] == [
+        "agua con gas"
+    ]
+    assert [
+        (item.kind, item.value) for item in store.list_memories("customer-1")
+    ] == [(MemoryKind.PREFERENCE, "agua con gas")]

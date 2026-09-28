@@ -110,6 +110,7 @@ class ConversationRecord:
     agent_session: Any
     state: SessionState
     remembered_memories: list[DurableMemoryRecord] = field(default_factory=list)
+    persisted_order_preferences: set[str] = field(default_factory=set)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -215,13 +216,25 @@ class ConversationManager:
             order_preference = summarize_order_preference(
                 item.name for item in result.order_draft.items
             )
+            # The model repeats the whole draft every turn: count each order
+            # once per conversation and never re-create a forgotten summary.
+            if (
+                order_preference is not None
+                and order_preference.value.casefold()
+                in record.persisted_order_preferences
+            ):
+                order_preference = None
             if order_preference is not None:
                 memory_candidates.append(order_preference)
-            self._persist_memory_candidates(
+            persisted = self._persist_memory_candidates(
                 conversation_id,
                 record,
                 candidates=memory_candidates,
             )
+            if persisted and order_preference is not None:
+                record.persisted_order_preferences.add(
+                    order_preference.value.casefold()
+                )
 
             return WaiterResponse(
                 conversation_id=conversation_id,
@@ -333,12 +346,12 @@ class ConversationManager:
         record: ConversationRecord,
         *,
         candidates: list[MemoryCandidate],
-    ) -> None:
+    ) -> bool:
         if (
             not record.authenticated
             or self._memory_store is None
         ):
-            return
+            return False
         for candidate in candidates:
             self._memory_store.remember_memory(
                 record.actor_id,
@@ -349,6 +362,7 @@ class ConversationManager:
         record.remembered_memories = self._memory_store.list_memories(
             record.actor_id
         )
+        return True
 
     def _refresh_remembered_memories(
         self,

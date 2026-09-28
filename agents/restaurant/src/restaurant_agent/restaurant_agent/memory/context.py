@@ -249,6 +249,18 @@ class DurableMemoryContextProvider(ContextProvider):
         order_preference = summarize_order_preference(
             item.name for item in result.order_draft.items
         )
+        # Same once-per-conversation guard as the CLI. A list of strings keeps
+        # the hosted session JSON-serializable.
+        persisted_order_preferences = session.state.get(
+            "persisted_order_preferences"
+        )
+        if not isinstance(persisted_order_preferences, list):
+            persisted_order_preferences = []
+        if (
+            order_preference is not None
+            and order_preference.value.casefold() in persisted_order_preferences
+        ):
+            order_preference = None
         if order_preference is not None:
             candidates.append(order_preference)
         for candidate in candidates:
@@ -258,6 +270,11 @@ class DurableMemoryContextProvider(ContextProvider):
                 value=candidate.value,
                 source_conversation_id=session.session_id,
             )
+        if order_preference is not None:
+            session.state["persisted_order_preferences"] = [
+                *persisted_order_preferences,
+                order_preference.value.casefold(),
+            ]
         result.remembered_memories = [
             MemoryCandidate(kind=memory.kind, value=memory.value)
             for memory in self._store.list_memories(actor_id)
