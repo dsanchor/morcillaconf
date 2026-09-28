@@ -7,8 +7,15 @@
   --lumbre: #ffd27a;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
 }
+/* The longest command, /memory correct plus its two arguments, is 28 characters.
+   Monospace fonts measure up to .602em per character, so at 16px it needs 269.7px,
+   plus 2 x 12px of row padding and 2 x 18px of sidebar padding: 329.7px fits in
+   336px. Narrower drawers scale the command size with 28 x .61em per character. */
 .stApp {
-  --alto-plano: min(33vh, calc((100vw - 352px) * .34));
+  --lateral: 336px;
+  --comando: min(1rem, calc((var(--lateral) - 60px) / (28 * .61)));
+  --fila: 45px;
+  --alto-plano: min(33vh, calc((100vw - var(--lateral) - 64px) * .34));
   background: var(--nogal);
   color: var(--piedra);
   -webkit-font-smoothing: antialiased;
@@ -25,6 +32,12 @@ header[data-testid="stHeader"] { background: transparent !important; pointer-eve
 [data-testid="stStatusWidget"]:not(:has([data-testid="stConnectionStatus"])) { display: none !important; }
 [data-testid="stElementContainer"][data-stale="true"] { opacity: 1 !important; transition: none !important; }
 [data-testid="stMainBlockContainer"] { max-width: none; padding: 26px 32px 18px; }
+/* Streamlit pulls each Markdown block up by 1rem to absorb a trailing paragraph
+   margin; these blocks are raw HTML without one. */
+.stApp .st-key-puerta [data-testid="stMarkdownContainer"],
+.stApp .st-key-umbral [data-testid="stMarkdownContainer"],
+.stApp .st-key-lateral [data-testid="stMarkdownContainer"],
+.stApp .st-key-sala [data-testid="stMarkdownContainer"] { margin-bottom: 0; }
 
 /* The door: a fixed scene with the name form on its doorstep. */
 .stApp .escena { z-index: 999996; }
@@ -70,25 +83,37 @@ header[data-testid="stHeader"] { background: transparent !important; pointer-eve
 
 /* Commands sidebar: the customer's name and the slash commands only. */
 section[data-testid="stSidebar"] { background: var(--carbon); border-right: 1px solid var(--roble-medio); }
-[data-testid="stSidebarContent"] { padding-left: 0 !important; padding-right: 0 !important; }
+section[data-testid="stSidebar"][aria-expanded="true"] {
+  width: var(--lateral) !important; min-width: var(--lateral) !important; max-width: var(--lateral) !important;
+}
+[data-testid="stSidebarContent"] {
+  padding-left: 0 !important; padding-right: 0 !important; scrollbar-gutter: auto !important;
+}
 [data-testid="stSidebarUserContent"] { padding: 30px 18px 22px !important; }
 .stApp .quien { padding: 0 12px; }
 .stApp .quien .nombre {
   font: 500 1.6rem/1.1 var(--serif); color: var(--piedra); overflow-wrap: anywhere;
 }
-.stApp .st-key-comandos button {
-  display: flex; justify-content: flex-start; width: 100%;
-  min-height: 0; padding: 9px 12px !important;
+/* Buttons and typed-only commands share one row: left-aligned, one line, same height. */
+.stApp .st-key-comandos button,
+.stApp .comando.estatico {
+  display: flex; align-items: center; justify-content: flex-start;
+  width: 100%; height: var(--fila); min-height: 0; padding: 0 12px !important;
   border: 0 !important; border-radius: 4px !important;
   background: none !important; color: var(--piedra) !important;
+  text-align: left; white-space: nowrap;
 }
+.stApp .st-key-comandos button > div,
+.stApp .st-key-comandos button > div > span { justify-content: flex-start; width: 100%; }
+.stApp .st-key-comandos button [data-testid="stMarkdownContainer"],
 .stApp .st-key-comandos button p,
-.stApp .comando code { margin: 0; font: 500 1.06rem/1.35 var(--mono); color: inherit; }
+.stApp .comando code {
+  margin: 0; padding: 0; background: none;
+  font: 500 var(--comando)/1.35 var(--mono); color: inherit; white-space: nowrap;
+}
 .stApp .st-key-comandos button:hover { background: rgba(242, 176, 74, .08) !important; }
 .stApp .st-key-comandos button:hover p { color: var(--luz); }
 .stApp .st-key-comandos button:disabled { opacity: .45; }
-.stApp .comando.estatico { padding: 9px 12px; color: var(--piedra); }
-.stApp .comando code { padding: 0; background: none; white-space: normal; }
 .stApp .comando .arg { color: var(--piedra-tenue); font-style: italic; }
 
 /* The conversation window: oak frame with iron corner brackets. */
@@ -172,16 +197,31 @@ section[data-testid="stSidebar"] { background: var(--carbon); border-right: 1px 
 .stApp .st-key-redactor [data-testid="stChatInput"] > div {
   padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important;
 }
+/* Streamlit sizes the field by comparing its offset and scroll heights, so a real
+   border would read as a second line: the outline is an inset shadow instead. */
 .stApp .st-key-redactor [data-testid="stChatInputTextArea"] {
-  min-height: 48px; padding: .7rem .9rem !important;
+  min-height: 48px; max-height: 8rem; padding: .7rem .9rem !important;
   background: #1c140f !important; color: var(--piedra) !important;
-  border: 1px solid var(--roble-medio) !important; border-radius: 4px !important;
+  border: 0 !important; border-radius: 4px !important;
+  box-shadow: inset 0 0 0 1px var(--roble-medio);
   font: 400 1rem/1.5 var(--sans) !important;
 }
 .stApp .st-key-redactor [data-testid="stChatInputTextArea"]::placeholder { color: var(--piedra-tenue); opacity: 1; }
-.stApp .st-key-redactor [data-testid="stChatInputTextArea"]:focus { border-color: var(--luz) !important; outline: none; }
+.stApp .st-key-redactor [data-testid="stChatInputTextArea"]:focus { box-shadow: inset 0 0 0 1px var(--luz); outline: none; }
+/* Long or multi-line text makes Streamlit move the button below the field; keep it on the right. */
+.stApp .st-key-redactor [data-testid="stChatInput"] div:has(> div > [data-testid="stChatInputTextArea"]) {
+  flex-direction: row !important; flex-wrap: nowrap !important; align-items: flex-end !important; gap: 10px !important;
+}
+.stApp .st-key-redactor [data-testid="stChatInput"] div:has(> [data-testid="stChatInputTextArea"]) {
+  flex: 1 1 0% !important; width: auto !important; min-width: 0; order: 0 !important;
+}
+.stApp .st-key-redactor [data-testid="stChatInput"] div:has(> div > [data-testid="stChatInputTextArea"]) > div:not(:has([data-testid="stChatInputTextArea"])) {
+  flex: none !important; width: auto !important; order: 1 !important;
+}
+.stApp .st-key-redactor [data-testid="stChatInput"] div:empty,
+.stApp .st-key-redactor #stChatInputInstructions { display: none !important; }
 .stApp .st-key-redactor [data-testid="stChatInputSubmitButton"] {
-  width: 48px !important; height: 48px !important; border-radius: 4px !important;
+  flex: none; width: 48px !important; height: 48px !important; border-radius: 4px !important;
   background: var(--luz) !important; color: var(--tinta) !important;
 }
 .stApp .st-key-redactor [data-testid="stChatInputSubmitButton"]:hover { background: #ffc766 !important; }
@@ -199,11 +239,8 @@ section[data-testid="stSidebar"] { background: var(--carbon); border-right: 1px 
 .stApp .planta-marco .planta { max-height: 33vh; }
 .stApp .planta-marco.entrando { animation: aparecer .9s var(--ease-salida) 2.5s both; }
 
-/* Desktop: the sidebar is locked open at the prototype's width. */
+/* Desktop: the sidebar is locked open. */
 @media (min-width: 769px) {
-  section[data-testid="stSidebar"] {
-    width: 288px !important; min-width: 288px !important; max-width: 288px !important;
-  }
   [data-testid="stSidebarHeader"],
   [data-testid="stSidebarResizeHandle"] { display: none !important; }
   section[data-testid="stSidebar"] > div:has(> [data-testid="stSidebarResizeHandle"]) { display: none !important; }
@@ -211,7 +248,11 @@ section[data-testid="stSidebar"] { background: var(--carbon); border-right: 1px 
 
 /* Mobile: the sidebar becomes a drawer opened from «/comandos». */
 @media (max-width: 768px) {
-  .stApp { --alto-plano: min(24vh, calc((100vw - 24px) * .34)); font-size: 17px; }
+  .stApp {
+    --lateral: min(336px, calc(100vw - 40px));
+    --alto-plano: min(24vh, calc((100vw - 24px) * .34));
+    font-size: 17px;
+  }
   [data-testid="stMainBlockContainer"] { padding: 62px 12px 12px; }
   [data-testid="stExpandSidebarButton"] {
     pointer-events: auto; display: inline-flex; align-items: center; gap: 8px;

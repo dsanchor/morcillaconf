@@ -17,6 +17,7 @@ from frontend.markup import (
     simulated_markup,
     text_html,
 )
+from frontend.slash_commands import COMMAND_LIST
 from frontend.stylesheets import base_stylesheet, stage_stylesheet
 from frontend.visit import Card, ConversationView
 
@@ -136,3 +137,12 @@ def test_stylesheets_are_safe_inside_a_sanitized_style_tag() -> None:
         css += stage_stylesheet(stage, knocked=True)
     assert "<" not in css
     assert ".st-key-ventana" in css and ".st-key-umbral" in css
+
+
+def test_sidebar_is_sized_for_the_longest_command_on_one_line() -> None:
+    css = base_stylesheet()
+    longest = max(len(command) for command in COMMAND_LIST)
+    width = int(re.search(r"--lateral: (\d+)px;", css).group(1))
+    assert f"({longest} * .61)" in css
+    assert longest * 0.61 * 16 + 2 * 12 + 2 * 18 <= width
+    assert "white-space: nowrap" in css
