@@ -668,6 +668,25 @@ esas trazas con la definición de agentes y con lo que el público acaba de ver.
 La arquitectura objetivo no debe construirse de una sola vez. El orden revisado
 prioriza siempre un incremento demostrable.
 
+### Contenedores y automatización de imágenes
+
+Todo componente ejecutable de la demo debe ser contenedorable desde su propia
+carpeta: frontend Streamlit, BFF FastAPI, agente/workflow cuando se ejecute como
+contenedor, servidor MCP y proveedor A2A. Cada uno entrega un `Dockerfile`
+reproducible y no depende de herramientas o archivos generados de una máquina
+local.
+
+Cada componente tiene además un workflow de GitHub Actions asociado a su ruta
+que, ante `push`, construye y publica su imagen. El disparador usa filtros
+`paths` para no ejecutar el workflow cuando cambian componentes ajenos; incluye
+la ruta del componente, las dependencias compartidas que entren en su imagen
+(por ejemplo `packages/contracts/`) y el propio archivo de workflow. Un cambio
+en una dependencia compartida debe reconstruir todos los consumidores
+afectados. La publicación no sustituye las pruebas: el workflow ejecuta las
+validaciones del componente antes de publicar y etiqueta la imagen de manera
+trazable con el commit. Todas las imágenes se publican en GitHub Packages
+asociado a este repositorio; no se usa otro registro como destino del workflow.
+
 ### Incremento 1: camarero, memoria e interfaz mínima
 
 - conversación de texto;
@@ -684,6 +703,8 @@ prioriza siempre un incremento demostrable.
 - representación inicial de mesas, aunque utilice datos locales;
 - frontend empaquetable y desplegable de forma independiente, con configuración
   por variables de entorno para distintos BFF y proyectos Foundry.
+- todos los componentes ejecutables tienen su propio `Dockerfile` y un workflow
+  de GitHub Actions que construye y publica su imagen al cambiar su ruta.
 
 ### Incremento 2: mesas y recorrido completo simulado
 

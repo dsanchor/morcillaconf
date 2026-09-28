@@ -46,6 +46,11 @@ de implementación ni asignan responsables:
 - El frontend debe poder empaquetarse y desplegarse independientemente mediante
   Docker y Container Apps, configurando por variables de entorno el BFF y el
   proyecto Foundry de cada entorno.
+- Todo componente ejecutable de la demo debe incluir un `Dockerfile` propio y
+  un workflow de GitHub Actions. En `push`, el workflow solo se activa por
+  cambios en la ruta del componente, sus dependencias compartidas empaquetadas
+  o su propio YAML; valida, construye y publica una imagen trazable en GitHub
+  Packages asociado a este repositorio.
 - La gestión de mesas puede avanzar en paralelo con 3C. Un servicio único será
   la autoridad de disponibilidad y creará bloqueos temporales atómicos por
   grupo; confirmar ocupa, rechazar o caducar libera. Una cola visible de

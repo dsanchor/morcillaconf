@@ -8,9 +8,17 @@ solo se crearán las carpetas que necesite cada fase.
 
 ```text
 morcillaconf-multiagents/
+├── .github/
+│   └── workflows/
+│       ├── frontend-image.yml
+│       ├── bff-image.yml
+│       ├── restaurant-agent-image.yml
+│       ├── mcp-image.yml
+│       └── supplier-image.yml
 ├── agents/
 │   ├── restaurant/
 │   │   ├── agent.yaml
+│   │   ├── Dockerfile
 │   │   ├── .foundry/
 │   │   ├── src/restaurant_agent/
 │   │   │   ├── main.py
@@ -25,13 +33,16 @@ morcillaconf-multiagents/
 │       └── tests/
 ├── apps/
 │   ├── frontend/
+│   │   ├── Dockerfile
 │   │   ├── src/frontend/
 │   │   └── tests/
 │   └── bff/
+│       ├── Dockerfile
 │       ├── src/bff/
 │       └── tests/
 ├── services/
 │   └── mcp/
+│       ├── Dockerfile
 │       ├── src/restaurant_mcp/
 │       └── tests/
 ├── packages/
@@ -76,8 +87,29 @@ y Foundry.
 Contiene aplicaciones orientadas al usuario o puntos de entrada HTTP:
 
 - `frontend` contiene la interfaz Streamlit.
-- `bff` contiene la API FastAPI, SSE, autenticación y coordinación con el
-  workflow.
+- `bff` contiene la API FastAPI, SSE, resolución de identidad de demo por
+  sesión y coordinación con el workflow.
+
+### Contenedores y workflows de imagen
+
+Cada componente ejecutable mantiene un `Dockerfile` en la raíz de su carpeta:
+los agentes que se ejecuten como contenedor, `apps/frontend`, `apps/bff` y los
+servidores de `services/`. Los paquetes de biblioteca no reciben imagen ni
+workflow propios; se reconstruyen a través de los componentes que los incluyen.
+
+Los workflows de imágenes viven en `.github/workflows/` y se nombran
+`<componente>-image.yml`. Cada workflow:
+
+1. se activa en `push` solo con `paths` que incluyan la carpeta de su
+   componente, las dependencias compartidas que copie su `Dockerfile` y el
+   propio YAML;
+2. ejecuta las pruebas y comprobaciones del componente antes de la construcción;
+3. construye y publica una imagen etiquetada con el SHA del commit, sin usar
+   etiquetas no trazables como única referencia, en GitHub Packages asociado a
+   este repositorio.
+
+No se agrupan componentes independientes en un único workflow ni se activa una
+publicación por cambios que no puedan afectar a su imagen.
 
 El frontend se comunica con el BFF mediante su contrato público y no importa
 código interno de agentes o servicios.

@@ -53,6 +53,7 @@ ya realizados. Esto no implica borrar los archivos o recursos actuales.
 | Herramientas | Servidor MCP propio con servicios de negocio deterministas |
 | Agente externo | Proveedor independiente accesible mediante A2A |
 | Hosting auxiliar | Azure Container Apps para Streamlit/FastAPI, MCP y proveedor A2A |
+| Empaquetado y CI | Cada componente ejecutable aporta su `Dockerfile` y un workflow de GitHub Actions de ruta acotada que valida, construye y publica su imagen |
 | Identidad | Nombre de entrada normalizado y sesión de demo en el BFF para aislar recursos simulados; managed/agent identities solo entre servicios Azure |
 | Observabilidad | Eventos de dominio, OpenTelemetry y Application Insights |
 | Automatizacion | azd, infraestructura declarativa preferentemente Bicep y scripts Bash |
@@ -96,6 +97,12 @@ ni evidencias de una implementacion previa.
   corregir o borrar no bloquea el guardado de interacciones futuras.
 - Cada incremento sustituye adaptadores simulados por integraciones reales sin
   cambiar la experiencia unica del cliente ni relajar los controles.
+- Todo componente ejecutable es contenedorable desde su propia carpeta. Su
+  workflow de GitHub Actions se activa en `push` solo ante cambios en la ruta
+  del componente, sus dependencias compartidas empaquetadas o el propio
+  workflow; valida antes de construir y publicar una imagen trazable.
+  El destino de publicación es siempre GitHub Packages asociado a este
+  repositorio.
 
 ## 4. Arquitectura y autoridad
 
@@ -302,9 +309,12 @@ recorrido completo sin integrar la fase 3.
   recuerdos actuales no desactiva el guardado futuro, sin controles de alta
   o revocacion.
 - [ ] Iniciar spans de BFF/agente y eventos de dominio sin exponer datos sensibles.
-- [ ] Empaquetar Streamlit con Docker y documentar su despliegue independiente
-  en Container Apps, incluyendo variables de entorno para seleccionar BFF y
-  proyecto Foundry sin depender de entornos locales activos.
+- [ ] Añadir `Dockerfile` reproducible al frontend y un workflow de GitHub
+  Actions filtrado por `apps/frontend/**`, sus dependencias compartidas y su
+  propio YAML. Debe validar, construir y publicar la imagen antes de documentar
+  su despliegue independiente en Container Apps.
+- [ ] Configurar por variables de entorno el BFF y proyecto Foundry sin depender
+  de entornos locales activos.
 
 **Aceptacion y pruebas**
 
@@ -480,6 +490,12 @@ reinicios, mientras los servicios se siguen con trazas distribuidas.
 
 - [ ] Alojar workflow completo en Foundry y UI/BFF, MCP y proveedor en Container
   Apps. No separar cada especialista en otro despliegue.
+- [ ] Exigir un `Dockerfile` reproducible y un workflow de GitHub Actions por
+  cada componente ejecutable pendiente (BFF, MCP y proveedor A2A, además de
+  cualquier workflow que se ejecute en contenedor). Cada workflow debe usar
+  filtros de ruta para su componente, dependencias compartidas y YAML, ejecutar
+  sus pruebas y publicar en GitHub Packages del repositorio una imagen
+  etiquetada con el commit.
 - [ ] Activar Cosmos DB/adaptadores duraderos para memoria, visitas, negocio,
   decisiones, eventos y checkpoints. Elegir particiones, operaciones condicionales
   y limites transaccionales para conservar las invariantes locales.
