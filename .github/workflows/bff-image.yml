@@ -7,6 +7,7 @@ on:
       - packages/contracts/**
       - agents/restaurant/src/restaurant_agent/pyproject.toml
       - agents/restaurant/src/restaurant_agent/uv.toml
+      - agents/restaurant/src/restaurant_agent/uv.lock
       - agents/restaurant/src/restaurant_agent/restaurant_agent/**
       - .dockerignore
       - .github/workflows/bff-image.yml

@@ -14,6 +14,8 @@ FROM base AS test
 RUN uv sync --frozen --all-groups --no-install-project
 COPY apps/bff/src ./src
 COPY apps/bff/tests ./tests
+# Only for the check that the BFF uses the waiter's validated versions.
+COPY agents/restaurant/src/restaurant_agent/uv.lock /workspace/agents/restaurant/src/restaurant_agent/uv.lock
 RUN uv sync --frozen --all-groups
 # The tests never call Foundry.
 ENV BFF_WAITER=scripted

@@ -22,7 +22,27 @@ Desde la raíz del repositorio:
 ./scripts/run-bff.sh     # uvicorn en 0.0.0.0:8000, un único worker
 ```
 
-Si `setup-bff.sh` genera el lockfile, hay que revisarlo y versionarlo.
+`apps/bff/uv.lock` está versionado y los scripts usan `--frozen`.
+
+El BFF ejecuta el camarero en su proceso, así que usa exactamente las versiones
+con las que se validó el camarero: `[tool.uv] constraint-dependencies` fija
+todos los paquetes de `agents/restaurant/src/restaurant_agent/uv.lock`, y
+`tests/test_lock_alignment.py` falla si las restricciones o los dos lockfiles
+difieren en algún paquete compartido. Si cambia el lockfile del camarero,
+regenera las restricciones y el lockfile:
+
+```bash
+python3 - <<'PY'
+import re, tomllib
+from pathlib import Path
+lock = tomllib.load(open("agents/restaurant/src/restaurant_agent/uv.lock", "rb"))
+pins = sorted(f'{p["name"]}=={p["version"]}' for p in lock["package"] if "registry" in p["source"])
+path = Path("apps/bff/pyproject.toml")
+block = "constraint-dependencies = [\n" + "".join(f'    "{pin}",\n' for pin in pins) + "]"
+path.write_text(re.sub(r"constraint-dependencies = \[.*?\]", block, path.read_text(), flags=re.S))
+PY
+(cd apps/bff && uv lock)
+```
 
 Camarero real con tu proyecto Foundry:
 
