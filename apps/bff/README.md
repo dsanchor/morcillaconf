@@ -104,7 +104,9 @@ La imagen se ejecuta como usuario no root, guarda SQLite en `/data` y expone un
 `gpt-5.6-luna` funciona con la salida estructurada del camarero; `gpt-6-luna`
 la rechaza a través del endpoint del proyecto. La identidad falsa de desarrollo
 del camarero (`ENABLE_DEV_FAKE_IDENTITY`) queda siempre desactivada en el BFF,
-aunque la variable esté exportada.
+aunque la variable esté exportada. Lo mismo ocurre con `SEATING_MCP_URL`: los
+asientos son de la fase 4, que además tendrá que pasar al camarero el id de
+visita del BFF.
 
 ## API (`/v1`)
 

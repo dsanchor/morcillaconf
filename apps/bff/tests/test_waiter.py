@@ -152,3 +152,23 @@ def test_agent_sessions_with_history_round_trip_as_json() -> None:
     ]
     assert codec.load("not json") is None
     assert codec.load(None) is None
+
+
+async def test_the_visit_context_survives_the_session_round_trip() -> None:
+    from agent_framework import AgentSession
+
+    from restaurant_agent.seating import VisitContextProvider
+
+    from bff.waiter import AgentSessionCodec
+
+    provider = VisitContextProvider()
+    codec = AgentSessionCodec()
+    session = AgentSession(session_id="conv_1")
+    await provider.before_run(agent=None, session=session, context=None, state={})
+    created = dict(session.state["visit_context"])
+
+    restored = codec.load(codec.dump(session))
+    await provider.before_run(agent=None, session=restored, context=None, state={})
+
+    assert created["visit_id"].startswith("visit_")
+    assert restored.state["visit_context"] == created

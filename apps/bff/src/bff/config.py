@@ -52,7 +52,11 @@ class BffSettings(BaseSettings):
         return self
 
     def agent_settings(self) -> AgentSettings:
-        """Waiter settings built explicitly, with the fake dev identity always off."""
+        """Waiter settings built explicitly: no fake dev identity and no seating yet.
+
+        Seating (SEATING_MCP_URL) belongs to phase 4, which must also give the
+        waiter the BFF visit id; until then an exported variable is ignored.
+        """
 
         from restaurant_agent.config import Settings
 
@@ -66,4 +70,5 @@ class BffSettings(BaseSettings):
             app_environment=self.app_environment,
             enable_dev_fake_identity=False,
             dev_fake_actor_id=None,
+            seating_mcp_url=None,
         )

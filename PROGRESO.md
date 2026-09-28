@@ -473,7 +473,7 @@ contrato modificado.
 ### Evidencia y pendientes
 
 - Evidencia no oficial en un Mac sin acceso a PyPI, con wheels en caché y sin
-  `uv run`: 94 pruebas del BFF, 116 del frontend (sin `AppTest`, porque no hay
+  `uv run`: 95 pruebas del BFF (se omite la que construye el camarero de Foundry), 116 del frontend (sin `AppTest`, porque no hay
   Streamlit en caché) y 140 del camarero y los contratos superadas. Queda fuera
   una prueba que lanza Python aislado y el módulo de la CLI, que importa
   Foundry.
@@ -493,6 +493,13 @@ contrato modificado.
 - Pendiente en el Codespace: ejecutar las tres suites y validar el camarero
   real con Foundry (`gpt-5.6-luna`), incluida la serialización del historial
   con mensajes reales.
+- Asientos fuera de la fase 3: el BFF construye el camarero con
+  `VisitContextProvider` y su middleware, pero ignora `SEATING_MCP_URL`
+  aunque esté exportada. Pendiente para la fase 4: sembrar
+  `session.state["visit_context"]["visit_id"]` con el id de visita del BFF.
+  Hoy el provider inventa su propio `visit_<uuid>` y los bloqueos de asiento
+  no coincidirían con la visita del BFF. El historial serializado conserva ese
+  `visit_context` entre turnos.
 - La validación de recarga, memoria, SSE y no duplicación extremo a extremo
   corresponde a 3D. Revisión conjunta pendiente; no se marca ninguna casilla.
 
