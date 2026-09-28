@@ -84,8 +84,9 @@ ni evidencias de una implementacion previa.
   cero el plan no autoriza duplicar infraestructura compartida.
 - No marcar una fase completada por encontrar codigo similar: debe satisfacer
   los criterios de esta especificacion y aportar su propia evidencia.
-- Un numero de comensales desconocido permanece desconocido: no asumir uno como
-  dato confirmado para asignar mesa.
+- Si el cliente no indica cuantos son, se asume uno: la persona que se ha
+  identificado. El numero cambia cuando dice que viene acompañado; una peticion
+  explicita de mesa sin tamaño de grupo requiere preguntarlo.
 - El nombre escrito en el chat no es identidad autenticada.
 - La memoria de preferencias no sustituye la persistencia de visita, pedido,
   cuenta o checkpoint. Cada una tiene su contrato y ciclo de vida.

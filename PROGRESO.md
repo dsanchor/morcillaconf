@@ -20,7 +20,7 @@ indicadas en el propio plan.
 |---|---|---|---|
 | 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas; pendiente de aprobación |
 | 2. Memoria persistente automática | Implementada y validada localmente | En curso | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
-| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente; 3B implementada y validada en el Codespace | Pendiente | 3A: 127 pruebas locales totales, incluidos CLI y contratos actualizados. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) contra `FakeBffClient`, lockfile versionado y 106 pruebas superadas en el Codespace. 3C/3D pendientes |
+| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente; 3B implementada y validada en el Codespace | En curso: [revisión de 3A del 28/09](docs/revision-fase-3a-jesus.md) | 3A: 127 pruebas locales totales, incluidos CLI y contratos actualizados; en la revisión, 133 pruebas y 15 reglas del contrato superadas en el Codespace. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) contra `FakeBffClient`, lockfile versionado y 106 pruebas superadas en el Codespace. 3C/3D pendientes |
 | 4. Recorrido local completo y dos HITL | Pendiente | Pendiente | Sin implementación |
 | 5. Validación temprana de Hosted Agent | Pendiente | Pendiente | El agente solo se ha ejecutado localmente |
 | 6. Carta con fuentes y herramientas MCP | Pendiente | Pendiente | Sin implementación |
@@ -312,6 +312,31 @@ contrato modificado.
 - Entrada Responses importada sin errores, sin arrancar servidor ni llamar al
   modelo. No se han modificado prompts ni `main.py`.
 
+### Revisión del 28/09/2026
+
+Resultados y decisiones en
+[docs/revision-fase-3a-jesus.md](docs/revision-fase-3a-jesus.md). No hay
+hallazgos que corregir: los contratos cubren el mínimo del anexo.
+
+Evidencia en un Codespace, sobre la rama de 3B y con los mismos contratos que
+`main`: `./scripts/test.sh` dio **133 pruebas superadas**. Un guion con 15
+casos contra los fixtures confirmó que se aceptan los seis comandos de ejemplo
+y se rechazan la identidad dentro del comando, el mensaje vacío, el
+consentimiento retirado, la fecha sin zona horaria, los recuerdos de un
+invitado, el nombre ausente sin marcar como pendiente, el reintento tras un
+fallo definitivo, el cursor caducado sin snapshot nuevo y el texto parcial
+marcado como definitivo.
+
+Decisiones de Jesús, pendientes de la revisión conjunta:
+
+- **Nombre (D1):** el nombre escrito en la puerta es el único que se usa: es
+  la identidad y el nombre con el que trata el camarero. No cambia los
+  contratos; lo aplican 3C y 3D. Choca con limitar las identidades de demo a
+  desarrollo (fases 3 y 9), así que hay que decidirlo juntos.
+- **Comensales (D2):** se confirma la decisión del 27/09: el grupo empieza en
+  una persona, la identificada, y sube cuando dice que viene acompañada. La
+  regla general del plan se alinea con SPECS.
+
 ### Límites y revisión pendiente
 
 - 3A y el cambio de memoria tienen evidencia local; la revisión conjunta sigue
@@ -371,7 +396,9 @@ Con 3A implementada y la vista 3B validada en el Codespace contra
 
 - conexión de la vista Streamlit al BFF real;
 - BFF con FastAPI;
-- identidad derivada por el servidor;
+- identidad derivada por el servidor a partir del nombre escrito en la puerta
+  ([D1](docs/revision-fase-3a-jesus.md#decisiones), pendiente de la revisión
+  conjunta);
 - comandos HTTP;
 - actualizaciones SSE;
 - snapshot de estado;
