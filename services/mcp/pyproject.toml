@@ -1,0 +1,26 @@
+[project]
+name = "morcillaconf-mcp"
+version = "0.1.0"
+description = "Deterministic MCP server for restaurant seating."
+requires-python = ">=3.13"
+dependencies = [
+    "mcp>=1.25,<2",
+    "pydantic>=2.12",
+    "pydantic-settings>=2.12",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

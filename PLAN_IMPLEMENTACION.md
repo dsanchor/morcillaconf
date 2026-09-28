@@ -339,6 +339,10 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   por grupo, conserva plazas restantes si existen y es la única autoridad ante
   llegadas concurrentes. Su adaptador MCP se adelanta si es necesario para la
   demostración; no se duplican reglas entre BFF y servicio.
+- [ ] Modelar mesas y puestos de barra como recursos de asiento. La barra
+  asigna puestos contiguos y minimiza huecos; el layout llega por JSON, ID y
+  hash en variables de entorno. Al cambiar la huella, el arranque invalida y
+  recrea solamente la persistencia del servicio de asientos.
 - [ ] Proponer una mesa bloqueada al cliente y persistir la decisión pendiente;
   confirmar la ocupa y rechazarla o caducar el bloqueo la libera. Guardar
   visita, versión y `seated_at` solo al ocupar; preguntar comensales solo si
@@ -496,6 +500,9 @@ reinicios, mientras los servicios se siguen con trazas distribuidas.
   filtros de ruta para su componente, dependencias compartidas y YAML, ejecutar
   sus pruebas y publicar en GitHub Packages del repositorio una imagen
   etiquetada con el commit.
+- [ ] Ofrecer una etapa Docker `test` para cada componente contenedorizable y
+  documentar sus comandos de construcción y ejecución local, evitando que las
+  pruebas requieran `uv`, `pip` o Python instalados en el host.
 - [ ] Activar Cosmos DB/adaptadores duraderos para memoria, visitas, negocio,
   decisiones, eventos y checkpoints. Elegir particiones, operaciones condicionales
   y limites transaccionales para conservar las invariantes locales.

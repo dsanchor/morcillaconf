@@ -144,14 +144,76 @@ Desde la raíz del repositorio:
 ./scripts/setup.sh
 ```
 
-## Pruebas unitarias
+## Pruebas locales con Docker
+
+Las pruebas locales del camarero se ejecutan dentro de Docker. No se requiere
+instalar `uv`, `pip`, Python ni dependencias del agente en el host. Desde la
+raíz del repositorio:
 
 ```bash
-./scripts/test.sh
+docker build \
+  --file agents/restaurant/Dockerfile \
+  --target test \
+  --tag morcillaconf-restaurant-agent:test \
+  .
+
+docker run --rm morcillaconf-restaurant-agent:test
 ```
 
 Las pruebas unitarias no llaman a Foundry y validan contratos, correcciones,
 aislamiento entre sesiones, propiedad de la conversación y límite de turnos.
+
+## Construir y ejecutar el contenedor
+
+El contexto de construcción debe ser la raíz del repositorio para incluir
+[`packages/contracts`](../../packages/contracts), dependencia local compartida
+del agente:
+
+```bash
+docker build \
+  --file agents/restaurant/Dockerfile \
+  --target runtime \
+  --tag morcillaconf-restaurant-agent:local \
+  .
+```
+
+Copiar [`src/restaurant_agent/.env.example`](src/restaurant_agent/.env.example)
+a `src/restaurant_agent/.env` no versionado y completar las variables.
+Para ejecutar el contenedor, se requieren siempre:
+
+| Variable | Propósito |
+|---|---|
+| `FOUNDRY_PROJECT_ENDPOINT` | Endpoint del proyecto Foundry |
+| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Deployment del modelo, por ejemplo `gpt-5.6-luna` |
+| `MEMORY_DATABASE_PATH` | Ruta SQLite dentro del contenedor; usar `/data/memory.db` |
+| `WAITER_MAX_TURNS` | Límite de turnos, entre 1 y 100 |
+| `MEMORY_MAX_ITEMS` | Límite de recuerdos por identidad |
+| `APP_ENVIRONMENT` | `development`, `test` o `production` |
+| `ENABLE_DEV_FAKE_IDENTITY` y `DEV_FAKE_ACTOR_ID` | Ambos necesarios para la identidad local de desarrollo |
+
+El contenedor también necesita una credencial válida para Azure. En desarrollo
+puede recibir `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` y `AZURE_CLIENT_SECRET`
+desde el mismo fichero de entorno; no se incorporan a la imagen ni se
+versionan. En un despliegue se sustituirán por la identidad administrada del
+servicio.
+
+Crear un volumen para la memoria y arrancar el servidor Responses:
+
+```bash
+docker volume create morcillaconf-restaurant-memory
+
+docker run --rm --name morcillaconf-restaurant-agent \
+  --publish 8088:8088 \
+  --volume morcillaconf-restaurant-memory:/data \
+  --env-file agents/restaurant/src/restaurant_agent/.env \
+  --env MEMORY_DATABASE_PATH=/data/memory.db \
+  morcillaconf-restaurant-agent:local
+```
+
+El servidor escucha en `http://localhost:8088`. Con el contenedor en ejecución,
+Agent Inspector podrá conectarse al endpoint Responses local en el siguiente
+paso. Detener el contenedor con `Ctrl+C`; el volumen mantiene los recuerdos
+entre arranques.
 
 ## CLI de desarrollo
 
