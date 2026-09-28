@@ -84,7 +84,7 @@ def _bar() -> str:
 def _walls() -> str:
     gap_left, gap_right = DOOR_GAP
     return (
-        f'<path d="M24,24 H976 V316 H{gap_right} M{gap_left},316 H24 Z" fill="none" '
+        f'<path d="M{gap_right},316 H976 V24 H24 V316 H{gap_left}" fill="none" '
         'stroke="#cdba95" stroke-width="10" stroke-linecap="square"/>'
         f'<path d="M{gap_left},316 V{316 - (gap_right - gap_left)}" stroke="#cdba95" '
         'stroke-width="3"/>'

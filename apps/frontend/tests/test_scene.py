@@ -1,9 +1,11 @@
+import re
 import xml.etree.ElementTree as ET
 
 import pytest
 
 from frontend.facade import FACADE_STATES, facade_html
 from frontend.floor_plan import (
+    DOOR_GAP,
     WAITER_STATES,
     customer_icon_svg,
     floor_plan_svg,
@@ -53,6 +55,51 @@ def test_waiter_attends_the_customer_by_the_door() -> None:
     serving = _parse(floor_plan_svg("Ana", "atendiendo")).find(f".//{SVG}g[@class='camarero']")
     assert at_bar.get("transform") == "translate(560,124)"
     assert serving.get("transform") == "translate(192,272)"
+
+
+def _segments(path: str) -> set[frozenset[tuple[float, float]]]:
+    """Straight segments of an absolute M/H/V/L/Z path, ignoring direction."""
+
+    tokens = re.findall(r"[A-Za-z]|-?\d+(?:\.\d+)?", path)
+    segments: set[frozenset[tuple[float, float]]] = set()
+    x = y = start_x = start_y = 0.0
+    command = ""
+    while tokens:
+        if tokens[0].isalpha():
+            command = tokens.pop(0)
+        assert command in "MHVLZ", f"unsupported path command {command}"
+        if command == "Z":
+            end = (start_x, start_y)
+        elif command == "H":
+            end = (float(tokens.pop(0)), y)
+        elif command == "V":
+            end = (x, float(tokens.pop(0)))
+        else:
+            end = (float(tokens.pop(0)), float(tokens.pop(0)))
+        if command == "M":
+            start_x, start_y = end
+        elif end != (x, y):
+            segments.add(frozenset({(x, y), end}))
+        x, y = end
+    return segments
+
+
+def test_walls_enclose_the_room_except_the_door() -> None:
+    plan = _parse(floor_plan_svg("Ana", "barra"))
+    walls = next(path for path in plan.iter(f"{SVG}path") if path.get("stroke-width") == "10")
+    path = walls.get("d")
+    assert "Z" not in path.upper()
+    segments = _segments(path)
+    left, right = DOOR_GAP
+    assert frozenset({(24, 24), (24, 316)}) in segments
+    assert frozenset({(24, 24), (976, 24)}) in segments
+    assert frozenset({(976, 24), (976, 316)}) in segments
+    assert frozenset({(976, 316), (right, 316)}) in segments
+    assert frozenset({(24, 316), (left, 316)}) in segments
+    for segment in segments:
+        (x1, y1), (x2, y2) = sorted(segment)
+        if y1 == y2 == 316:
+            assert x2 <= left or x1 >= right, "the door gap must stay open"
 
 
 def test_plan_escapes_the_customer_name() -> None:
