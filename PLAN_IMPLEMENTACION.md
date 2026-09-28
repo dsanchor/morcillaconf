@@ -274,8 +274,11 @@ implementada y validada localmente con 127 pruebas; la revisión conjunta sigue
 pendiente y la evidencia anterior se conserva como histórica.
 Ver [contratos de 3A](packages/contracts/README.md)
 y [evidencia en PROGRESO](PROGRESO.md#fase-3a-contratos-publicos).
-3B, 3C y 3D permanecen pendientes. Se puede adelantar dominio de fase 4 tras
-3A, pero no aceptar el recorrido completo sin integrar la fase 3.
+3B (vista de cliente en Streamlit contra `FakeBffClient`) implementado y
+validado en el Codespace; revisión conjunta pendiente. Ver
+[evidencia de 3B](PROGRESO.md#fase-3b-vista-del-cliente). 3C y 3D permanecen
+pendientes. Se puede adelantar dominio de fase 4 tras 3A, pero no aceptar el
+recorrido completo sin integrar la fase 3.
 
 - [ ] Crear Streamlit y FastAPI con contratos independientes del transporte del
   agente. Adaptador local explicito al principio, remoto en fase 5.

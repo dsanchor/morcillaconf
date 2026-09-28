@@ -1,0 +1,17 @@
+[server]
+headless = true
+runOnSave = false
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false
+
+[theme]
+base = "dark"
+primaryColor = "#f2b04a"
+backgroundColor = "#140e0b"
+secondaryBackgroundColor = "#0e0907"
+textColor = "#e7d7b5"

@@ -41,7 +41,12 @@ sus pruebas:
 
 La fase 3A añade contratos tipados, fixtures y pruebas compartidas en
 [`packages/contracts`](packages/contracts). El mismo comando valida el camarero,
-los contratos y su compatibilidad. Todavía no hay frontend ni BFF ejecutables.
+los contratos y su compatibilidad. Todavía no hay un BFF ejecutable.
+
+La vista de cliente en Streamlit ([`apps/frontend`](apps/frontend)) funciona
+con un camarero simulado: `./scripts/setup-frontend.sh` y después
+`./scripts/run-frontend.sh` (puerto 8501); sus pruebas, con
+`./scripts/test-frontend.sh`.
 
 Para crear una configuración local reutilizable:
 

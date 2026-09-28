@@ -1,6 +1,6 @@
 # Progreso de implementación
 
-Última actualización: **2026-09-27**
+Última actualización: **2026-09-28**
 
 Este documento ofrece una vista compartida del estado real del repositorio. No
 sustituye a [SPECS.md](SPECS.md) ni a
@@ -20,7 +20,7 @@ indicadas en el propio plan.
 |---|---|---|---|
 | 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas; pendiente de aprobación |
 | 2. Memoria persistente automática | Implementada y validada localmente | Pendiente | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
-| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente | Pendiente | 127 pruebas locales totales, incluidos CLI y contratos actualizados; 3B/3C/3D pendientes |
+| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente; 3B implementada y validada en el Codespace | Pendiente | 3A: 127 pruebas locales totales, incluidos CLI y contratos actualizados. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) contra `FakeBffClient`, lockfile versionado y 106 pruebas superadas en el Codespace. 3C/3D pendientes |
 | 4. Recorrido local completo y dos HITL | Pendiente | Pendiente | Sin implementación |
 | 5. Validación temprana de Hosted Agent | Pendiente | Pendiente | El agente solo se ha ejecutado localmente |
 | 6. Carta con fuentes y herramientas MCP | Pendiente | Pendiente | Sin implementación |
@@ -303,11 +303,49 @@ contrato modificado.
   artefacto remoto o distribuir su wheel. La ruta editable funciona en el
   checkout local, no acredita un despliegue remoto.
 
+## Fase 3B: vista del cliente
+
+### Implementado
+
+- Aplicación Streamlit en [`apps/frontend`](apps/frontend) con una única vista:
+  puerta, sala con comandos, conversación y plano, según el diseño aprobado.
+- `FakeBffClient` implementa el protocolo `BffClient` de 3A con un camarero
+  simulado, identificado en la vista como «Camarero simulado». El adaptador se
+  elige con `FRONTEND_BFF_CLIENT`; `http` falla con un mensaje claro hasta 3C.
+- Identidad sintética de desarrollo: el nombre escrito en la puerta, vinculado
+  por el adaptador y nunca enviado en los comandos.
+- Proyección desde snapshots confirmados, eventos consumidos por cursor,
+  snapshot nuevo al caducar el cursor y consulta por `event_id` de un comando
+  interrumpido por un rerun, sin reenviarlo.
+- Consulta, corrección y borrado individual o total de recuerdos; tras el
+  borrado total la vista recuerda que las interacciones futuras se guardarán.
+- Vista previa estática del diseño en `apps/frontend/preview` y sistema visual
+  en [DESIGN.md](DESIGN.md) y [PRODUCT.md](PRODUCT.md).
+
+### Evidencia y pendientes
+
+- El Codespace generó `apps/frontend/uv.lock` (Streamlit 1.64.0, 49 paquetes),
+  versionado en el commit f7b300c.
+- `./scripts/test-frontend.sh` dio **106 pruebas superadas** en f7b300c,
+  incluidas las 6 de `AppTest`. Las correcciones posteriores añaden 2 pruebas
+  (108 en total), que todavía no se han vuelto a ejecutar ni a informar.
+- El recorrido manual en la vista real se superó en escritorio y en emulación
+  móvil: la puerta tiembla con el nombre vacío, animación de apertura y saludo,
+  comandos de memoria, `/new`, `/exit` y aislamiento frente a otra identidad.
+- El primer render mostró cuatro diferencias con el prototipo, ya corregidas y
+  verificadas en la vista real: comandos centrados, el comando largo partido en
+  dos líneas y el botón de envío debajo del campo (db5e9b3 y 57c80e0), y la
+  pared izquierda del plano ausente (a5aefc8).
+- El CSS depende de detalles internos de Streamlit 1.64.0, fijado por el
+  lockfile; hay que revisarlo al actualizar Streamlit.
+- Revisión conjunta pendiente; no se marca ninguna casilla de la fase 3.
+
 ## Próximo trabajo previsto
 
-Con 3A implementada, los carriles 3B, 3C y 3D incorporarán:
+Con 3A implementada y la vista 3B validada en el Codespace contra
+`FakeBffClient`, los carriles 3C y 3D incorporarán:
 
-- vista única de cliente con Streamlit;
+- conexión de la vista Streamlit al BFF real;
 - BFF con FastAPI;
 - identidad derivada por el servidor;
 - comandos HTTP;
@@ -332,6 +370,14 @@ Ejecutar pruebas locales:
 
 ```bash
 ./scripts/test.sh
+```
+
+Preparar, probar y arrancar la vista de cliente (camarero simulado):
+
+```bash
+./scripts/setup-frontend.sh
+./scripts/test-frontend.sh
+./scripts/run-frontend.sh
 ```
 
 Arrancar el agente local:
