@@ -6,17 +6,34 @@ import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 
 from restaurant_contracts.application import ActorContext
 from restaurant_contracts.client import BffClient
 
 from frontend.fake_client import FakeRestaurant
+from frontend.http_client import HttpBffClient
 
 CLIENT_VARIABLE = "FRONTEND_BFF_CLIENT"
 PAUSE_VARIABLE = "FRONTEND_FAKE_PAUSE_SECONDS"
+URL_VARIABLE = "FRONTEND_BFF_URL"
+TIMEOUT_VARIABLE = "FRONTEND_BFF_TIMEOUT_SECONDS"
 DEFAULT_PAUSE_SECONDS = 0.9
+DEFAULT_BFF_URL = "http://127.0.0.1:8000"
+DEFAULT_TIMEOUT_SECONDS = 30.0
 
-Connector = Callable[[str], BffClient]
+
+class DoorClient(BffClient, Protocol):
+    """A client bound at the door: it also knows the customer's active visit."""
+
+    @property
+    def active_visit_id(self) -> str | None: ...
+
+    @property
+    def simulated(self) -> bool: ...
+
+
+Connector = Callable[[str], DoorClient]
 
 
 class ClientKind(StrEnum):
@@ -32,6 +49,8 @@ class ClientConfigurationError(RuntimeError):
 class FrontendSettings:
     client_kind: ClientKind = ClientKind.FAKE
     fake_pause_seconds: float = DEFAULT_PAUSE_SECONDS
+    bff_url: str = DEFAULT_BFF_URL
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] = os.environ) -> FrontendSettings:
@@ -41,7 +60,7 @@ class FrontendSettings:
         except ValueError:
             raise ClientConfigurationError(
                 f"{CLIENT_VARIABLE}={raw_kind!r} no es válido: usa 'fake' (por defecto) "
-                "o 'http' cuando exista el BFF del carril 3C."
+                "o 'http' para hablar con el BFF."
             ) from None
         raw_pause = environ.get(PAUSE_VARIABLE, str(DEFAULT_PAUSE_SECONDS))
         try:
@@ -52,24 +71,47 @@ class FrontendSettings:
             raise ClientConfigurationError(
                 f"{PAUSE_VARIABLE} debe ser un número de segundos entre 0 y 10."
             )
-        return cls(client_kind=kind, fake_pause_seconds=pause)
+        url = environ.get(URL_VARIABLE, DEFAULT_BFF_URL).strip()
+        if not url.startswith(("http://", "https://")):
+            raise ClientConfigurationError(
+                f"{URL_VARIABLE} debe empezar por http:// o https://."
+            )
+        raw_timeout = environ.get(TIMEOUT_VARIABLE, str(DEFAULT_TIMEOUT_SECONDS))
+        try:
+            timeout = float(raw_timeout)
+        except ValueError:
+            timeout = -1.0
+        if not 1 <= timeout <= 300:
+            raise ClientConfigurationError(
+                f"{TIMEOUT_VARIABLE} debe ser un número de segundos entre 1 y 300."
+            )
+        return cls(
+            client_kind=kind,
+            fake_pause_seconds=pause,
+            bff_url=url,
+            timeout_seconds=timeout,
+        )
 
 
 def client_connector(settings: FrontendSettings) -> Connector:
     """Return a function that binds a client to the identity entered at the door.
 
-    The name is a synthetic development identity: the adapter binds it and
-    commands never carry it. The HTTP/SSE adapter belongs to lane 3C.
+    With the fake, the name is bound locally. With the BFF, the name opens a
+    server-side demo session; commands never carry it. Connecting to the BFF
+    may raise ``BffClientError``, which the door shows to the customer.
     """
 
     if settings.client_kind is ClientKind.HTTP:
-        raise ClientConfigurationError(
-            "El cliente HTTP del BFF todavía no existe: llega con el carril 3C. "
-            f"Usa {CLIENT_VARIABLE}=fake para el camarero simulado."
-        )
+
+        def connect_http(name: str) -> DoorClient:
+            return HttpBffClient.open(
+                settings.bff_url, name, timeout=settings.timeout_seconds
+            )
+
+        return connect_http
     restaurant = FakeRestaurant(pause_seconds=settings.fake_pause_seconds)
 
-    def connect(name: str) -> BffClient:
+    def connect(name: str) -> DoorClient:
         return restaurant.client(ActorContext(actor_id=name, authenticated=True))
 
     return connect

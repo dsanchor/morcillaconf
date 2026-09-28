@@ -275,6 +275,18 @@ async def test_arrival_can_resume_only_an_own_visit() -> None:
     assert unknown.status == "failed" and unknown.error.code == ErrorCode.NOT_FOUND
 
 
+async def test_the_latest_visit_is_the_active_one_per_identity() -> None:
+    restaurant = FakeRestaurant()
+    ana = _client("Ana", restaurant)
+    assert ana.active_visit_id is None
+    first = await _arrive(ana)
+    assert ana.active_visit_id == first.visit_id
+    second = await ana.submit(_command("customer.arrived", "cmd_new"))
+    assert ana.active_visit_id == second.visit_id
+    assert _client("Luis", restaurant).active_visit_id is None
+    assert ana.simulated is True
+
+
 async def test_turn_limit_is_reported_and_removes_the_action() -> None:
     client = _client(max_turns=1)
     arrival = await _arrive(client)
@@ -313,7 +325,8 @@ def test_view_modules_do_not_import_agents_frameworks_or_databases() -> None:
         [
             sys.executable, "-c",
             "import sys\n"
-            "import frontend.config, frontend.fake_client, frontend.markup\n"
+            "import frontend.config, frontend.fake_client, frontend.http_client\n"
+            "import frontend.markup\n"
             "import frontend.slash_commands, frontend.stylesheets, frontend.visit\n"
             "forbidden = ('restaurant_agent', 'agent_framework', 'azure', 'mcp', 'a2a',\n"
             "             'fastapi', 'sqlite3', 'streamlit', 'openai')\n"
