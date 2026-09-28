@@ -449,7 +449,7 @@ contrato modificado.
 ### Evidencia y pendientes
 
 - Evidencia no oficial en un Mac sin acceso a PyPI, con wheels en caché y sin
-  `uv run`: 92 pruebas del BFF, 116 del frontend (sin `AppTest`, porque no hay
+  `uv run`: 94 pruebas del BFF, 116 del frontend (sin `AppTest`, porque no hay
   Streamlit en caché) y 140 del camarero y los contratos superadas. Queda fuera
   una prueba que lanza Python aislado y el módulo de la CLI, que importa
   Foundry.
@@ -457,11 +457,18 @@ contrato modificado.
   cliente HTTP: saludo, nombre fijado, comensales, memoria con `m1`/`m2`,
   corrección y borrado, recuperación con «  ANA », aislamiento de «Luis»,
   límite de turnos y `/new` conservando recuerdos.
-- Pendiente en el Codespace: generar y versionar `apps/bff/uv.lock`, ejecutar
-  las tres suites y validar el camarero real con Foundry (`gpt-5.6-luna`),
-  incluida la serialización del historial con mensajes reales.
-- Hasta versionar el lockfile, el workflow del BFF falla con un aviso
-  explícito.
+- `apps/bff/uv.lock` se generó en GitHub Actions con uv 0.11.7 y Python 3.13
+  y fija las mismas versiones que el lockfile del camarero para todos los
+  paquetes compartidos (`constraint-dependencies` y
+  `tests/test_lock_alignment.py`).
+- CI: «Publish BFF image» superado en e13744a
+  ([run 36452412522](https://github.com/dsanchor/morcillaconf/actions/runs/36452412522)),
+  con **94 pruebas** en la etapa `test` y la imagen
+  `ghcr.io/dsanchor/morcillaconf-bff:e13744aba7347640d16e93ef52e3f46f37ce25a4`
+  publicada.
+- Pendiente en el Codespace: ejecutar las tres suites y validar el camarero
+  real con Foundry (`gpt-5.6-luna`), incluida la serialización del historial
+  con mensajes reales.
 - La validación de recarga, memoria, SSE y no duplicación extremo a extremo
   corresponde a 3D. Revisión conjunta pendiente; no se marca ninguna casilla.
 
