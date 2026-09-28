@@ -11,14 +11,14 @@ vista lo indica con «Camarero simulado».
 Desde la raíz del repositorio:
 
 ```bash
-./scripts/setup-frontend.sh   # uv sync en apps/frontend; la primera vez crea uv.lock
+./scripts/setup-frontend.sh   # uv sync --frozen en apps/frontend
 ./scripts/test-frontend.sh    # pytest, incluido el recorrido con AppTest
 ./scripts/run-frontend.sh     # streamlit en 0.0.0.0:8501, sin abrir navegador
 ```
 
-El primer `setup-frontend.sh` genera `apps/frontend/uv.lock`: revísalo y
-versiónalo. Después, los scripts usan `--frozen`. En el Codespace abre el
-puerto 8501 reenviado.
+`apps/frontend/uv.lock` está versionado y fija Streamlit 1.64.0; los scripts
+usan `--frozen`. Si falta el lockfile, `setup-frontend.sh` lo genera y hay que
+versionarlo. En el Codespace abre el puerto 8501 reenviado.
 
 Configuración por variables de entorno:
 

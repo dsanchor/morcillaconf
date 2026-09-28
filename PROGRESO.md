@@ -20,7 +20,7 @@ indicadas en el propio plan.
 |---|---|---|---|
 | 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas; pendiente de aprobación |
 | 2. Memoria persistente automática | Implementada y validada localmente | Pendiente | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
-| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente; 3B implementada, pendiente de validar en el Codespace | Pendiente | 3A: 127 pruebas locales totales, incluidos CLI y contratos actualizados. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) contra `FakeBffClient`, lockfile por generar. 3C/3D pendientes |
+| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente; 3B implementada y validada en el Codespace | Pendiente | 3A: 127 pruebas locales totales, incluidos CLI y contratos actualizados. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) contra `FakeBffClient`, lockfile versionado y 106 pruebas superadas en el Codespace. 3C/3D pendientes |
 | 4. Recorrido local completo y dos HITL | Pendiente | Pendiente | Sin implementación |
 | 5. Validación temprana de Hosted Agent | Pendiente | Pendiente | El agente solo se ha ejecutado localmente |
 | 6. Carta con fuentes y herramientas MCP | Pendiente | Pendiente | Sin implementación |
@@ -305,7 +305,7 @@ contrato modificado.
 
 ## Fase 3B: vista del cliente
 
-### Implementado, pendiente de validación
+### Implementado
 
 - Aplicación Streamlit en [`apps/frontend`](apps/frontend) con una única vista:
   puerta, sala con comandos, conversación y plano, según el diseño aprobado.
@@ -324,20 +324,26 @@ contrato modificado.
 
 ### Evidencia y pendientes
 
-- El equipo de desarrollo no tiene acceso a PyPI: las 100 pruebas que no usan
-  Streamlit se superaron con paquetes en caché, fuera de los scripts oficiales.
-  Las pruebas `AppTest` de la vista no se han ejecutado.
-- Falta generar y versionar `apps/frontend/uv.lock` con
-  `./scripts/setup-frontend.sh`, ejecutar `./scripts/test-frontend.sh` y
-  revisar la vista con `./scripts/run-frontend.sh` en el Codespace.
-- El CSS se ha contrastado con el código fuente de Streamlit 1.64, no con la
-  vista renderizada por Streamlit.
+- El Codespace generó `apps/frontend/uv.lock` (Streamlit 1.64.0, 49 paquetes),
+  versionado en el commit f7b300c.
+- `./scripts/test-frontend.sh` dio **106 pruebas superadas** en f7b300c,
+  incluidas las 6 de `AppTest`. Las correcciones posteriores añaden 2 pruebas
+  (108 en total), que todavía no se han vuelto a ejecutar ni a informar.
+- El recorrido manual en la vista real se superó en escritorio y en emulación
+  móvil: la puerta tiembla con el nombre vacío, animación de apertura y saludo,
+  comandos de memoria, `/new`, `/exit` y aislamiento frente a otra identidad.
+- El primer render mostró cuatro diferencias con el prototipo, ya corregidas y
+  verificadas en la vista real: comandos centrados, el comando largo partido en
+  dos líneas y el botón de envío debajo del campo (db5e9b3 y 57c80e0), y la
+  pared izquierda del plano ausente (a5aefc8).
+- El CSS depende de detalles internos de Streamlit 1.64.0, fijado por el
+  lockfile; hay que revisarlo al actualizar Streamlit.
 - Revisión conjunta pendiente; no se marca ninguna casilla de la fase 3.
 
 ## Próximo trabajo previsto
 
-Con 3A implementada y 3B propuesta contra `FakeBffClient`, los carriles 3C y
-3D incorporarán:
+Con 3A implementada y la vista 3B validada en el Codespace contra
+`FakeBffClient`, los carriles 3C y 3D incorporarán:
 
 - conexión de la vista Streamlit al BFF real;
 - BFF con FastAPI;
