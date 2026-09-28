@@ -1,0 +1,156 @@
+[project]
+name = "morcillaconf-bff"
+version = "0.1.0"
+description = "BFF FastAPI entre la vista Streamlit y el camarero del restaurante multiagente."
+requires-python = ">=3.13"
+dependencies = [
+    "morcillaconf-contracts",
+    "morcillaconf-restaurant-agent",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30",
+    "opentelemetry-api>=1.30",
+    "pydantic>=2.12",
+    "pydantic-settings>=2.12",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+morcillaconf-contracts = { path = "../../packages/contracts", editable = true }
+morcillaconf-restaurant-agent = { path = "../../agents/restaurant/src/restaurant_agent", editable = true }
+
+[tool.uv]
+# Same versions as agents/restaurant/src/restaurant_agent/uv.lock, where the
+# waiter was validated. tests/test_lock_alignment.py fails if they drift.
+constraint-dependencies = [
+    "agent-framework-core==1.17.0",
+    "agent-framework-foundry-hosting==1.0.0b260821",
+    "agent-framework-foundry==1.12.0",
+    "agent-framework-openai==1.14.2",
+    "aiohappyeyeballs==2.7.1",
+    "aiohttp==3.14.3",
+    "aiosignal==1.4.0",
+    "annotated-types==0.8.0",
+    "anyio==4.15.1",
+    "asgiref==3.12.1",
+    "attrs==26.1.0",
+    "azure-ai-agentserver-core==2.1.0",
+    "azure-ai-agentserver-invocations==1.1.0",
+    "azure-ai-agentserver-responses==2.1.0",
+    "azure-ai-inference==1.0.0b9",
+    "azure-ai-projects==2.3.0",
+    "azure-core-tracing-opentelemetry==1.0.0b13",
+    "azure-core==1.41.0",
+    "azure-identity==1.25.3",
+    "azure-monitor-opentelemetry-exporter==1.0.0b57",
+    "azure-storage-blob==12.30.1",
+    "certifi==2026.7.22",
+    "cffi==2.1.1",
+    "charset-normalizer==3.5.1",
+    "click==8.5.0",
+    "colorama==0.4.6",
+    "cryptography==50.0.1",
+    "debugpy==1.8.21",
+    "frozenlist==1.8.0",
+    "googleapis-common-protos==1.75.3",
+    "h11==0.16.0",
+    "h2==4.4.1",
+    "hpack==4.2.0",
+    "httpcore2==2.12.0",
+    "httpcore==1.0.9",
+    "httpx-sse==0.4.3",
+    "httpx2-jsfetch==1.0",
+    "httpx2==2.12.0",
+    "httpx==0.28.1",
+    "hypercorn==0.18.0",
+    "hyperframe==6.1.0",
+    "idna==3.19",
+    "iniconfig==2.3.0",
+    "isodate==0.7.2",
+    "jiter==0.16.0",
+    "jsonschema-specifications==2025.9.1",
+    "jsonschema==4.26.0",
+    "mcp==1.30.0",
+    "microsoft-opentelemetry==1.3.9",
+    "msal-extensions==1.3.1",
+    "msal==1.38.0",
+    "msgspec==0.21.1",
+    "msrest==0.7.1",
+    "multidict==6.8.0",
+    "oauthlib==3.3.1",
+    "openai==3.11.0",
+    "opentelemetry-api==1.44.0",
+    "opentelemetry-exporter-otlp-proto-common==1.44.0",
+    "opentelemetry-exporter-otlp-proto-http==1.44.0",
+    "opentelemetry-instrumentation-asgi==0.65b0",
+    "opentelemetry-instrumentation-dbapi==0.65b0",
+    "opentelemetry-instrumentation-django==0.65b0",
+    "opentelemetry-instrumentation-fastapi==0.65b0",
+    "opentelemetry-instrumentation-flask==0.65b0",
+    "opentelemetry-instrumentation-httpx==0.65b0",
+    "opentelemetry-instrumentation-logging==0.65b0",
+    "opentelemetry-instrumentation-openai-agents-v2==0.1.0",
+    "opentelemetry-instrumentation-openai-v2==2.3b0",
+    "opentelemetry-instrumentation-psycopg2==0.65b0",
+    "opentelemetry-instrumentation-requests==0.65b0",
+    "opentelemetry-instrumentation-urllib3==0.65b0",
+    "opentelemetry-instrumentation-urllib==0.65b0",
+    "opentelemetry-instrumentation-wsgi==0.65b0",
+    "opentelemetry-instrumentation==0.65b0",
+    "opentelemetry-proto==1.44.0",
+    "opentelemetry-resource-detector-azure==0.2.0",
+    "opentelemetry-sdk==1.44.0",
+    "opentelemetry-semantic-conventions==0.65b0",
+    "opentelemetry-util-genai==0.3b0",
+    "opentelemetry-util-http==0.65b0",
+    "packaging==26.3",
+    "pluggy==1.6.0",
+    "priority==2.0.0",
+    "propcache==0.5.2",
+    "protobuf==7.36.1",
+    "psutil==7.2.2",
+    "pycparser==3.0",
+    "pydantic-core==2.46.5",
+    "pydantic-settings==2.15.0",
+    "pydantic==2.13.5",
+    "pygments==2.21.0",
+    "pyjwt==2.13.0",
+    "pytest-asyncio==1.4.0",
+    "pytest==9.1.1",
+    "python-dotenv==1.2.3",
+    "python-multipart==0.0.32",
+    "pywin32==312",
+    "referencing==0.37.0",
+    "requests-oauthlib==2.0.0",
+    "requests==2.34.2",
+    "rpds-py==2026.6.3",
+    "sniffio==1.3.1",
+    "sse-starlette==3.4.11",
+    "starlette==1.6.0",
+    "truststore==0.10.4",
+    "typing-extensions==4.16.0",
+    "typing-inspection==0.4.4",
+    "urllib3==2.7.0",
+    "uvicorn==0.52.4",
+    "wrapt==1.17.3",
+    "wsproto==1.3.2",
+    "yarl==1.24.5",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "pytest>=8.4",
+    "pytest-asyncio>=1.2",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]

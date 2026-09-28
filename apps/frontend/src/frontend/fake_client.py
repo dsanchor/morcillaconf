@@ -1,4 +1,4 @@
-"""Simulated BFF used until lane 3C delivers the HTTP/SSE client.
+"""Simulated BFF, the default adapter; ``HttpBffClient`` talks to the real one.
 
 Everything here is fake and presented as such: an in-memory restaurant that
 answers with valid 3A contracts and a waiter that only knows a few scripted
@@ -176,6 +176,7 @@ class FakeRestaurant:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._conversations: dict[str, _Conversation] = {}
         self._visits: dict[str, str] = {}
+        self._active_visits: dict[str, str] = {}
         self._results: dict[tuple[str, str], _StoredResult] = {}
         self._memories: dict[str, list[VisibleMemory]] = {}
         self._memory_numbers: dict[str, int] = {}
@@ -198,6 +199,11 @@ class FakeRestaurant:
         result = self._execute(identity, command, self._next_id("corr"))
         self._results[key] = _StoredResult(fingerprint, result)
         return result
+
+    def active_visit_id(self, identity: ActorContext) -> str | None:
+        """Latest visit of the identity, resumed when it enters again."""
+
+        return self._active_visits.get(identity.actor_id)
 
     def get_result(self, identity: ActorContext, event_id: str) -> CommandResult:
         stored = self._results.get((identity.actor_id, event_id))
@@ -370,6 +376,7 @@ class FakeRestaurant:
         )
         self._conversations[conversation.conversation_id] = conversation
         self._visits[conversation.visit_id] = conversation.conversation_id
+        self._active_visits[identity.actor_id] = conversation.visit_id
         return conversation
 
     def _remember(self, conversation: _Conversation, kind: MemoryKind, value: str) -> None:
@@ -599,6 +606,14 @@ class FakeBffClient:
     @property
     def identity(self) -> ActorContext:
         return self._identity
+
+    @property
+    def active_visit_id(self) -> str | None:
+        return self._restaurant.active_visit_id(self._identity)
+
+    @property
+    def simulated(self) -> bool:
+        return True
 
     async def submit(self, command: Command) -> CommandResult:
         return self._restaurant.submit(self._identity, command)

@@ -99,8 +99,23 @@ def test_exit_returns_to_the_closed_door(app) -> None:
     assert 'class="escena cerrada"' in _markup(at)
 
 
-def test_http_adapter_fails_clearly_until_lane_3c(monkeypatch) -> None:
+def test_entering_again_with_the_same_name_resumes_the_visit(app) -> None:
+    at = _enter(app, "Ana").run()
+    at = _say(at, "Prefiero la tortilla")
+    at = at.button(key="cmd-exit").click().run()
+    at = _enter(at, "Ana").run()
+    markup = _markup(at)
+    assert "Prefiero la tortilla" in markup
+    assert markup.count(GREETING) == 1
+
+
+def test_an_unreachable_bff_keeps_the_door_closed_with_a_notice(monkeypatch) -> None:
     monkeypatch.setenv("FRONTEND_BFF_CLIENT", "http")
+    monkeypatch.setenv("FRONTEND_BFF_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("FRONTEND_BFF_TIMEOUT_SECONDS", "2")
     at = AppTest.from_file(str(APP), default_timeout=15).run()
     assert not at.exception
-    assert "3C" in at.error[0].value
+    at = _enter(at, "Ana")
+    assert not at.exception
+    assert at.session_state["stage"] == "outside"
+    assert "No consigo hablar con el restaurante ahora mismo" in _markup(at)

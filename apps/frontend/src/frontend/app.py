@@ -1,4 +1,4 @@
-"""Customer view: the door, the dining room and a waiter simulated until lane 3C.
+"""Customer view: the door, the dining room and the waiter behind the BFF.
 
 A single Streamlit view driven by ``st.session_state``: ``outside`` (the
 closed door and the name form), ``opening`` (one render with the entrance
@@ -11,6 +11,7 @@ from __future__ import annotations
 import streamlit as st
 
 from restaurant_contracts.application import Action
+from restaurant_contracts.client import BffClientError
 
 from frontend.config import ClientConfigurationError, FrontendSettings, client_connector
 from frontend.markup import (
@@ -116,7 +117,8 @@ def _render_inside(*, opening: bool) -> None:
         with st.container(key="ventana", gap=None):
             window = st.empty()
             text = st.chat_input("Escribe al camarero", key="redactor", max_chars=2_000)
-        st.markdown(simulated_markup(), unsafe_allow_html=True)
+        if state.get("simulated", True):
+            st.markdown(simulated_markup(), unsafe_allow_html=True)
         st.markdown(
             plan_markup(visit.name, "llegando" if opening else "atendiendo", entering=opening),
             unsafe_allow_html=True,
@@ -189,8 +191,20 @@ def _enter() -> None:
         visit = arriving[1]
         visit.resolve_pending()
     else:
-        visit = VisitSession(state.connect(name))
-        visit.arrive()
+        try:
+            client = state.connect(name)
+        except BffClientError as exc:
+            state.door_notice = exc.error.message
+            return
+        state.simulated = client.simulated
+        visit = VisitSession(client)
+        # The same name resumes its active visit: reloading or leaving and
+        # entering again never opens a new one. Only /new does.
+        resume = client.active_visit_id
+        visit.arrive(resume)
+        if resume is not None and visit.snapshot is None and visit.pending is None:
+            visit.cards.clear()
+            visit.arrive()
     state.arriving = None
     if visit.snapshot is None:
         if visit.pending is not None:
