@@ -79,14 +79,13 @@ La llegada abre o recupera la visita propia; **en fase 3 no asigna una mesa**.
 `resume_visit_id` solo solicita un recurso: el BFF debe comprobar pertenencia.
 La fase 4 añadirá asignación y los comandos de pedido, cuenta y pago.
 
-`ActorContext` se construye en el servidor tras resolver la identidad,
-incluyendo un identificador de sesión para invitados. No se acepta `actor`,
-`actor_id` ni `authenticated` dentro del comando. El nombre presentado por
-el camarero nunca demuestra autenticación. La memoria se lee y escribe
-automáticamente para la identidad autenticada resuelta por el servidor,
-incluida la identidad falsa configurada en desarrollo; un invitado no tiene
-perfil duradero. La procedencia y fecha de los recuerdos siguen siendo
-responsabilidad del servidor.
+`ActorContext` se construye en el BFF tras normalizar el nombre de entrada y
+vincularlo a una sesión de demo. No se acepta `actor`, `actor_id` ni
+`authenticated` dentro del comando. El nombre presentado en el chat no cambia
+la identidad de la sesión. La memoria se lee y escribe automáticamente para la
+identidad de demo; la procedencia y fecha de los recuerdos siguen siendo
+responsabilidad del servidor. Esta demo no incorpora Entra ID ni otro proveedor
+externo de identidad.
 
 Estos son los seis comandos públicos de 3A. No hay API ni comandos de concesión
 o revocación: los antiguos `memory.consent_granted` y

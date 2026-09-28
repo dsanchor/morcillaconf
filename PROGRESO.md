@@ -18,16 +18,51 @@ indicadas en el propio plan.
 
 | Fase | Estado de implementación | Revisión conjunta | Evidencia principal |
 |---|---|---|---|
-| 1. Proyecto y primer camarero | Implementada | En curso: [revisión del 27/09](docs/revision-fase-1-jesus.md) | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas; pendiente de aprobación |
-| 2. Memoria persistente automática | Implementada y validada localmente | En curso | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
-| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente; 3B implementada y validada en el Codespace | En curso: [revisión de 3A del 28/09](docs/revision-fase-3a-jesus.md) | 3A: 127 pruebas locales totales, incluidos CLI y contratos actualizados; en la revisión, 133 pruebas y 15 reglas del contrato superadas en el Codespace. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) contra `FakeBffClient`, lockfile versionado y 106 pruebas superadas en el Codespace. 3C/3D pendientes |
-| 4. Recorrido local completo y dos HITL | Pendiente | Pendiente | Sin implementación |
+| 1. Proyecto y primer camarero | Completada | Validada conjuntamente el 28/09 | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas |
+| 2. Memoria persistente automática | Completada | Validada conjuntamente el 28/09 | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
+| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente; 3B implementada y validada en el Codespace | En curso: [revisión de 3A del 28/09](docs/revision-fase-3a-jesus.md) | 3A: 127 pruebas locales totales, incluidos CLI y contratos actualizados; en la revisión, 133 pruebas y 15 reglas del contrato superadas en el Codespace. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) contra `FakeBffClient`, lockfile versionado y 106 pruebas superadas en el Codespace. 3C/3D priorizados |
+| 4. Recorrido local completo y dos HITL | Pendiente; diseño de mesas acordado | Pendiente | Bloqueo temporal atómico, confirmación de mesa y concurrencia se pueden implementar en paralelo con 3C |
 | 5. Validación temprana de Hosted Agent | Pendiente | Pendiente | El agente solo se ha ejecutado localmente |
 | 6. Carta con fuentes y herramientas MCP | Pendiente | Pendiente | Sin implementación |
 | 7. Chef líder y especialistas | Pendiente | Pendiente | Sin implementación |
 | 8. Proveedor mediante A2A | Pendiente | Pendiente | Sin implementación |
 | 9. Integración duradera en Azure | Pendiente | Pendiente | Sin implementación |
 | 10. Evaluación y ensayo final | Pendiente | Pendiente | Sin implementación |
+
+## Acuerdos del sync del 28/09/2026
+
+Los acuerdos siguientes actualizan el alcance futuro; no constituyen evidencia
+de implementación ni asignan responsables:
+
+- La aplicación prioriza un recorrido funcional antes de mejoras explicativas o
+  visuales. La historia de la demo se adapta a las capacidades realmente
+  disponibles.
+- El nombre introducido en la entrada será la única identidad de cliente en toda
+  la demo. El BFF lo normalizará y conservará en sesión; no habrá un segundo
+  parámetro de identidad, proveedor externo ni `actor_id` dentro de comandos.
+- 3C construirá el BFF entre Streamlit y el camarero: recibirá la llegada,
+  creará o recuperará visita y conversación y enviará mensajes reales al
+  agente. 3D validará recarga, memoria, SSE y no duplicación de mensajes.
+- El frontend debe poder empaquetarse y desplegarse independientemente mediante
+  Docker y Container Apps, configurando por variables de entorno el BFF y el
+  proyecto Foundry de cada entorno.
+- Todo componente ejecutable de la demo debe incluir un `Dockerfile` propio y
+  un workflow de GitHub Actions. En `push`, el workflow solo se activa por
+  cambios en la ruta del componente, sus dependencias compartidas empaquetadas
+  o su propio YAML; valida, construye y publica una imagen trazable en GitHub
+  Packages asociado a este repositorio.
+- La gestión de mesas puede avanzar en paralelo con 3C. Un servicio único será
+  la autoridad de disponibilidad y creará bloqueos temporales atómicos por
+  grupo; confirmar ocupa, rechazar o caducar libera. Una cola visible de
+  llegadas es opcional y no interviene en la exclusión mutua.
+- Un gateway de modelos o agentes se considera una mejora opcional si queda
+  tiempo; no bloquea el recorrido ni reemplaza al BFF.
+
+Durante la demostración del sync, la memoria visible y la respuesta del agente
+no mostraron el comportamiento esperado. Debe verificarse qué versión e
+integración están en ejecución antes de atribuirlo a la implementación de fases
+1 o 2. Esta comprobación forma parte de 3C/3D y no invalida sus cierres
+conjuntos.
 
 ## Fase 1: proyecto y primer camarero
 
@@ -64,8 +99,8 @@ indicadas en el propio plan.
 ### Revisión del 27/09/2026
 
 Resultados y hallazgos en
-[docs/revision-fase-1-jesus.md](docs/revision-fase-1-jesus.md). La fase no se
-cierra todavía: falta la revisión conjunta de las correcciones.
+[docs/revision-fase-1-jesus.md](docs/revision-fase-1-jesus.md). La fase quedó
+validada conjuntamente el 28/09/2026 tras revisar sus correcciones.
 
 Correcciones validadas el 27/09/2026 en un Codespace con `gpt-5.6-luna`:
 
@@ -88,20 +123,19 @@ porque siempre hay al menos un cliente usando la aplicación. El smoke se
 alinea con esta regla: ante «Queremos cenar» espera una persona y solo el
 nombre pendiente.
 
-### Pendiente de revisión
+### Cierre
 
-- Revisar conjuntamente el comportamiento conversacional.
-- Aprobar la fase antes de marcar sus casillas en el plan.
+Fase 1 completada y validada conjuntamente el **28/09/2026**.
 
 ## Fase 2: memoria persistente automática
 
 ### Cambio aprobado: implementado y validado localmente
 
 La política vigente sustituye la memoria consentida por el recuerdo automático
-propio del rol de camarero. Se lee y escribe para la identidad autenticada
-resuelta por el servidor, incluida la falsa de desarrollo. Los invitados siguen
-sin perfil duradero. Se mantienen aislamiento, procedencia, límites, contexto
-no vinculante y reconfirmación de restricciones.
+propio del rol de camarero. Se lee y escribe para la identidad de demo que el
+BFF resolverá desde el nombre de entrada; la configuración local actual usa el
+mismo criterio. Se mantienen aislamiento, procedencia, límites, contexto no
+vincante y reconfirmación de restricciones.
 
 Se eliminan APIs, comandos, configuración y campos de consentimiento, tanto en
 `MemoryView` como en el snapshot interno. Consulta, corrección y borrado siguen
@@ -138,7 +172,7 @@ representan una nueva ejecución del smoke real con esta política.
   - memoria duradera;
   - historial de pedidos completados.
 - Adaptador SQLite desacoplado mediante un protocolo de repositorio.
-- Lectura/escritura automática por identidad autenticada, con procedencia y fecha.
+- Lectura/escritura automática por identidad de demo, con procedencia y fecha.
 - Consulta, corrección y borrado individual o total de recuerdos.
 - Borrado total sin bloqueo permanente de escrituras futuras.
 - Límite configurable aplicado por separado a preferencias y restricciones.
@@ -149,7 +183,7 @@ representan una nueva ejecución del smoke real con esta política.
 - Migración transaccional del esquema local sin acoplamiento al consentimiento,
   conservando datos existentes y sin recuperar recuerdos eliminados.
 - Resumen automático de los productos del borrador como una preferencia de
-  pedido de largo plazo para la identidad autenticada.
+  pedido de largo plazo para la identidad de demo.
 - Campo `remembered_memories` en la respuesta local con el contenido realmente
   recuperado de SQLite, separado del estado reafirmado en la visita.
 - Resolución de intención para «lo de siempre», «como siempre» y expresiones
@@ -168,7 +202,7 @@ representan una nueva ejecución del smoke real con esta política.
 ### Decisión vigente sobre alergias y restricciones
 
 Las preferencias y las alergias o restricciones se almacenan automáticamente
-para la identidad autenticada, pero se clasifican por separado:
+para la identidad de demo, pero se clasifican por separado:
 
 - `preference`;
 - `restriction`.
@@ -201,7 +235,8 @@ Controles:
 - `DEV_FAKE_ACTOR_ID` funciona también como nombre presentado y se inyecta
   desde el primer turno para ofrecer un trato cercano;
 - la configuración se rechaza fuera de `development`;
-- el mecanismo será sustituido por identidad autenticada en la fase 3.
+- la fase 3 unificará este mecanismo con el nombre de entrada y la sesión de
+  demo del BFF; no se incorporará Entra ID.
 
 Para actualizar el entorno existente: eliminar `DEV_FAKE_MEMORY_CONSENT` del
 `.env` local, ejecutar `./scripts/init-local-env.sh --force` y volver a cargar
@@ -252,19 +287,14 @@ patatas» con `occurrence_count: 3`. Además, después de `/memory clear`, el
 siguiente mensaje de esa conversación volvía a crear el resumen a partir del
 borrador sin cambios.
 
-La corrección se propone en la PR «Fase 2: contar cada pedido una vez por
-conversación»: cada resumen de pedido se guarda como máximo una vez por
-conversación, tanto en la CLI como en el servidor local con la identidad falsa.
-Está pendiente de validación: `./scripts/test.sh` (138 pruebas esperadas) y la
-repetición de la prueba manual. La fase no se cierra ni se marca ninguna
-casilla.
+El ajuste posterior «contar cada pedido una vez por conversación» permanece
+como seguimiento de mantenimiento. No bloquea el cierre: la fase quedó validada
+conjuntamente el 28/09/2026. Su implementación y pruebas se registrarán como un
+cambio posterior cuando se incorporen.
 
-### Pendiente de revisión
+### Cierre
 
-- Revisar conjuntamente memoria automática, borrado total,
-  migración sin pérdida de datos y reconfirmación.
-- Aprobar el uso de identidad falsa durante la fase local.
-- Aprobar la fase antes de marcar sus casillas en el plan.
+Fase 2 completada y validada conjuntamente el **28/09/2026**.
 
 ## Fase 3A: contratos publicos
 
@@ -342,8 +372,8 @@ Decisiones de Jesús, pendientes de la revisión conjunta:
 - 3A y el cambio de memoria tienen evidencia local; la revisión conjunta sigue
   pendiente.
   No se marca como completada la fase 3 ni sus criterios de aceptación integral.
-- No existen aún frontend, BFF, SSE real, identidad autenticada, persistencia de
-  visitas/eventos ni deduplicación de efectos. Los contratos describen esas
+- No existen aún BFF, SSE real, identidad de demo persistida por sesión,
+  persistencia de visitas/eventos ni deduplicación de efectos. Los contratos describen esas
   obligaciones, pero no las ejecutan.
 - No se añaden mesas, pagos, HITL ni contratos completos de fase 4.
 - El servidor Responses sigue creando el agente directamente; el adaptador al
@@ -405,9 +435,9 @@ Con 3A implementada y la vista 3B validada en el Codespace contra
 - persistencia y recuperación de la visita activa;
 - sustitución de la identidad falsa de desarrollo.
 
-Puede adelantarse dominio y servicios deterministas de fase 4 coordinando los
-contratos nuevos; su aceptación extremo a extremo sigue dependiendo de la
-integración de fase 3.
+En paralelo, la fase 4 puede construir el servicio determinista de mesas y su
+contrato de bloqueo temporal; su aceptación extremo a extremo sigue dependiendo
+de la integración de fase 3.
 
 ## Ejecución y validación
 

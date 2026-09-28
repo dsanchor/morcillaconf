@@ -36,8 +36,8 @@ frontend el workflow, los agentes o las reglas de negocio.
 | Carril | Alcance | Entrega |
 |---|---|---|
 | 3A. Contratos | Comandos, resultados, eventos, snapshot, estados, acciones permitidas y errores públicos | Contrato versionado y fixtures compartidos |
-| 3B. Frontend | Vista Streamlit, proyección visual, acciones contextuales y adaptadores de cliente | Interfaz demostrable contra `FakeBffClient` |
-| 3C. BFF | FastAPI, identidad, autorización, idempotencia, persistencia de eventos, snapshot y SSE | API ejecutable contra el adaptador local del workflow |
+| 3B. Frontend | Vista Streamlit, proyección visual, acciones contextuales y adaptadores de cliente | Interfaz demostrable contra `FakeBffClient`, `Dockerfile` y workflow de imagen con filtros de ruta |
+| 3C. BFF | FastAPI, identidad, autorización, idempotencia, persistencia de eventos, snapshot y SSE | API ejecutable contra el adaptador local del workflow, `Dockerfile` y workflow de imagen con filtros de ruta |
 | 3D. Integración | Sustitución del cliente falso, continuidad y pruebas entre componentes | Primer corte vertical y criterios de fase 3 validados |
 
 ```mermaid
@@ -48,6 +48,12 @@ flowchart LR
     BFF --> I
     I --> F4[Fase 4]
 ```
+
+Los workflows de 3B y 3C se activan en `push` únicamente cuando cambian su
+carpeta, sus dependencias compartidas incluidas en la imagen o su YAML. Cada uno
+ejecuta las pruebas pertinentes antes de construir y publicar la imagen en
+GitHub Packages de este repositorio; no se activa por cambios exclusivos de
+otros componentes.
 
 Los carriles 3B y 3C comienzan cuando existe una primera versión utilizable del
 contrato. Pueden evolucionar en paralelo, pero cualquier cambio incompatible
@@ -73,8 +79,8 @@ Los comandos de 3A son llegada (`customer.arrived`), mensaje
 (`conversation.message_sent`), `memory.read_requested`,
 `memory.correction_requested`, `memory.deletion_requested` y
 `memory.clear_requested`. La lectura y escritura de recuerdos es automática
-para la identidad autenticada resuelta por el servidor, incluida la falsa de
-desarrollo. Un invitado no tiene perfil duradero. `MemoryView` no expone
+para la identidad de demo que el BFF deriva del nombre de entrada. `MemoryView`
+no expone
 consentimiento y no hay controles de concesión o revocación; sus comandos
 antiguos se rechazan, no se ignoran. La UI explica que borrar todos los
 recuerdos no impide recordar interacciones futuras y mantiene las restricciones
