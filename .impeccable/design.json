@@ -322,9 +322,9 @@
       "name": "Command Row",
       "kind": "nav",
       "refersTo": "command-row",
-      "description": "Comando literal del lateral.",
-      "html": "<button class=\"ds-command\"><code>/memory <span>&lt;id&gt;</span></code></button>",
-      "css": ".ds-command{display:block;width:100%;padding:9px 12px;background:none;border:0;border-radius:var(--radius-sm,4px);cursor:pointer;color:var(--piedra,#e7d7b5);text-align:left;font:400 18px/1.5 var(--sans,Alegreya Sans,Segoe UI,system-ui,sans-serif)}.ds-command code{font:500 1.06rem/1.35 ui-monospace,SF Mono,Menlo,monospace}.ds-command span{color:var(--piedra-tenue,#b9a685);font-style:italic}.ds-command:hover{background:rgba(242,176,74,.08)}.ds-command:hover code{color:var(--luz,#f2b04a)}"
+      "description": "Comando literal del lateral, en una sola línea.",
+      "html": "<button class=\"ds-command\"><code>/memory correct <span>&lt;id&gt;</span> <span>&lt;texto&gt;</span></code></button>",
+      "css": ".ds-command{display:flex;align-items:center;width:100%;height:45px;padding:0 12px;white-space:nowrap;background:none;border:0;border-radius:var(--radius-sm,4px);cursor:pointer;color:var(--piedra,#e7d7b5);text-align:left;font:400 18px/1.5 var(--sans,Alegreya Sans,Segoe UI,system-ui,sans-serif)}.ds-command code{font:500 1rem/1.35 ui-monospace,SF Mono,Menlo,monospace;white-space:nowrap}.ds-command span{color:var(--piedra-tenue,#b9a685);font-style:italic}.ds-command:hover{background:rgba(242,176,74,.08)}.ds-command:hover code{color:var(--luz,#f2b04a)}"
     },
     {
       "name": "Conversation Frame",

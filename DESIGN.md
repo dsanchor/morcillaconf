@@ -44,7 +44,7 @@ typography:
     lineHeight: 1
   mono:
     fontFamily: "ui-monospace, SF Mono, Menlo, monospace"
-    fontSize: "1.06rem"
+    fontSize: "1rem"
     fontWeight: 500
     lineHeight: 1.35
 rounded:
@@ -80,7 +80,8 @@ components:
     backgroundColor: "transparent"
     textColor: "{colors.piedra}"
     rounded: "{rounded.sm}"
-    padding: "9px 12px"
+    padding: "0 12px"
+    height: "45px"
   command-row-hover:
     backgroundColor: "rgba(242, 176, 74, .08)"
     textColor: "{colors.luz}"
@@ -158,7 +159,7 @@ La paleta es nocturna y mineral: casi todo nace de nogal, roble, piedra y forja;
 - **Title** (500, 1.2rem, 1.2): campo del umbral, donde el nombre se vuelve identidad.
 - **Body** (400, 18px, 1.5): base de sala, redactor, comandos y conversación; baja a 17px en móvil.
 - **Label** (700, 1.05rem, 1): llamadas cortas como Entrar y enviar.
-- **Mono** (500, 1.06rem, 1.35): comandos literales con slash; no se usa como estilo decorativo general.
+- **Mono** (500, 1rem, 1.35): comandos literales con slash, siempre en una sola línea; no se usa como estilo decorativo general.
 
 ### Named Rules
 **The Slash Literal Rule.** El monospace se reserva a comandos ejecutables (`/memory`, `/new`, `/exit`) porque son código operativo, no ornamento.
@@ -167,7 +168,7 @@ La paleta es nocturna y mineral: casi todo nace de nogal, roble, piedra y forja;
 
 La fachada ocupa el viewport completo y no desplaza el documento: se fija sobre la app hasta que la puerta abre. El formulario del nombre queda centrado en el umbral con dos columnas, anchura contenida y sombra proyectada.
 
-El interior usa una grilla de dos zonas: lateral de comandos fijo de 288px y sala flexible. La sala apila conversación, etiqueta simulada y plano con respiración estrecha. En móvil, el lateral se convierte en cajón de 300px máximo o 84vw; la sala gana margen superior para el botón `/comandos` y reduce padding y altura del plano.
+El interior usa una grilla de dos zonas: lateral de comandos fijo de 336px y sala flexible. El ancho sale del comando más largo, `/memory correct <id> <texto>` (28 caracteres): el monospace mide hasta 0,602em por carácter, así que a 16px ocupa unos 270px, más 2 × 12px de fila y 2 × 18px de lateral. La sala apila conversación, etiqueta simulada y plano con respiración estrecha. En móvil, el lateral se convierte en cajón de 336px como máximo o el ancho de la pantalla menos 40px; si el cajón es más estrecho, el tamaño de los comandos baja en proporción (28 × 0,61em) para que sigan en una línea. La sala gana margen superior para el botón `/comandos` y reduce padding y altura del plano.
 
 El ritmo espacial favorece saltos de 10-14px para controles, 18px para módulos de sala y 26px para respiración escénica. Las líneas de texto conversacional se contienen alrededor de 62ch o 88% para no romper la sensación de diálogo.
 
@@ -200,7 +201,7 @@ La geometría distintiva viene de los materiales: arco de dovelas, portón parti
 ### Cards / Containers
 - **Conversation Frame:** marco grueso de roble y forja con clavos en las esquinas; contiene conversación y redactor sin cabecera.
 - **Memory Card:** tarjeta discreta con borde discontinuo de veta, fondo de piedra al 5% y códigos en ámbar.
-- **Command Sidebar:** carbón continuo, lista sin viñetas, hover en ámbar tenue; los argumentos son piedra tenue e itálica.
+- **Command Sidebar:** carbón continuo, lista sin viñetas, filas de 45px alineadas a la izquierda y separadas 2px, hover en ámbar tenue; los argumentos son piedra tenue e itálica y ningún comando se parte en dos líneas.
 
 ### Inputs / Fields
 - **Doorstep Field:** fondo carbón translúcido, borde de veta, tipo Alegreya y placeholder de piedra tenue.

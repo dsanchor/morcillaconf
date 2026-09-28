@@ -1,5 +1,14 @@
 /* Static preview of the view; the Streamlit port reproduces these surfaces. */
 * { box-sizing: border-box; }
+/* The longest command, /memory correct plus its two arguments, is 28 characters.
+   Monospace fonts measure up to .602em per character, so at 16px it needs 269.7px,
+   plus 2 x 12px of row padding and 2 x 18px of sidebar padding: 329.7px fits in
+   336px. Narrower drawers scale the command size with 28 x .61em per character. */
+:root {
+  --lateral: 336px;
+  --comando: min(1rem, calc((var(--lateral) - 60px) / (28 * .61)));
+  --fila: 45px;
+}
 html, body { margin: 0; height: 100%; }
 body {
   background: var(--nogal);
@@ -45,7 +54,7 @@ body {
 }
 
 /* Inside the inn. */
-.interior { display: grid; grid-template-columns: 288px minmax(0, 1fr); height: 100vh; }
+.interior { display: grid; grid-template-columns: var(--lateral) minmax(0, 1fr); height: 100vh; }
 .interior[hidden] { display: none; }
 .comandos {
   display: flex; flex-direction: column; gap: 26px;
@@ -56,11 +65,11 @@ body {
 .quien .nombre { font: 500 1.6rem/1.1 var(--serif); overflow-wrap: anywhere; }
 .lista { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .comando {
-  display: block; width: 100%; padding: 9px 12px;
+  display: flex; align-items: center; width: 100%; height: var(--fila); padding: 0 12px;
   background: none; border: 0; border-radius: 4px; cursor: pointer;
-  color: var(--piedra); text-align: left; font: inherit;
+  color: var(--piedra); text-align: left; font: inherit; white-space: nowrap;
 }
-.comando code { font: 500 1.06rem/1.35 ui-monospace, "SF Mono", Menlo, monospace; }
+.comando code { font: 500 var(--comando)/1.35 ui-monospace, "SF Mono", Menlo, monospace; white-space: nowrap; }
 .comando .arg { color: var(--piedra-tenue); font-style: italic; }
 .comando:hover { background: rgba(242, 176, 74, .08); }
 .comando:hover code { color: var(--luz); }
@@ -157,10 +166,11 @@ body {
 @keyframes aparecer { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
 @media (max-width: 760px) {
+  :root { --lateral: min(336px, calc(100vw - 40px)); }
   body { font-size: 17px; }
   .interior { grid-template-columns: minmax(0, 1fr); }
   .comandos {
-    position: fixed; z-index: 20; inset: 0 auto 0 0; width: min(300px, 84vw);
+    position: fixed; z-index: 20; inset: 0 auto 0 0; width: var(--lateral);
     transform: translateX(-100%); transition: transform .35s var(--ease-salida);
   }
   .interior.menu-abierto .comandos { transform: none; }
