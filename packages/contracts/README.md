@@ -41,8 +41,11 @@ validan las uniones discriminadas y generan JSON Schema mediante
 
 - `customer.py` y `memory.py`: tipos compartidos extraídos del camarero.
   Las importaciones de cliente, borrador y recuerdos siguen disponibles.
-  Se elimina el contrato antiguo de consentimiento. El comensal por defecto no
-  acredita una asignación de mesa; un dato desconocido sigue siendo `None`.
+  Se elimina el contrato antiguo de consentimiento. `party_size` vale 1 por
+  defecto, la persona que se ha identificado, y cambia cuando el cliente dice
+  cuántos son; ese valor no acredita una asignación de mesa. Un dato
+  desconocido, como el nombre en la CLI, sigue siendo `None` y figura en
+  `pending_fields`.
 - `application.py`: comandos, resultados, proyección y eventos públicos.
 - `client.py`: protocolo asíncrono `BffClient` para futuros clientes falso y
   HTTP/SSE; `BffClientError` transporta errores públicos explícitos.

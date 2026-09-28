@@ -85,8 +85,9 @@ ni evidencias de una implementacion previa.
   cero el plan no autoriza duplicar infraestructura compartida.
 - No marcar una fase completada por encontrar codigo similar: debe satisfacer
   los criterios de esta especificacion y aportar su propia evidencia.
-- Un numero de comensales desconocido permanece desconocido: no asumir uno como
-  dato confirmado para asignar mesa.
+- Si el cliente no indica cuantos son, se asume uno: la persona que se ha
+  identificado. El numero cambia cuando dice que viene acompañado; una peticion
+  explicita de mesa sin tamaño de grupo requiere preguntarlo.
 - El nombre escrito dentro del chat no sustituye al nombre de entrada que el BFF
   usa como identidad de demo.
 - La memoria de preferencias no sustituye la persistencia de visita, pedido,

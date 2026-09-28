@@ -20,7 +20,7 @@ indicadas en el propio plan.
 |---|---|---|---|
 | 1. Proyecto y primer camarero | Completada | Validada conjuntamente el 28/09 | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas |
 | 2. Memoria persistente automática | Completada | Validada conjuntamente el 28/09 | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
-| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente; 3B implementada y validada en el Codespace | Pendiente | 3A: 127 pruebas locales totales, incluidos CLI y contratos actualizados. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) contra `FakeBffClient`, lockfile versionado y 106 pruebas superadas en el Codespace. 3C/3D priorizados |
+| 3. Vista única, BFF y continuidad | Implementada: 3A, 3B, 3C y 3D validadas en el Codespace el 28/09 | Pendiente; validada por Jesús el 28/09 ([revisión de 3A](docs/revision-fase-3a-jesus.md), [validación de 3C y 3D](#validación-en-el-codespace-28092026)) | 3A: 133 pruebas y 15 reglas del contrato. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) e imagen Docker publicada. 3C/3D: [BFF](#fase-3c-bff) con el camarero en Foundry; 146 + 8, 123 y 96 pruebas, smoke real y recorrido manual superados |
 | 4. Recorrido local completo y dos HITL | Pendiente; diseño de mesas acordado | Pendiente | Bloqueo temporal atómico, confirmación de mesa y concurrencia se pueden implementar en paralelo con 3C |
 | 5. Validación temprana de Hosted Agent | Pendiente | Pendiente | El agente solo se ha ejecutado localmente |
 | 6. Carta con fuentes y herramientas MCP | Pendiente | Pendiente | Sin implementación |
@@ -328,10 +328,10 @@ patatas» con `occurrence_count: 3`. Además, después de `/memory clear`, el
 siguiente mensaje de esa conversación volvía a crear el resumen a partir del
 borrador sin cambios.
 
-El ajuste posterior «contar cada pedido una vez por conversación» permanece
-como seguimiento de mantenimiento. No bloquea el cierre: la fase quedó validada
-conjuntamente el 28/09/2026. Su implementación y pruebas se registrarán como un
-cambio posterior cuando se incorporen.
+El ajuste posterior «contar cada pedido una vez por conversación» se incorporó
+a `main` con la PR #2 (`cc4675b`). No bloquea el cierre: la fase quedó validada
+conjuntamente el 28/09/2026. Falta registrar su validación: `./scripts/test.sh`
+(138 pruebas esperadas) y repetir la prueba manual del resumen de pedido.
 
 ### Cierre
 
@@ -382,6 +382,31 @@ contrato modificado.
 - Wheel del paquete construido correctamente con `uv build --wheel --offline`.
 - Entrada Responses importada sin errores, sin arrancar servidor ni llamar al
   modelo. No se han modificado prompts ni `main.py`.
+
+### Revisión del 28/09/2026
+
+Resultados y decisiones en
+[docs/revision-fase-3a-jesus.md](docs/revision-fase-3a-jesus.md). No hay
+hallazgos que corregir: los contratos cubren el mínimo del anexo.
+
+Evidencia en un Codespace, sobre la rama de 3B y con los mismos contratos que
+`main`: `./scripts/test.sh` dio **133 pruebas superadas**. Un guion con 15
+casos contra los fixtures confirmó que se aceptan los seis comandos de ejemplo
+y se rechazan la identidad dentro del comando, el mensaje vacío, el
+consentimiento retirado, la fecha sin zona horaria, los recuerdos de un
+invitado, el nombre ausente sin marcar como pendiente, el reintento tras un
+fallo definitivo, el cursor caducado sin snapshot nuevo y el texto parcial
+marcado como definitivo.
+
+Decisiones:
+
+- **Nombre (D1):** el nombre escrito en la puerta es el único que se usa: es
+  la identidad y el nombre con el que trata el camarero. Quedó adoptada en el
+  [sync del 28/09](#acuerdos-del-sync-del-28092026): el BFF lo normaliza y no
+  se incorpora Entra ID. No cambia los contratos; la aplican 3C y 3D.
+- **Comensales (D2):** se confirma la decisión del 27/09: el grupo empieza en
+  una persona, la identificada, y sube cuando dice que viene acompañada. La
+  regla general del plan se alinea con SPECS.
 
 ### Límites y revisión pendiente
 
@@ -541,24 +566,23 @@ marca ninguna casilla.
 
 ## Próximo trabajo previsto
 
-Con 3A implementada y la vista 3B validada en el Codespace contra
-`FakeBffClient`, los carriles 3C y 3D incorporarán:
+La fase 3 está implementada y validada en el Codespace. Falta la revisión
+conjunta, que además debe decidir:
 
-- conexión de la vista Streamlit al BFF real;
-- BFF con FastAPI;
-- identidad derivada por el servidor;
-- comandos HTTP;
-- actualizaciones SSE;
-- snapshot de estado;
-- persistencia y recuperación de la visita activa;
-- sustitución de la identidad falsa de desarrollo.
+- cómo cumplir «mesas iniciales claramente etiquetadas como datos locales»: el
+  plano aún muestra mesas decorativas, que serán reales con el MCP de asientos
+  de la fase 4;
+- si bastan los spans sin exportador (el exportador llega en la fase 9) y el
+  despliegue en Container Apps documentado pero no ejecutado.
 
 En paralelo, la fase 4 ya dispone del servicio determinista de mesas y el
 camarero declara sus tools MCP directas de disponibilidad y bloqueo. Cada
 sesión Responses inicializa un `visit_id`, el middleware sustituye los
 argumentos de autoridad suministrados por el modelo y guarda la propuesta MCP
 confirmada en el estado de sesión. Queda pendiente la prueba de conversación
-real con el MCP levantado, seguida por la integración del BFF de fase 3.
+real con el MCP levantado, seguida por su integración con el BFF: sembrar
+`visit_context.visit_id` con la visita del BFF y proyectar la propuesta de mesa
+en la vista.
 
 ## Ejecución y validación
 
