@@ -220,4 +220,6 @@ Con esta revisión se actualizan:
 ## Siguiente paso
 
 - Revisión conjunta de 3A y D2. No se marca ninguna casilla.
-- Construir 3C con la entrada de identidad por nombre acordada en el sync.
+- 3C ya aplica D1 (PR #6): el BFF normaliza el nombre de la puerta, la
+  aplicación fija `presented_name` y el saludo no llama al modelo. Jesús lo
+  validó en el Codespace el 28/09.

@@ -20,7 +20,7 @@ indicadas en el propio plan.
 |---|---|---|---|
 | 1. Proyecto y primer camarero | Completada | Validada conjuntamente el 28/09 | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas |
 | 2. Memoria persistente automática | Completada | Validada conjuntamente el 28/09 | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
-| 3. Vista única, BFF y continuidad | Parcial: 3A implementada y validada localmente; 3B implementada y validada en el Codespace | En curso: [revisión de 3A del 28/09](docs/revision-fase-3a-jesus.md) | 3A: 127 pruebas locales totales, incluidos CLI y contratos actualizados; en la revisión, 133 pruebas y 15 reglas del contrato superadas en el Codespace. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) contra `FakeBffClient`, lockfile versionado y 106 pruebas superadas en el Codespace. 3C/3D priorizados |
+| 3. Vista única, BFF y continuidad | Implementada: 3A, 3B, 3C y 3D validadas en el Codespace el 28/09 | Pendiente; validada por Jesús el 28/09 ([revisión de 3A](docs/revision-fase-3a-jesus.md), [validación de 3C y 3D](#validación-en-el-codespace-28092026)) | 3A: 133 pruebas y 15 reglas del contrato. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) e imagen Docker publicada. 3C/3D: [BFF](#fase-3c-bff) con el camarero en Foundry; 146 + 8, 123 y 96 pruebas, smoke real y recorrido manual superados |
 | 4. Recorrido local completo y dos HITL | Pendiente; diseño de mesas acordado | Pendiente | Bloqueo temporal atómico, confirmación de mesa y concurrencia se pueden implementar en paralelo con 3C |
 | 5. Validación temprana de Hosted Agent | Pendiente | Pendiente | El agente solo se ha ejecutado localmente |
 | 6. Carta con fuentes y herramientas MCP | Pendiente | Pendiente | Sin implementación |
@@ -566,25 +566,23 @@ marca ninguna casilla.
 
 ## Próximo trabajo previsto
 
-Con 3A implementada y la vista 3B validada en el Codespace contra
-`FakeBffClient`, los carriles 3C y 3D incorporarán:
+La fase 3 está implementada y validada en el Codespace. Falta la revisión
+conjunta, que además debe decidir:
 
-- conexión de la vista Streamlit al BFF real;
-- BFF con FastAPI;
-- identidad de demo derivada por el BFF del nombre escrito en la puerta
-  ([acuerdos del sync](#acuerdos-del-sync-del-28092026));
-- comandos HTTP;
-- actualizaciones SSE;
-- snapshot de estado;
-- persistencia y recuperación de la visita activa;
-- sustitución de la identidad falsa de desarrollo.
+- cómo cumplir «mesas iniciales claramente etiquetadas como datos locales»: el
+  plano aún muestra mesas decorativas, que serán reales con el MCP de asientos
+  de la fase 4;
+- si bastan los spans sin exportador (el exportador llega en la fase 9) y el
+  despliegue en Container Apps documentado pero no ejecutado.
 
 En paralelo, la fase 4 ya dispone del servicio determinista de mesas y el
 camarero declara sus tools MCP directas de disponibilidad y bloqueo. Cada
 sesión Responses inicializa un `visit_id`, el middleware sustituye los
 argumentos de autoridad suministrados por el modelo y guarda la propuesta MCP
 confirmada en el estado de sesión. Queda pendiente la prueba de conversación
-real con el MCP levantado, seguida por la integración del BFF de fase 3.
+real con el MCP levantado, seguida por su integración con el BFF: sembrar
+`visit_context.visit_id` con la visita del BFF y proyectar la propuesta de mesa
+en la vista.
 
 ## Ejecución y validación
 
