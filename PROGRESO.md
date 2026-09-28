@@ -287,10 +287,10 @@ patatas» con `occurrence_count: 3`. Además, después de `/memory clear`, el
 siguiente mensaje de esa conversación volvía a crear el resumen a partir del
 borrador sin cambios.
 
-El ajuste posterior «contar cada pedido una vez por conversación» permanece
-como seguimiento de mantenimiento. No bloquea el cierre: la fase quedó validada
-conjuntamente el 28/09/2026. Su implementación y pruebas se registrarán como un
-cambio posterior cuando se incorporen.
+El ajuste posterior «contar cada pedido una vez por conversación» se incorporó
+a `main` con la PR #2 (`cc4675b`). No bloquea el cierre: la fase quedó validada
+conjuntamente el 28/09/2026. Falta registrar su validación: `./scripts/test.sh`
+(138 pruebas esperadas) y repetir la prueba manual del resumen de pedido.
 
 ### Cierre
 
@@ -357,12 +357,12 @@ invitado, el nombre ausente sin marcar como pendiente, el reintento tras un
 fallo definitivo, el cursor caducado sin snapshot nuevo y el texto parcial
 marcado como definitivo.
 
-Decisiones de Jesús, pendientes de la revisión conjunta:
+Decisiones:
 
 - **Nombre (D1):** el nombre escrito en la puerta es el único que se usa: es
-  la identidad y el nombre con el que trata el camarero. No cambia los
-  contratos; lo aplican 3C y 3D. Choca con limitar las identidades de demo a
-  desarrollo (fases 3 y 9), así que hay que decidirlo juntos.
+  la identidad y el nombre con el que trata el camarero. Quedó adoptada en el
+  [sync del 28/09](#acuerdos-del-sync-del-28092026): el BFF lo normaliza y no
+  se incorpora Entra ID. No cambia los contratos; la aplican 3C y 3D.
 - **Comensales (D2):** se confirma la decisión del 27/09: el grupo empieza en
   una persona, la identificada, y sube cuando dice que viene acompañada. La
   regla general del plan se alinea con SPECS.
@@ -426,9 +426,8 @@ Con 3A implementada y la vista 3B validada en el Codespace contra
 
 - conexión de la vista Streamlit al BFF real;
 - BFF con FastAPI;
-- identidad derivada por el servidor a partir del nombre escrito en la puerta
-  ([D1](docs/revision-fase-3a-jesus.md#decisiones), pendiente de la revisión
-  conjunta);
+- identidad de demo derivada por el BFF del nombre escrito en la puerta
+  ([acuerdos del sync](#acuerdos-del-sync-del-28092026));
 - comandos HTTP;
 - actualizaciones SSE;
 - snapshot de estado;

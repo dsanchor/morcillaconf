@@ -3,7 +3,7 @@
 - **Fecha:** 28/09/2026
 - **Revisión:** Jesús (@jrubiosainz)
 - **Código revisado:** `packages/contracts` y `tests/fixtures/phase3a` de
-  `d5ac228`. No han cambiado hasta `main` @ `cc4675b`.
+  `d5ac228`. No han cambiado hasta `main` @ `a7442f7`.
 - **Entorno:** GitHub Codespace. 3A no llama al modelo, así que Foundry no
   interviene.
 
@@ -13,8 +13,8 @@
 pruebas pasan y las 15 reglas probadas a mano se cumplen.
 
 La revisión deja dos decisiones, sobre el nombre y los comensales. No cambian
-los contratos, pero sí lo que deben hacer 3C, 3D y las fases 4 y 9. La fase 3
-sigue abierta: faltan 3C, 3D y la revisión conjunta.
+los contratos, pero sí lo que deben hacer 3C, 3D y la fase 4. La fase 3 sigue
+abierta: faltan 3C, 3D y la revisión conjunta.
 
 ## Contrato mínimo del anexo
 
@@ -148,7 +148,9 @@ check("El texto parcial del camarero siempre es provisional", False,
 
 ## Decisiones
 
-Tomadas por Jesús el 28/09/2026. Quedan pendientes de la revisión conjunta.
+Tomadas por Jesús el 28/09/2026. D1 quedó adoptada ese mismo día en el
+[sync](../PROGRESO.md#acuerdos-del-sync-del-28092026), que actualizó SPECS, el
+plan y el anexo. D2 confirma la decisión del 27/09.
 
 ### D1. El nombre de la puerta es la identidad
 
@@ -156,38 +158,33 @@ Lo que se escribe en la puerta es el único nombre que se usa: identifica al
 cliente y es el nombre con el que le trata el camarero.
 
 - **Contratos:** no cambian. El nombre sigue fuera de los comandos: la vista
-  lo entrega al abrir el cliente del BFF y el servidor construye
-  `ActorContext`. 3B ya funciona así con `FakeBffClient`: `actor_id` es el
-  nombre escrito y `authenticated=True`.
+  lo entrega al abrir el cliente del BFF y el BFF construye `ActorContext`.
+  3B ya funciona así con `FakeBffClient`: `actor_id` es el nombre escrito y
+  `authenticated=True`.
 - **3C:** el BFF necesita una entrada de identidad, fuera de los seis
-  comandos, que convierta el nombre en `ActorContext`. Sustituye a
-  `DEV_FAKE_ACTOR_ID`.
+  comandos, que convierta el nombre en `ActorContext` y lo conserve en la
+  sesión. Sustituye a `DEV_FAKE_ACTOR_ID`.
 - **3D:** el camarero debe usar ese nombre como `customer.presented_name` y no
   pedirlo. Hoy el servidor local solo se lo indica al modelo con una
   instrucción. Propuesta: que lo fije la aplicación, como ya hace con
   `pending_fields`, para que un «soy Majo» en el chat no lo cambie.
 - **Saludo:** «Hombre, {nombre}, ¿qué tal, majo/maja?» lo genera ahora el
-  camarero simulado de 3B. En 3D hay que decidir si lo genera el BFF o el
+  camarero simulado de 3B. En 3C hay que decidir si lo genera el BFF o el
   camarero.
 - **Mismo nombre, mismo cliente:** dos personas que escriban el mismo nombre
-  comparten recuerdos y visita activa. En 3B, «Jesús» y «jesus» son clientes
-  distintos. Propuesta para 3C: comparar sin distinguir mayúsculas, tildes ni
-  espacios repetidos, y saludar con el nombre tal como se escribió.
+  comparten recuerdos y visita activa. El sync acordó que el BFF normaliza el
+  nombre. En 3B, «Jesús» y «jesus» todavía son clientes distintos. Propuesta
+  para 3C: comparar sin distinguir mayúsculas, tildes ni espacios repetidos, y
+  saludar con el nombre tal como se escribió.
 - **Sin invitados en la web:** la puerta siempre pide un nombre, así que todo
   cliente tiene perfil duradero. El caso de invitado de los contratos queda
-  para la CLI y para una identidad real futura.
-- **Choca con el plan:** la fase 3 pide «usar identidades sinteticas solo en
-  desarrollo» y la fase 9, integrar Entra ID y «desactivar identidades de demo
-  fuera de desarrollo». Si la charla y los asistentes usan el despliegue en
-  Azure, hay que elegir: mantener allí el nombre de la puerta, con las
-  consecuencias anteriores, o usar Entra ID y dejar el nombre solo como nombre
-  presentado.
-- **SPECS:** entre las tareas del camarero está «extraer nombre presentado,
+  para la CLI.
+- **Sin Entra ID:** la revisión detectó que D1 chocaba con las fases 3 y 9
+  (identidades de demo solo en desarrollo, Entra ID en Azure). El sync lo
+  resolvió: la demo no incorpora Entra ID ni otro proveedor de identidad.
+- **SPECS:** entre las tareas del camarero sigue «extraer nombre presentado,
   número de comensales y petición del mensaje» (§5, camarero orquestador). Con
-  D1, en la web el nombre ya no sale del mensaje.
-
-No se modifican SPECS ni las fases 3 y 9 del plan hasta confirmar D1 en la
-revisión conjunta.
+  D1, en la web el nombre ya no sale del mensaje; conviene ajustarlo con 3C.
 
 ### D2. Comensales: uno por defecto
 
@@ -222,6 +219,5 @@ Con esta revisión se actualizan:
 
 ## Siguiente paso
 
-- Revisión conjunta de 3A, D1 y D2. No se marca ninguna casilla.
-- Si se confirma D1: actualizar SPECS (§4 y §5) y las fases 3 y 9 del plan, y
-  construir 3C con la entrada de identidad por nombre.
+- Revisión conjunta de 3A y D2. No se marca ninguna casilla.
+- Construir 3C con la entrada de identidad por nombre acordada en el sync.
