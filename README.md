@@ -41,12 +41,19 @@ sus pruebas:
 
 La fase 3A añade contratos tipados, fixtures y pruebas compartidas en
 [`packages/contracts`](packages/contracts). El mismo comando valida el camarero,
-los contratos y su compatibilidad. Todavía no hay un BFF ejecutable.
+los contratos y su compatibilidad.
 
 La vista de cliente en Streamlit ([`apps/frontend`](apps/frontend)) funciona
 con un camarero simulado: `./scripts/setup-frontend.sh` y después
 `./scripts/run-frontend.sh` (puerto 8501); sus pruebas, con
 `./scripts/test-frontend.sh`.
+
+El BFF ([`apps/bff`](apps/bff)) conecta esa vista con el camarero real en
+Microsoft Foundry: `./scripts/setup-bff.sh`, `./scripts/test-bff.sh` y
+`./scripts/run-bff.sh` (puerto 8000). La vista lo usa con
+`FRONTEND_BFF_CLIENT=http FRONTEND_BFF_URL=http://127.0.0.1:8000
+./scripts/run-frontend.sh`. Configuración y permisos en
+[su README](apps/bff/README.md).
 
 Para crear una configuración local reutilizable:
 

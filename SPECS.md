@@ -416,8 +416,10 @@ Es el único agente que conversa directamente con el cliente.
 Responsabilidades:
 
 - identificar al cliente o tratarlo como invitado;
-- extraer nombre presentado, número de comensales y petición del mensaje,
-  sin sustituir la identidad resuelta por el servidor;
+- extraer número de comensales y petición del mensaje, sin sustituir la
+  identidad resuelta por el servidor. En la web, el nombre presentado llega
+  fijado desde la entrada: el camarero lo usa, no lo pregunta y un nombre dicho
+  en el chat no lo cambia. Solo la CLI de desarrollo lo extrae del mensaje;
 - solicitar únicamente la información obligatoria que falte;
 - consultar y comunicar la mesa asignada;
 - recuperar y guardar automáticamente memoria de la identidad autenticada,

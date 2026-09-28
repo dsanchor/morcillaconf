@@ -411,6 +411,60 @@ contrato modificado.
   lockfile; hay que revisarlo al actualizar Streamlit.
 - Revisión conjunta pendiente; no se marca ninguna casilla de la fase 3.
 
+## Fase 3C: BFF
+
+### Implementado
+
+- BFF FastAPI en [`apps/bff`](apps/bff) con su propio proyecto `uv`,
+  dependiente de los contratos y del paquete del camarero. Configuración solo
+  por variables de entorno o `.env` opcional, sin cargar entornos locales.
+- API `/v1`: sesión de demo desde el nombre de la puerta (token opaco guardado
+  como hash), comandos, resultado por `event_id`, snapshot y SSE con cursor,
+  `Last-Event-ID`, latidos y caducidad explícita (`cursor_expired` con
+  `fetch_snapshot`). Pertenencia comprobada en resultados, snapshot y stream.
+- Identidad D1: el actor se deriva del nombre normalizado (sin mayúsculas,
+  tildes ni espacios repetidos; conserva la ñ). El nombre presentado lo fija la
+  aplicación en cada turno, aunque en el chat se diga otro; el camarero no lo
+  pregunta ni vuelve a saludar.
+- Llegada con saludo determinista e instantáneo; la vista recupera la visita
+  activa al entrar con el mismo nombre y `/new` abre otra.
+- Mensajes con resultado `pending`, estado `processing` y turno en segundo
+  plano, uno por conversación; límite de turnos, idempotencia por
+  `(actor, event_id)` con huella y fallos públicos en español sin contenido
+  del modelo.
+- El camarero se ejecuta en el proceso mediante `ConversationManager`
+  (adaptador local de fase 3), con memoria automática, guarda del resumen de
+  pedido por conversación y su historial de Agent Framework guardado en
+  SQLite. Camarero simulado determinista (`BFF_WAITER=scripted`) para pruebas,
+  CI y desarrollo sin conexión.
+- Comandos de memoria contra el almacén del camarero, con ids cortos por
+  cliente (`m1`, `m2`…) que no se reutilizan.
+- Cliente HTTP/SSE del frontend (`FRONTEND_BFF_CLIENT=http`,
+  `FRONTEND_BFF_URL`) con la biblioteca estándar: `apps/frontend/uv.lock` no
+  cambia.
+- Recuperación al arrancar de turnos interrumpidos, spans sin contenido,
+  `Dockerfile` con etapas `test` y `runtime`, workflow `bff-image.yml` filtrado
+  por ruta y scripts `setup-bff.sh`, `test-bff.sh` y `run-bff.sh`.
+
+### Evidencia y pendientes
+
+- Evidencia no oficial en un Mac sin acceso a PyPI, con wheels en caché y sin
+  `uv run`: 88 pruebas del BFF, 116 del frontend (sin `AppTest`, porque no hay
+  Streamlit en caché) y 140 del camarero y los contratos superadas. Queda fuera
+  una prueba que lanza Python aislado y el módulo de la CLI, que importa
+  Foundry.
+- Recorrido no oficial contra el BFF real con el camarero simulado y el
+  cliente HTTP: saludo, nombre fijado, comensales, memoria con `m1`/`m2`,
+  corrección y borrado, recuperación con «  ANA », aislamiento de «Luis»,
+  límite de turnos y `/new` conservando recuerdos.
+- Pendiente en el Codespace: generar y versionar `apps/bff/uv.lock`, ejecutar
+  las tres suites y validar el camarero real con Foundry (`gpt-5.6-luna`),
+  incluida la serialización del historial con mensajes reales.
+- Hasta versionar el lockfile, el workflow del BFF falla con un aviso
+  explícito.
+- La validación de recarga, memoria, SSE y no duplicación extremo a extremo
+  corresponde a 3D. Revisión conjunta pendiente; no se marca ninguna casilla.
+
 ## Próximo trabajo previsto
 
 Con 3A implementada y la vista 3B validada en el Codespace contra
@@ -449,6 +503,14 @@ Preparar, probar y arrancar la vista de cliente (camarero simulado):
 ./scripts/setup-frontend.sh
 ./scripts/test-frontend.sh
 ./scripts/run-frontend.sh
+```
+
+Preparar, probar y arrancar el BFF (ver [su README](apps/bff/README.md)):
+
+```bash
+./scripts/setup-bff.sh
+./scripts/test-bff.sh
+./scripts/run-bff.sh
 ```
 
 Arrancar el agente local:

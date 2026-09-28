@@ -284,8 +284,11 @@ Ver [contratos de 3A](packages/contracts/README.md)
 y [evidencia en PROGRESO](PROGRESO.md#fase-3a-contratos-publicos).
 3B (vista de cliente en Streamlit contra `FakeBffClient`) implementado y
 validado en el Codespace; revisión conjunta pendiente. Ver
-[evidencia de 3B](PROGRESO.md#fase-3b-vista-del-cliente). 3C y 3D permanecen
-pendientes. Se puede adelantar dominio de fase 4 tras 3A, pero no aceptar el
+[evidencia de 3B](PROGRESO.md#fase-3b-vista-del-cliente). 3C (BFF FastAPI
+con el camarero en el proceso y cliente HTTP/SSE de la vista) implementado con
+evidencia local no oficial; validación en el Codespace y revisión conjunta
+pendientes. Ver [evidencia de 3C](PROGRESO.md#fase-3c-bff). 3D permanece
+pendiente. Se puede adelantar dominio de fase 4 tras 3A, pero no aceptar el
 recorrido completo sin integrar la fase 3.
 
 - [ ] Crear Streamlit y FastAPI con contratos independientes del transporte del
