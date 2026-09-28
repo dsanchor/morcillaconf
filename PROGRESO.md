@@ -392,6 +392,16 @@ contrato modificado.
   pared izquierda del plano ausente (a5aefc8).
 - El CSS depende de detalles internos de Streamlit 1.64.0, fijado por el
   lockfile; hay que revisarlo al actualizar Streamlit.
+- Imagen de contenedor: `apps/frontend/Dockerfile` y el workflow
+  `.github/workflows/frontend-image.yml`, filtrado por `apps/frontend/**`,
+  `packages/contracts/**` y su YAML. La
+  [ejecución 36446579098](https://github.com/dsanchor/morcillaconf/actions/runs/36446579098)
+  pasó las 108 pruebas, comprobó el `HEALTHCHECK` con usuario no root y publicó
+  `ghcr.io/dsanchor/morcillaconf/frontend:225f236c9724e75b27d29c829891de790ef1fbfb`
+  (`sha256:ad4a519c95906db62fcbbd1df9ce7cc0eecd4741ace69c891ab0ae9275065315`).
+  El despliegue en Container Apps está documentado en
+  [apps/frontend](apps/frontend/README.md#imagen-de-contenedor-y-despliegue-en-container-apps),
+  pero todavía no se ha ejecutado.
 - Revisión conjunta pendiente; no se marca ninguna casilla de la fase 3.
 
 ## Próximo trabajo previsto

@@ -284,7 +284,9 @@ Ver [contratos de 3A](packages/contracts/README.md)
 y [evidencia en PROGRESO](PROGRESO.md#fase-3a-contratos-publicos).
 3B (vista de cliente en Streamlit contra `FakeBffClient`) implementado y
 validado en el Codespace; revisión conjunta pendiente. Ver
-[evidencia de 3B](PROGRESO.md#fase-3b-vista-del-cliente). 3C y 3D permanecen
+[evidencia de 3B](PROGRESO.md#fase-3b-vista-del-cliente). El frontend ya tiene
+`Dockerfile` y workflow de imagen publicados en GHCR; su despliegue en
+Container Apps está documentado pero no ejecutado. 3C y 3D permanecen
 pendientes. Se puede adelantar dominio de fase 4 tras 3A, pero no aceptar el
 recorrido completo sin integrar la fase 3.
 
