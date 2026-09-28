@@ -166,6 +166,13 @@ ocupación; rechazarlo o dejarlo caducar lo libera. Una cola visible de llegadas
 puede añadirse a la interfaz, pero no participa en la decisión de concurrencia
 y se pospone si no aporta valor al recorrido funcional.
 
+El servicio trata mesas y puestos de barra como recursos de asiento. La barra
+asigna puestos individuales contiguos al grupo y elige la propuesta que deja el
+menor hueco posible. Su distribución llega mediante configuración de entorno
+como JSON, ID y hash canónico; no obliga a reconstruir la imagen. Al arrancar,
+la aplicación valida primero esa huella y, si difiere de la almacenada,
+invalida y reinicializa exclusivamente sus datos de asientos.
+
 La vista técnica puede mostrarse durante la explicación posterior y presentar:
 
 - agente activo;

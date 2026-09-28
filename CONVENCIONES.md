@@ -111,6 +111,16 @@ Los workflows de imágenes viven en `.github/workflows/` y se nombran
 No se agrupan componentes independientes en un único workflow ni se activa una
 publicación por cambios que no puedan afectar a su imagen.
 
+Cada componente ejecutable mantiene en su raíz un `README.md` que describe sus
+variables de entorno, cómo construir su imagen local y cómo ejecutar sus
+pruebas y su imagen runtime con Docker. Las pruebas locales de cada componente
+contenedorizable se ejecutan
+preferentemente mediante una etapa `test` de su `Dockerfile`, usando `docker
+build --target test` y `docker run`. Esa etapa incluye sus dependencias de
+desarrollo; así las comprobaciones no dependen de instalaciones locales de
+`uv`, `pip` ni Python. La imagen final mantiene solo las dependencias de
+ejecución.
+
 El frontend se comunica con el BFF mediante su contrato público y no importa
 código interno de agentes o servicios.
 

@@ -6,7 +6,55 @@ una única vista de cliente que habla solo con el contrato público del BFF
 BFF del carril 3C, el camarero es **simulado** mediante `FakeBffClient` y la
 vista lo indica con «Camarero simulado».
 
-## Preparar, probar y arrancar (Codespace)
+## Probar y ejecutar localmente con Docker
+
+El frontend se prueba y ejecuta sin instalar Python, `uv`, `pip` ni
+dependencias en el host. Desde la raíz del repositorio, construir y ejecutar la
+etapa de pruebas:
+
+```bash
+docker build \
+  --file apps/frontend/Dockerfile \
+  --target test \
+  --tag morcillaconf-frontend:test \
+  .
+
+docker run --rm morcillaconf-frontend:test
+```
+
+Construir la imagen de ejecución:
+
+```bash
+docker build \
+  --file apps/frontend/Dockerfile \
+  --target runtime \
+  --tag morcillaconf-frontend:local \
+  .
+```
+
+Copiar [`.env.example`](.env.example) a un `.env` local no versionado. Las
+variables disponibles son:
+
+| Variable | Valores | Por defecto |
+|---|---|---|
+| `FRONTEND_BFF_CLIENT` | `fake`; `http` falla con un mensaje claro hasta 3C | `fake` |
+| `FRONTEND_FAKE_PAUSE_SECONDS` | Pausa simulada del camarero antes de responder, 0-10 | `0.9` |
+| `FRONTEND_PORT` | Puerto del servidor Streamlit dentro del contenedor | `8501` |
+
+Ejecutar la imagen:
+
+```bash
+docker run --rm --name morcillaconf-frontend \
+  --publish 8501:8501 \
+  --env-file apps/frontend/.env \
+  morcillaconf-frontend:local
+```
+
+La vista queda disponible en `http://localhost:8501`. Mientras no exista el
+BFF, usar `FRONTEND_BFF_CLIENT=fake`; no hay que configurar credenciales de
+Foundry, MCP o agentes en este contenedor.
+
+## Preparar, probar y arrancar en Codespaces
 
 Desde la raíz del repositorio:
 
@@ -20,65 +68,39 @@ Desde la raíz del repositorio:
 usan `--frozen`. Si falta el lockfile, `setup-frontend.sh` lo genera y hay que
 versionarlo. En el Codespace abre el puerto 8501 reenviado.
 
-Configuración por variables de entorno:
-
-| Variable | Valores | Por defecto |
-|---|---|---|
-| `FRONTEND_BFF_CLIENT` | `fake`; `http` falla con un mensaje claro hasta 3C | `fake` |
-| `FRONTEND_FAKE_PAUSE_SECONDS` | Pausa simulada del camarero antes de responder, 0-10 | `0.9` |
-| `FRONTEND_PORT` | Puerto de `run-frontend.sh` y de la imagen | `8501` |
-
 ## Imagen de contenedor y despliegue en Container Apps
 
 El frontend se empaqueta en su propia imagen, independiente del resto de
 componentes, según [CONVENCIONES](../../CONVENCIONES.md#contenedores-y-workflows-de-imagen).
+La etapa `runtime` del [`Dockerfile`](Dockerfile):
 
-### Construir y ejecutar en local
-
-El contexto es la raíz del repositorio, porque el frontend depende de
-`packages/contracts` por ruta relativa:
-
-```bash
-docker build -f apps/frontend/Dockerfile -t morcillaconf-frontend .
-docker run --rm -p 8501:8501 morcillaconf-frontend
-```
-
-Abre `http://localhost:8501`. La imagen:
-
-- usa `python:3.13-slim` y `uv sync --frozen --no-dev` con `apps/frontend/uv.lock`;
-- instala las dependencias en una capa previa al código de la aplicación;
-- solo incluye `packages/contracts` y `apps/frontend` sin pruebas ni `preview`
-  (lo filtra `apps/frontend/Dockerfile.dockerignore`); no copia `.env` ni
-  secretos;
+- usa `python:3.13-slim` y `uv sync --frozen --no-dev` con `apps/frontend/uv.lock`,
+  primero las dependencias en una capa propia y después el propio frontend;
+- solo incluye `packages/contracts`, `src` y `.streamlit`; el
+  [`.dockerignore`](../../.dockerignore) de la raíz excluye `.env`, entornos
+  virtuales y cachés;
 - se ejecuta con un usuario sin privilegios desde `apps/frontend`, de modo que
   se aplica `.streamlit/config.toml`;
 - arranca Streamlit sin navegador en `0.0.0.0:$FRONTEND_PORT` y comprueba su
   salud con `/_stcore/health`.
 
-Las variables `FRONTEND_*` de la tabla anterior se pasan con `-e` y no requieren
-reconstruir la imagen; así funcionará también el modo `http` cuando exista el
-BFF de 3C:
-
-```bash
-docker run --rm -p 8080:8080 -e FRONTEND_PORT=8080 \
-  -e FRONTEND_FAKE_PAUSE_SECONDS=0.3 morcillaconf-frontend
-```
+Las variables `FRONTEND_*` se pasan en tiempo de ejecución (`--env-file` o
+`-e`) y no requieren reconstruir la imagen; así funcionará también el modo
+`http` cuando exista el BFF de 3C.
 
 ### Imagen publicada
 
 El workflow [`frontend-image.yml`](../../.github/workflows/frontend-image.yml)
 se activa en `push` solo con cambios en `apps/frontend/**`,
-`packages/contracts/**` o el propio YAML (también a mano con
-`workflow_dispatch`). Ejecuta las pruebas del frontend, construye la imagen,
-comprueba que arranca y responde en `/_stcore/health` y la publica en GitHub
-Packages asociada al repositorio:
+`packages/contracts/**`, `.dockerignore` o el propio YAML. Ejecuta la etapa
+`test`, comprueba que la etapa `runtime` importa la aplicación y publica la
+imagen `runtime` en GitHub Packages:
 
 ```text
-ghcr.io/dsanchor/morcillaconf/frontend:<sha-del-commit>
+ghcr.io/dsanchor/morcillaconf-frontend:<sha-del-commit>
 ```
 
-No se publica la etiqueta `latest`. El paquete es privado mientras el
-repositorio lo sea.
+No se publica la etiqueta `latest`.
 
 ### Desplegar en Azure Container Apps
 
@@ -92,7 +114,7 @@ RG=rg-morcillaconf
 LOCATION=swedencentral
 ENV_NAME=cae-morcillaconf
 APP_NAME=ca-morcillaconf-frontend
-IMAGE=ghcr.io/dsanchor/morcillaconf/frontend:<sha-del-commit>
+IMAGE=ghcr.io/dsanchor/morcillaconf-frontend:<sha-del-commit>
 
 az group create --name "$RG" --location "$LOCATION"
 az containerapp env create --name "$ENV_NAME" --resource-group "$RG" \
@@ -113,7 +135,7 @@ az containerapp show --name "$APP_NAME" --resource-group "$RG" \
 ```
 
 Para una versión nueva, `az containerapp update --name "$APP_NAME"
---resource-group "$RG" --image ghcr.io/dsanchor/morcillaconf/frontend:<sha>`.
+--resource-group "$RG" --image ghcr.io/dsanchor/morcillaconf-frontend:<sha>`.
 Cuando exista el BFF, basta con cambiar las variables (`FRONTEND_BFF_CLIENT=http`
 y las que defina 3C) con `az containerapp update --set-env-vars ...`.
 

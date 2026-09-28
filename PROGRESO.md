@@ -57,6 +57,23 @@ de implementación ni asignan responsables:
   llegadas es opcional y no interviene en la exclusión mutua.
 - Un gateway de modelos o agentes se considera una mejora opcional si queda
   tiempo; no bloquea el recorrido ni reemplaza al BFF.
+- El MCP de asientos se inicia con SQLite y tendrá adaptador Cosmos DB al final
+  de esta implementación. Gestionará mesas y puestos contiguos de barra desde
+  un layout JSON configurado por entorno, identificado por ID y hash; un cambio
+  de huella invalida y reinicializa sus propios datos al arrancar.
+- Iniciado el MCP de asientos en `services/mcp/`: servidor oficial `mcp` con
+  FastMCP y Streamable HTTP, repositorio SQLite transaccional, bloqueos y
+  confirmaciones idempotentes, barra contigua que minimiza huecos, Dockerfile y
+  workflow de imagen filtrado por ruta. Pendiente su integración con BFF,
+  contratos públicos, pago y el adaptador final Cosmos DB.
+- Alineado el camarero con el empaquetado local: Dockerfile con etapas `test` y
+  `runtime`, contexto que incorpora contratos compartidos, workflow de imagen
+  filtrado por agente/contratos y guía de variables de entorno, volumen SQLite
+  y ejecución local antes de conectar Agent Inspector.
+- Alineado el frontend: Dockerfile con etapas `test` y `runtime`, README y
+  variables de entorno en su raíz, y workflow GHCR filtrado por frontend y
+  contratos. Las pruebas locales de los tres componentes siguen ahora el mismo
+  patrón de contenedor.
 
 Durante la demostración del sync, la memoria visible y la respuesta del agente
 no mostraron el comportamiento esperado. Debe verificarse qué versión e

@@ -8,3 +8,6 @@ __pycache__/
 *.egg-info/
 packages/contracts/build/
 packages/contracts/dist/
+services/mcp/build/
+services/mcp/dist/
+services/mcp/src/*.egg-info/
