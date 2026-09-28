@@ -53,7 +53,7 @@ ya realizados. Esto no implica borrar los archivos o recursos actuales.
 | Herramientas | Servidor MCP propio con servicios de negocio deterministas |
 | Agente externo | Proveedor independiente accesible mediante A2A |
 | Hosting auxiliar | Azure Container Apps para Streamlit/FastAPI, MCP y proveedor A2A |
-| Identidad | Entra ID y managed/agent identities; credenciales locales de desarrollo, permisos minimos |
+| Identidad | Nombre de entrada normalizado y sesión de demo en el BFF para aislar recursos simulados; managed/agent identities solo entre servicios Azure |
 | Observabilidad | Eventos de dominio, OpenTelemetry y Application Insights |
 | Automatizacion | azd, infraestructura declarativa preferentemente Bicep y scripts Bash |
 
@@ -86,12 +86,13 @@ ni evidencias de una implementacion previa.
   los criterios de esta especificacion y aportar su propia evidencia.
 - Un numero de comensales desconocido permanece desconocido: no asumir uno como
   dato confirmado para asignar mesa.
-- El nombre escrito en el chat no es identidad autenticada.
+- El nombre escrito dentro del chat no sustituye al nombre de entrada que el BFF
+  usa como identidad de demo.
 - La memoria de preferencias no sustituye la persistencia de visita, pedido,
   cuenta o checkpoint. Cada una tiene su contrato y ciclo de vida.
 - El camarero lee y guarda automaticamente preferencias y restricciones de la
-  identidad autenticada resuelta por el servidor, incluida la falsa local.
-  Los invitados no generan perfil duradero. Todo recuerdo es no vinculante;
+  identidad de demo resuelta por el BFF desde el nombre de entrada. Todo
+  recuerdo es no vinculante;
   corregir o borrar no bloquea el guardado de interacciones futuras.
 - Cada incremento sustituye adaptadores simulados por integraciones reales sin
   cambiar la experiencia unica del cliente ni relajar los controles.
@@ -153,7 +154,7 @@ despues de la validacion y aprobacion de ambas partes. No se asignan responsable
 | 1 | Proyecto y primer camarero conectado a Foundry | Ninguna | Contratos y aislamiento de conversacion |
 | 2 | Memoria persistente automatica | 1 | Personalizacion, aislamiento y control de recuerdos |
 | 3 | Vista unica, BFF y recuperacion | 1-2 | Identidad, comandos, eventos y continuidad |
-| 4 | Recorrido local completo y dos HITL | 3 | Control humano y efectos transaccionales |
+| 4 | Recorrido local completo y dos HITL | 3A; integración progresiva con 3C/3D | Control humano y efectos transaccionales |
 | 5 | Validacion temprana de Hosted Agent | 4 | Portabilidad, identidad de servicio y reanudacion remota |
 | 6 | Carta diaria con RAG y negocio mediante MCP | 4-5 | Fuentes verificables y autoridad operacional |
 | 7 | Chef y especialistas reales | 6 | Delegacion, concurrencia y consolidacion |
@@ -170,25 +171,25 @@ el sexto se consolida en fases 9-10. La fase 5 reduce riesgo de plataforma.
 **Demostracion:** una conversacion real recoge identidad presentada, comensales y
 preferencias sin inventar carta, disponibilidad ni asignacion de mesa.
 
-- [ ] Crear repositorio/proyecto Python siguiendo
+- [x] Crear repositorio/proyecto Python siguiendo
   [CONVENCIONES.md](CONVENCIONES.md), lockfile, configuracion de ejemplo sin
   secretos y scripts Bash de ejecucion y pruebas.
-- [ ] Configurar proyecto Foundry y deployment del modelo elegido tras comprobar
+- [x] Configurar proyecto Foundry y deployment del modelo elegido tras comprobar
   acceso, region, capacidades y cuota. Aprobar el coste antes de provisionar.
-- [ ] Implementar el camarero con Microsoft Agent Framework y cliente Foundry.
+- [x] Implementar el camarero con Microsoft Agent Framework y cliente Foundry.
   Mantener el dominio independiente de CLI, Streamlit y protocolo de hosting.
-- [ ] Crear contratos Pydantic de respuesta y borrador: texto, comensales
+- [x] Crear contratos Pydantic de respuesta y borrador: texto, comensales
   conocidos o pendientes, preferencias y restricciones actuales. No reconstruir
   el estado parseando a posteriori una respuesta narrativa.
-- [ ] Crear una sesion por conversacion, con identidad proporcionada por la
+- [x] Crear una sesion por conversacion, con identidad proporcionada por la
   aplicacion, IDs de correlacion, limite de turnos y errores visibles.
-- [ ] Preguntar solo por informacion necesaria ausente; no pedir numero de mesa
+- [x] Preguntar solo por informacion necesaria ausente; no pedir numero de mesa
   ni tratar un nombre del chat como permiso para cargar datos de otro cliente.
   Asumir un comensal salvo que una peticion explicita de mesa requiera preguntar
   el tamaño del grupo.
-- [ ] Ofrecer CLI de desarrollo y configuracion VS Code/Agent Inspector para
+- [x] Ofrecer CLI de desarrollo y configuracion VS Code/Agent Inspector para
   probar antes de disponer de la web; no constituyen la interfaz final.
-- [ ] Incorporar pruebas unitarias y smoke real contra el modelo, con scripts
+- [x] Incorporar pruebas unitarias y smoke real contra el modelo, con scripts
   reproducibles y registros sin datos sensibles.
 
 **Aceptacion y pruebas**
@@ -204,43 +205,43 @@ preferencias sin inventar carta, disponibilidad ni asignacion de mesa.
 preferencia guardada automaticamente tras reiniciar el proceso; otra identidad
 no la recupera.
 
-- [ ] Definir contratos distintos para sesion, preferencias e historial de
+- [x] Definir contratos distintos para sesion, preferencias e historial de
   pedidos. No guardar un borrador como pedido efectivamente realizado.
-- [ ] Implementar adaptador SQLite y context provider de Agent Framework,
+- [x] Implementar adaptador SQLite y context provider de Agent Framework,
   desacoplados del transporte y preparados para un almacen gestionado.
-- [ ] Leer y guardar recuerdos automaticamente para la identidad autenticada
+- [x] Leer y guardar recuerdos automaticamente para la identidad autenticada
   resuelta por el servidor, incluida la falsa local, con procedencia y fecha.
   Ofrecer consulta, correccion, borrado individual y `/memory clear` para olvidar
   todos los recuerdos; no crear perfiles duraderos de invitados.
-- [ ] Eliminar APIs, comandos y campos de consentimiento, tanto de `MemoryView`
+- [x] Eliminar APIs, comandos y campos de consentimiento, tanto de `MemoryView`
   como del snapshot interno. Rechazar entradas antiguas de alta/revocacion,
   sin aceptarlas silenciosamente ni reinterpretarlas.
-- [ ] Migrar SQLite en una transaccion eliminando el acoplamiento al
+- [x] Migrar SQLite en una transaccion eliminando el acoplamiento al
   consentimiento y preservando recuerdos existentes, contadores e historial.
   No restaurar recuerdos ya borrados, tampoco desde tablas antiguas.
-- [ ] Exponer la memoria recuperada separada del estado actual para distinguir
+- [x] Exponer la memoria recuperada separada del estado actual para distinguir
   recuerdos persistidos de datos reafirmados durante la visita.
-- [ ] Persistir alergias y restricciones en una categoria separada de las
+- [x] Persistir alergias y restricciones en una categoria separada de las
   preferencias, siempre como recuerdos no vinculantes; reconfirmarlas en la
   visita correspondiente antes de usarlas en el pedido.
-- [ ] Acotar cantidad de recuerdos y tratarlos como datos no confiables.
+- [x] Acotar cantidad de recuerdos y tratarlos como datos no confiables.
   La peticion actual prevalece; un recuerdo no acredita precio ni stock.
-- [ ] Aplicar el limite por categoria, conservar un historial acotado de
+- [x] Aplicar el limite por categoria, conservar un historial acotado de
   resúmenes de pedido, contar repeticiones y deduplicar los idénticos, sin
   sumarizacion generativa.
-- [ ] Resumir los productos de un borrador como preferencia de pedido
+- [x] Resumir los productos de un borrador como preferencia de pedido
   automatica y no vinculante, sin convertirlos en historial completado.
-- [ ] Interpretar peticiones como "lo de siempre" para proponer la preferencia
+- [x] Interpretar peticiones como "lo de siempre" para proponer la preferencia
   recordada cuando sea única; si existen varias, presentarlas por frecuencia y
   recencia para que el cliente elija, sin exponer esos metadatos internos ni
   asumir restricciones vigentes. Fusionar las combinaciones solapadas para
   preguntar una sola vez por cada alternativa o complemento.
-- [ ] Configurar explicitamente ruta/almacen y dependencias para que el arranque
+- [x] Configurar explicitamente ruta/almacen y dependencias para que el arranque
   no intente usar infraestructura no configurada ni oculte errores.
-- [ ] Eliminar `DEV_FAKE_MEMORY_CONSENT` de la configuracion y del `.env` local
+- [x] Eliminar `DEV_FAKE_MEMORY_CONSENT` de la configuracion y del `.env` local
   existente; regenerar `./scripts/init-local-env.sh --force` y recargar el
   entorno. La variable antigua exportada ya no se necesita.
-- [ ] Probar persistencia al recrear proceso, concurrencia basica, borrado y
+- [x] Probar persistencia al recrear proceso, concurrencia basica, borrado y
   aislamiento; documentar limites del almacenamiento local.
 
 **Aceptacion y pruebas**
@@ -282,8 +283,12 @@ recorrido completo sin integrar la fase 3.
 
 - [ ] Crear Streamlit y FastAPI con contratos independientes del transporte del
   agente. Adaptador local explicito al principio, remoto en fase 5.
-- [ ] Resolver identidad fuera del chat; usar identidades sinteticas solo en
-  desarrollo y un contrato preparado para Entra ID.
+- [ ] Unificar la identidad local: el nombre de entrada es el único dato de
+  identidad de la demo; el BFF lo normaliza, conserva en sesión y deriva el
+  actor de sesión sin aceptarlo dentro de comandos. No se incorpora Entra ID ni
+  otro proveedor externo de identidad en esta demo.
+- [ ] Resolver la identidad de demo fuera del chat a partir del nombre de
+  entrada y comprobar la pertenencia de visitas y recursos por sesión.
 - [ ] Mostrar chat, mesas y estado propio; los controles contextuales aparecen
   en la misma vista, sin selector de roles ni pantalla operativa.
 - [ ] Implementar sobre de comandos, respuestas pendientes/completadas/fallidas,
@@ -297,6 +302,9 @@ recorrido completo sin integrar la fase 3.
   recuerdos actuales no desactiva el guardado futuro, sin controles de alta
   o revocacion.
 - [ ] Iniciar spans de BFF/agente y eventos de dominio sin exponer datos sensibles.
+- [ ] Empaquetar Streamlit con Docker y documentar su despliegue independiente
+  en Container Apps, incluyendo variables de entorno para seleccionar BFF y
+  proyecto Foundry sin depender de entornos locales activos.
 
 **Aceptacion y pruebas**
 
@@ -316,10 +324,18 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
 
 - [ ] Crear servicios deterministas locales de mesas, catalogo, stock, pedidos,
   cuenta y pago simulado. Sus contratos se expondran mediante MCP en fase 6.
-- [ ] Asignar mesa con capacidad suficiente de forma atomica e idempotente,
-  guardar visita, version y `seated_at`; preguntar comensales solo si faltan.
+- [ ] Crear el servicio único de disponibilidad de mesas con una operación de
+  bloqueo temporal atómica e idempotente. Decide capacidad y plazas ocupadas
+  por grupo, conserva plazas restantes si existen y es la única autoridad ante
+  llegadas concurrentes. Su adaptador MCP se adelanta si es necesario para la
+  demostración; no se duplican reglas entre BFF y servicio.
+- [ ] Proponer una mesa bloqueada al cliente y persistir la decisión pendiente;
+  confirmar la ocupa y rechazarla o caducar el bloqueo la libera. Guardar
+  visita, versión y `seated_at` solo al ocupar; preguntar comensales solo si
+  faltan.
 - [ ] Si no hay mesa, comunicarlo sin inventar disponibilidad. No bloquear el
-  primer recorrido con una lista de espera avanzada.
+  primer recorrido con una lista de espera avanzada. Una vista de cola de
+  llegadas es opcional y no participa en la decisión de concurrencia.
 - [ ] Modelar borrador, propuesta de cocina, comanda, cuenta y pago por separado.
   Un adaptador de cocina simulado devuelve disponibilidad y espera con origen.
 - [ ] Persistir HITL 1 antes de publicar la propuesta final: confirmar, modificar
@@ -341,7 +357,9 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
 
 **Aceptacion y pruebas**
 
-- Dos grupos no ocupan la misma mesa; dos pedidos no consumen la ultima unidad.
+- Dos grupos concurrentes no obtienen el mismo bloqueo ni ocupan las mismas
+  plazas; rechazar o caducar una propuesta libera el bloqueo. Dos pedidos no
+  consumen la ultima unidad.
 - Doble clic y reanudacion no duplican comanda, bebida, cobro ni liberacion.
 - Reiniciar durante cualquiera de los dos HITL recupera la misma decision
   pendiente; una decision antigua o de otro cliente no ejecuta efectos.
@@ -467,9 +485,9 @@ reinicios, mientras los servicios se siguen con trazas distribuidas.
   y limites transaccionales para conservar las invariantes locales.
 - [ ] Validar compatibilidad de checkpoints con versiones de grafo y definir
   politica de workflows pendientes durante actualizaciones y rollback.
-- [ ] Integrar Entra ID para clientes y autorizacion por pertenencia de recursos.
-  Desactivar identidades de demo fuera de desarrollo; planificar acceso de
-  asistentes sin introducir un rol de operador.
+- [ ] Mantener la identidad de demo basada en nombre y sesión para aislar
+  recursos simulados de asistentes. No se incorpora Entra ID ni un proveedor
+  externo de identidad.
 - [ ] Configurar identidades de servicio, minimo privilegio y conectividad hacia
   Foundry, Search, Cosmos DB, MCP y A2A; nunca claves en codigo o imagenes.
 - [ ] Persistir cambios y eventos con una estrategia recuperable, por ejemplo
@@ -647,6 +665,8 @@ al siguiente incremento sin revision conjunta.
 - Operador, segunda vista, limpieza o aprobacion humana de reposicion.
 - Fritura remota, A2A entre todos los agentes, Magentic o group chat libre.
 - Migracion de Streamlit a un frontend JavaScript.
+- Gateway de modelos/agentes: mejora opcional de centralización y explicación,
+  solo si queda tiempo tras completar el recorrido funcional.
 - POS comercial, cobros reales, tarjetas reales y preparacion fisica.
 - Alta disponibilidad multirregion, certificaciones o SLA de produccion.
 

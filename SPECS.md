@@ -60,6 +60,19 @@ identificador idempotente para que un reintento no genere dos cuentas, dos cobro
 o dos liberaciones de la misma mesa. Toda la experiencia ocurre en una única
 vista y bajo la identidad del cliente.
 
+### Identidad de la demo local
+
+En toda la demo, el nombre introducido al entrar en el restaurante es la única
+identidad de cliente. El BFF lo normaliza y deriva de él el identificador estable
+usado para la visita, conversación y memoria; no existe un segundo campo de
+identidad en la interfaz ni un proveedor externo de identidad.
+
+El navegador no incluye ese identificador derivado dentro de los comandos.
+Después de entrar, el BFF conserva la identidad en su sesión y construye el
+contexto de la sesión. Dos entradas con el mismo nombre normalizado representan
+al mismo cliente durante la demo. Esta identidad sirve exclusivamente para
+aislar las sesiones y los recursos simulados; no acredita una identidad real.
+
 ### Preguntar solo lo necesario
 
 El camarero utiliza directamente los datos presentes en el mensaje o ya
@@ -114,7 +127,7 @@ que entran clientes.
 Estados mínimos de una mesa:
 
 - libre;
-- reservada temporalmente;
+- bloqueada temporalmente, pendiente de confirmación del cliente;
 - ocupada;
 - pendiente de confirmación del pedido;
 - pendiente de cuenta;
@@ -143,6 +156,15 @@ El frontal también ofrece acciones contextuales que generan eventos:
 Las acciones solo se habilitan cuando corresponden al estado actual. La
 confirmación visual se muestra después de que el camarero haya procesado la
 invocación, no de forma optimista antes de conocer el resultado.
+
+El servicio único de mesas evalúa la capacidad y crea un bloqueo temporal
+atómico para el grupo. Si dos llegadas compiten por la última mesa compatible,
+solo una obtiene el bloqueo; la otra recibe que no hay disponibilidad. El
+bloqueo ocupa las plazas del grupo y conserva libres las restantes de la mesa
+si su capacidad lo permite. La confirmación del cliente lo convierte en
+ocupación; rechazarlo o dejarlo caducar lo libera. Una cola visible de llegadas
+puede añadirse a la interfaz, pero no participa en la decisión de concurrencia
+y se pospone si no aporta valor al recorrido funcional.
 
 La vista técnica puede mostrarse durante la explicación posterior y presentar:
 
@@ -251,9 +273,10 @@ Mensaje de ejemplo:
 > Hola, soy Majo y venimos dos.
 
 El camarero detecta que ya dispone de nombre presentado y número de comensales.
-La identidad persistente procede del servidor, no de ese nombre. Consulta
-la disponibilidad y asigna una mesa con capacidad suficiente. La mesa cambia de
-libre a ocupada en la interfaz.
+El BFF usa el nombre de entrada como identidad local de demostración y consulta
+la disponibilidad. El servicio bloquea una mesa compatible; la interfaz muestra
+la propuesta y el cliente la confirma. Solo entonces la mesa cambia de bloqueada
+a ocupada.
 
 Variante para demostrar recopilación selectiva:
 
@@ -574,7 +597,8 @@ un evento o una invocación procedente del frontal:
    recuerdos en instrucciones vigentes.
 3. Si faltan datos obligatorios o una restricción recordada requiere
    reconfirmación, los solicita y pausa el flujo.
-4. El servicio de mesas asigna una mesa.
+4. El servicio de mesas bloquea atómicamente una mesa compatible y espera la
+   confirmación o rechazo del cliente antes de ocuparla.
 5. La búsqueda documental resuelve las consultas sobre la carta.
 6. El camarero construye el borrador de la comanda.
 7. El líder de cocina consulta la despensa.
@@ -657,11 +681,14 @@ prioriza siempre un incremento demostrable.
 - consulta, corrección y borrado individual o total de recuerdos;
 - separación explícita entre preferencias y restricciones no vinculantes;
 - recuperación tras cerrar y abrir;
-- representación inicial de mesas, aunque utilice datos locales.
+- representación inicial de mesas, aunque utilice datos locales;
+- frontend empaquetable y desplegable de forma independiente, con configuración
+  por variables de entorno para distintos BFF y proyectos Foundry.
 
 ### Incremento 2: mesas y recorrido completo simulado
 
-- disponibilidad y asignación deterministas;
+- disponibilidad y asignación deterministas, con bloqueo temporal atómico de
+  plazas, confirmación o liberación y expiración;
 - cambio visual del estado de las mesas;
 - pedido estructurado;
 - estados de preparación y entrega;
@@ -675,6 +702,10 @@ prioriza siempre un incremento demostrable.
 
 Este incremento debe permitir ensayar ya los 3-5 minutos completos, aunque
 algunas integraciones todavía sean locales.
+
+Un gateway de modelos/agentes puede incorporarse como mejora opcional si queda
+tiempo. No condiciona el recorrido principal ni sustituye al BFF: centraliza
+eventualmente el acceso a modelos y agentes para explicarlo durante la demo.
 
 ### Incremento 3: carta y despensa
 

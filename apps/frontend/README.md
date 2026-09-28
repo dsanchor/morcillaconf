@@ -32,7 +32,7 @@ Configuración por variables de entorno:
 
 1. **Fuera:** fachada nocturna con el nombre y «Entrar» sobre el umbral. Sin
    nombre, la puerta tiembla y aparece «Dinos tu nombre y te abrimos.».
-2. **Entrando:** el nombre es la identidad sintética de desarrollo. El
+2. **Entrando:** el nombre es la identidad única de la demo. El
    adaptador la vincula (`ActorContext(actor_id=nombre, authenticated=True)`),
    envía `customer.arrived` y guarda el snapshot. Una sola ejecución muestra la
    puerta abriéndose, la ventana, el saludo y el camarero acercándose; la

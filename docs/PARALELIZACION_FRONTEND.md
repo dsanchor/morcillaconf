@@ -73,8 +73,8 @@ Los comandos de 3A son llegada (`customer.arrived`), mensaje
 (`conversation.message_sent`), `memory.read_requested`,
 `memory.correction_requested`, `memory.deletion_requested` y
 `memory.clear_requested`. La lectura y escritura de recuerdos es automática
-para la identidad autenticada resuelta por el servidor, incluida la falsa de
-desarrollo. Un invitado no tiene perfil duradero. `MemoryView` no expone
+para la identidad de demo que el BFF deriva del nombre de entrada. `MemoryView`
+no expone
 consentimiento y no hay controles de concesión o revocación; sus comandos
 antiguos se rechazan, no se ignoran. La UI explica que borrar todos los
 recuerdos no impide recordar interacciones futuras y mantiene las restricciones
