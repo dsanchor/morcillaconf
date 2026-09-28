@@ -422,8 +422,9 @@ contrato modificado.
 - El Codespace generó `apps/frontend/uv.lock` (Streamlit 1.64.0, 49 paquetes),
   versionado en el commit f7b300c.
 - `./scripts/test-frontend.sh` dio **106 pruebas superadas** en f7b300c,
-  incluidas las 6 de `AppTest`. Las correcciones posteriores añaden 2 pruebas
-  (108 en total), que todavía no se han vuelto a ejecutar ni a informar.
+  incluidas las 6 de `AppTest`. Con las 2 pruebas de las correcciones
+  posteriores, las 108 pasaron en la etapa `test` de la imagen en la
+  [ejecución 36452320460](https://github.com/dsanchor/morcillaconf/actions/runs/36452320460).
 - El recorrido manual en la vista real se superó en escritorio y en emulación
   móvil: la puerta tiembla con el nombre vacío, animación de apertura y saludo,
   comandos de memoria, `/new`, `/exit` y aislamiento frente a otra identidad.
@@ -432,7 +433,18 @@ contrato modificado.
   dos líneas y el botón de envío debajo del campo (db5e9b3 y 57c80e0), y la
   pared izquierda del plano ausente (a5aefc8).
 - El CSS depende de detalles internos de Streamlit 1.64.0, fijado por el
-  lockfile; hay que revisarlo al actualizar Streamlit.
+  lockfile; hay que revisarlo- Imagen de contenedor: la imagen publicada desde main en c5dd00b no
+  funcionaba: las etapas `test` y `runtime` solo instalaban dependencias
+  (`--no-install-project`) y fallaban con `No module named 'frontend'`. El
+  PR #5 instala el propio frontend en ambas etapas y añade al workflow una
+  comprobación de importación de la etapa `runtime` antes de publicar. La
+  [ejecución 36452320460](https://github.com/dsanchor/morcillaconf/actions/runs/36452320460) pasó las 108 pruebas, incluidas las de `AppTest`, y la comprobación, y
+  publicó `ghcr.io/dsanchor/morcillaconf-frontend:a46c0b040e1bd289a12f45442a8e1f1441bcefbc`
+  (`sha256:1b19511f801dd17194586fc6b566735e05325e53638ba49719b95a8840b6c902`).
+  El despliegue en Container Apps está documentado en
+  [apps/frontend](apps/frontend/README.md#imagen-de-contenedor-y-despliegue-en-container-apps),
+  pero todavía no se ha ejecutado.
+davía no se ha ejecutado.
 - Revisión conjunta pendiente; no se marca ninguna casilla de la fase 3.
 
 ## Fase 3C: BFF
@@ -492,9 +504,6 @@ contrato modificado.
   de Foundry con `VisitContextProvider` y sin herramienta MCP, y la imagen
   `ghcr.io/dsanchor/morcillaconf-bff:cee51fb45f6e47fb39f37e3b30c6709739980833` publicada. «Publish restaurant
   agent image» (69 pruebas) y «Publish MCP image» (8) también se superaron.
-- Pendiente en el Codespace: ejecutar las tres suites y validar el camarero
-  real con Foundry (`gpt-5.6-luna`), incluida la serialización del historial
-  con mensajes reales.
 - Asientos fuera de la fase 3: el BFF construye el camarero con
   `VisitContextProvider` y su middleware, pero ignora `SEATING_MCP_URL`
   aunque esté exportada. Pendiente para la fase 4: sembrar
@@ -503,7 +512,32 @@ contrato modificado.
   no coincidirían con la visita del BFF. El historial serializado conserva ese
   `visit_context` entre turnos.
 - La validación de recarga, memoria, SSE y no duplicación extremo a extremo
-  corresponde a 3D. Revisión conjunta pendiente; no se marca ninguna casilla.
+  corresponde a 3D; la cubre la validación en el Codespace descrita abajo.
+
+### Validación en el Codespace (28/09/2026)
+
+Jesús validó la rama integrada con `main` (56321d6) en su Codespace, con
+`gpt-5.6-luna` y `SEATING_MCP_URL` sin definir:
+
+- `./scripts/test.sh`: 146 y 8 pruebas superadas (camarero y contratos;
+  `services/mcp`). `./scripts/test-frontend.sh`: 123. `./scripts/test-bff.sh`:
+  96.
+- `./scripts/smoke-test.sh` superado contra Foundry: las líneas nuevas de
+  `instructions.md` no cambian el comportamiento de las fases 1 y 2.
+- Recorrido manual completo con el BFF y el camarero real:
+  - saludo instantáneo;
+  - conversación sin preguntar el nombre ni repetir el saludo;
+  - nombre fijado aunque se diga otro en el chat;
+  - comandos de memoria con `m1`/`m2`;
+  - `/new`;
+  - recarga sin duplicados ni visita nueva;
+  - aislamiento entre dos nombres;
+  - límite de turnos;
+  - reinicio del BFF conservando conversación, historial y memoria.
+
+La validación cubre también las comprobaciones de 3D acordadas en el sync:
+recarga, memoria, SSE y no duplicación. Revisión conjunta pendiente; no se
+marca ninguna casilla.
 
 ## Próximo trabajo previsto
 
