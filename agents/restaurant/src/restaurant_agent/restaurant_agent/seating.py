@@ -56,6 +56,7 @@ REPORT_KEY = "seating_report"
 DECISION_KEY = "seating_decision"
 FRESH_HOLD_KEY = "seating_fresh_hold"
 CONFIRM_CALL_KEY = "seating_confirm_call"
+SUPERSEDED_KEY = "seating_superseded"
 CONTROL_KEY = "seating_control"
 LAST_PLACE_KEY = "seating_last_place"
 
@@ -106,15 +107,18 @@ _SEATING_RULES = {
 }
 _OUTCOMES = {
     "rejected": "el cliente la rechazó",
-    "superseded": (
-        "el cliente escribió en lugar de pulsar un botón y la aplicación la "
-        "retiró; si sigue queriendo sitio, vuelve a bloquear con el mismo "
-        "número de comensales y preferencia salvo que haya cambiado de idea"
-    ),
     "expired": "caducó sin confirmar",
     "cancelled": "se anuló",
     "confirmed": "el cliente la confirmó",
 }
+_STILL_PENDING = (
+    "El cliente ha escrito en lugar de pulsar un botón: la confirmación "
+    "anterior aparece como rechazada en el historial, pero la propuesta sigue "
+    "en pie y el sitio sigue reservado. La aplicación volverá a mostrarle los "
+    "botones al terminar tu respuesta: no vuelvas a bloquear salvo que cambie "
+    "el número de comensales o el tipo de sitio, y recuérdale que decida con "
+    "los botones."
+)
 _ONLY_CONTEXT = (
     "Solo puedes presentar como propuesta la que aparezca en este estado; "
     "nunca una que solo esté en el historial."
@@ -439,6 +443,8 @@ def seating_status(state: Mapping[str, Any]) -> dict[str, Any] | None:
         }
         if proposal["resource_kind"] == "bar":
             status["seats"] = seats
+        if state.get(SUPERSEDED_KEY):
+            status["awaiting_buttons_again"] = True
     elif seated is not None:
         status = {
             "status": "seated",
@@ -463,6 +469,8 @@ def seating_instructions(state: Mapping[str, Any]) -> str | None:
     if status is None or status["status"] not in _SEATING_RULES:
         return None
     rules = [_SEATING_RULES[status["status"]]]
+    if status.get("awaiting_buttons_again"):
+        rules.append(_STILL_PENDING)
     outcome = status.get("last_outcome")
     if isinstance(outcome, dict) and outcome.get("decision") in _OUTCOMES:
         what = _OUTCOMES[outcome["decision"]]
@@ -593,16 +601,24 @@ class VisitContextProvider(ContextProvider):
             session.state[VISIT_CONTEXT_KEY] = _new_visit_context(f"visit_{uuid4().hex}")
         session.state.pop(DECISION_KEY, None)
         session.state.pop(FRESH_HOLD_KEY, None)
+        session.state.pop(SUPERSEDED_KEY, None)
         if self._tool is not None:
             await self._connect()
             rejected = rejected_confirmations(context.input_messages)
             if rejected:
-                superseded = any(
+                typed = any(
                     content.type == "text" and content.text
                     for message in context.input_messages
                     for content in message.contents
                 )
-                await self._cancel(session.state, "superseded" if superseded else "rejected")
+                if typed:
+                    # Written instead of pressing a button: the pending
+                    # approval is answered so the new message can follow, but
+                    # the hold stays; the approval is requested again below.
+                    session.state.pop(CONFIRM_CALL_KEY, None)
+                    session.state[SUPERSEDED_KEY] = True
+                else:
+                    await self._cancel(session.state, "rejected")
             await self.refresh(session.state)
         instructions = seating_instructions(session.state)
         if instructions is not None:
@@ -634,7 +650,7 @@ class VisitContextProvider(ContextProvider):
             await self._tool.connect()
 
     async def _cancel(self, state: State, decision: str) -> None:
-        """Free the rejected or superseded hold at once, deterministically."""
+        """Free the rejected hold at once, deterministically."""
 
         proposal = pending_proposal(state)
         visit_id = visit_id_of(state)
@@ -659,9 +675,6 @@ class VisitContextProvider(ContextProvider):
         clear_proposal(state)
         set_outcome(state, outcome, proposal.get("resource_label") or proposal["resource_id"])
         state[DECISION_KEY] = {"decision": outcome, "place": place}
-        if decision == "superseded":
-            # A new message follows: the model answers it, no fixed reply.
-            state.pop(CONFIRM_CALL_KEY, None)
 
 
 class SeatingToolContextMiddleware(FunctionMiddleware):
@@ -855,7 +868,9 @@ class SeatingApprovalChatMiddleware(ChatMiddleware):
     def _guard(state: State, response: ChatResponse) -> None:
         proposal = pending_proposal(state)
         visit_id = visit_id_of(state)
-        fresh = bool(state.get(FRESH_HOLD_KEY))
+        # A hold made in this run, or a kept hold whose approval was answered
+        # because the customer wrote: either way the buttons must come back.
+        fresh = bool(state.get(FRESH_HOLD_KEY)) or bool(state.get(SUPERSEDED_KEY))
         calls = [
             content
             for message in response.messages
@@ -878,12 +893,14 @@ class SeatingApprovalChatMiddleware(ChatMiddleware):
             confirms[0].arguments = confirm_arguments(proposal, visit_id)
             state[CONFIRM_CALL_KEY] = confirms[0].call_id
             state.pop(FRESH_HOLD_KEY, None)
+            state.pop(SUPERSEDED_KEY, None)
             return
         if fresh and not others and proposal is not None and visit_id is not None:
             if not response.messages:
                 response.messages.append(Message(role="assistant", contents=[]))
             response.messages[-1].contents.append(_confirm_call(state, proposal, visit_id))
             state.pop(FRESH_HOLD_KEY, None)
+            state.pop(SUPERSEDED_KEY, None)
 
 
 def _confirm_call(state: State, proposal: Mapping[str, Any], visit_id: str) -> Content:

@@ -185,29 +185,47 @@ async def test_rejecting_cancels_the_hold_at_once(waiter, seating_server) -> Non
     assert "Ya no existe" in instructions
 
 
-async def test_writing_while_pending_supersedes_and_a_typed_yes_never_confirms(waiter, seating_server) -> None:
+async def test_writing_while_pending_keeps_the_hold_and_asks_again(waiter, seating_server) -> None:
     ana = waiter(
         [
             hold(3),
             say("Os propongo la Mesa 3.", 3),
-            hold(3, call_id="call_hold_2"),
-            say("La vuelvo a reservar; confirmadla con el botón.", 3),
+            say("Para confirmar, pulsa «Confirmar»; la Mesa 3 sigue reservada.", 3),
         ]
     )
     await ana.say("Venimos tres")
+    first = pending_confirm_request(ana.session.state)
 
     response = await ana.say("Sí, confírmala")
 
     assert not calls(seating_server, "confirm_seating")
-    assert seating_server.stub.assignments["seat_1"]["status"] == "cancelled"
+    assert not calls(seating_server, "cancel_seating_hold")
+    assert len(calls(seating_server, "hold_seating")) == 1
+    assert seating_server.stub.assignments["seat_1"]["status"] == "held"
     seen = ana.model.calls[2]["messages"]
     rejected = next(i for i, (_, items) in enumerate(seen) if any("rejected by user" in item[3] for item in items))
     assert "Sí, confírmala" in seen[rejected + 1][1][0][3]
-    assert '"decision": "superseded"' in ana.model.calls[2]["instructions"]
-    assert response.reply == "La vuelvo a reservar; confirmadla con el botón."
+    instructions = ana.model.calls[2]["instructions"]
+    assert '"awaiting_buttons_again": true' in instructions and "sigue en pie" in instructions
+    assert response.reply == "Para confirmar, pulsa «Confirmar»; la Mesa 3 sigue reservada."
     report = ana.report()
     assert report["status"] == "proposed" and report["awaiting_decision"] is True
-    assert pending_confirm_request(ana.session.state).function_call.parse_arguments()["assignment_id"] == "seat_2"
+    again = pending_confirm_request(ana.session.state)
+    assert again.id != first.id
+    assert again.function_call.parse_arguments()["assignment_id"] == "seat_1"
+    assert (await ana.decide(True)).seating["status"] == "seated"
+
+
+async def test_a_new_party_size_while_pending_replaces_the_hold(waiter, seating_server) -> None:
+    ana = waiter([hold(2), say("Os propongo la Mesa 1.", 2), hold(4, call_id="h2"), say("Os propongo la Mesa 3.", 4)])
+    await ana.say("Somos dos")
+
+    await ana.say("Perdona, somos cuatro")
+
+    assert not calls(seating_server, "cancel_seating_hold")
+    request = pending_confirm_request(ana.session.state)
+    assert request.function_call.parse_arguments()["assignment_id"] == "seat_2"
+    assert ana.report()["place"]["label"] == "Mesa 3"
 
 
 async def test_a_reply_and_its_confirm_request_travel_together(waiter, seating_server) -> None:

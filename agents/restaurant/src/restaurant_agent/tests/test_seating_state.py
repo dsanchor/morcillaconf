@@ -132,7 +132,6 @@ def test_the_room_confirms_expires_and_resets_the_own_place() -> None:
     ("decision", "expected"),
     [
         ("rejected", "el cliente la rechazó. Ya no existe"),
-        ("superseded", "la aplicación la retiró"),
         ("expired", "caducó sin confirmar. Ya no existe"),
         ("cancelled", "se anuló. Ya no existe"),
         ("confirmed", "el cliente la confirmó."),

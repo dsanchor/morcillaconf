@@ -301,9 +301,9 @@ class ConversationManager:
             run_input: Any = prompt
             pending = seating_state.pending_confirm_request(record.agent_session.state)
             if pending is not None:
-                # Writing instead of pressing a button supersedes the pending
-                # proposal: the agent cancels the hold before answering, so no
-                # confirmation stays open behind the new message.
+                # Writing instead of pressing a button answers the pending
+                # approval so the new message can follow; the agent keeps the
+                # hold and asks for the confirmation again after its answer.
                 run_input = [
                     Message(
                         role="user",
