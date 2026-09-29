@@ -352,11 +352,12 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   cuenta y pago simulado. Sus contratos se expondran mediante MCP en fase 6.
 - [ ] Crear el servicio único de disponibilidad de mesas con una operación de
   bloqueo temporal atómica e idempotente. Decide capacidad y plazas ocupadas
-  por grupo, conserva plazas restantes si existen y es la única autoridad ante
-  llegadas concurrentes. Su adaptador MCP se adelanta si es necesario para la
+  por grupo; una mesa bloqueada u ocupada es de un solo grupo aunque le
+  queden sillas libres, y es la única autoridad ante llegadas concurrentes. Su adaptador MCP se adelanta si es necesario para la
   demostración; no se duplican reglas entre BFF y servicio.
 - [ ] Modelar mesas y puestos de barra como recursos de asiento. La barra
-  asigna puestos contiguos y minimiza huecos; el layout llega por JSON, ID y
+  asigna puestos contiguos y minimiza huecos (a igualdad, la posición más
+  baja); el layout llega por JSON, ID y
   hash en variables de entorno. Al cambiar la huella, el arranque invalida y
   recrea solamente la persistencia del servicio de asientos.
 - [x] Conectar directamente el camarero/workflow al MCP de asientos mediante
@@ -614,12 +615,13 @@ no del `actor` declarado por el navegador o por el modelo.
 
 | Comando de SPECS | Efecto permitido |
 |---|---|
-| `customer.arrived` | Abrir/recuperar visita y asignar mesa cuando se conocen los datos |
+| `customer.arrived` | Abrir/recuperar visita; `/new` cancela una propuesta de mesa pendiente y se rechaza con el grupo sentado |
 | `conversation.message_sent` | Conversar y completar datos; nunca inferir una aprobacion por defecto |
 | `memory.read_requested` | Consultar recuerdos de la identidad propia |
 | `memory.correction_requested` | Corregir un recuerdo propio |
 | `memory.deletion_requested` | Eliminar un recuerdo propio |
 | `memory.clear_requested` | Olvidar todos los recuerdos propios sin desactivar escrituras futuras |
+| `table.confirmation_decided` | Confirmar (ocupar) o rechazar (liberar) la propuesta de mesa o barra con su version |
 | `order.submitted` | Validar borrador con cocina, todavia sin preparar |
 | `order.confirmation_decided` | Confirmar/modificar/cancelar la version presentada |
 | `bill.requested` | Generar cuenta y abrir HITL de pago; no cobrar |

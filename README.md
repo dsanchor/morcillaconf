@@ -55,6 +55,12 @@ Microsoft Foundry: `./scripts/setup-bff.sh`, `./scripts/test-bff.sh` y
 ./scripts/run-frontend.sh`. Configuración y permisos en
 [su README](apps/bff/README.md).
 
+Las mesas y la barra (fase 4) salen del MCP de asientos
+([`services/mcp`](services/mcp)): `./scripts/run-mcp.sh` (puerto 8080;
+`--reset` vacía la sala) y el BFF con
+`SEATING_MCP_URL=http://127.0.0.1:8080/mcp`. `./scripts/test-e2e-seating.sh`
+prueba el recorrido de asientos sin Foundry.
+
 Para crear una configuración local reutilizable:
 
 ```bash

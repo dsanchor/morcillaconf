@@ -159,16 +159,24 @@ invocación, no de forma optimista antes de conocer el resultado.
 
 El servicio único de mesas evalúa la capacidad y crea un bloqueo temporal
 atómico para el grupo. Si dos llegadas compiten por la última mesa compatible,
-solo una obtiene el bloqueo; la otra recibe que no hay disponibilidad. El
-bloqueo ocupa las plazas del grupo y conserva libres las restantes de la mesa
-si su capacidad lo permite. La confirmación del cliente lo convierte en
-ocupación; rechazarlo o dejarlo caducar lo libera. Una cola visible de llegadas
-puede añadirse a la interfaz, pero no participa en la decisión de concurrencia
-y se pospone si no aporta valor al recorrido funcional.
+solo una obtiene el bloqueo; la otra recibe que no hay disponibilidad. Una mesa
+solo la ocupa un grupo (una visita): bloqueada u ocupada, no está disponible
+para otro grupo aunque le queden sillas libres. Se elige la mesa libre más
+pequeña en la que cabe el grupo. El camarero bloquea en cuanto el cliente dice
+cuántos son o pide mesa o barra; si no queda mesa, ofrece la barra. La vista
+muestra la propuesta con el sitio y los asientos, y el cliente la confirma o la
+rechaza con dos botones: una frase del chat nunca la confirma. Confirmar la
+convierte en ocupación; rechazarla la libera al momento y dejarla caducar
+también la libera. Una confirmación tardía recibe un aviso de caducidad. Una
+cola visible de llegadas puede añadirse a la interfaz, pero no participa en la
+decisión de concurrencia y se pospone si no aporta valor al recorrido
+funcional.
 
 El servicio trata mesas y puestos de barra como recursos de asiento. La barra
 asigna puestos individuales contiguos al grupo y elige la propuesta que deja el
-menor hueco posible. Su distribución llega mediante configuración de entorno
+menor hueco posible y, a igualdad, la posición más baja: en una barra vacía los
+grupos se sientan en orden, sin dejar huecos. El cliente también puede pedir
+sentarse en la barra directamente. Su distribución llega mediante configuración de entorno
 como JSON, ID y hash canónico; no obliga a reconstruir la imagen. Al arrancar,
 la aplicación valida primero esa huella y, si difiere de la almacenada,
 invalida y reinicializa exclusivamente sus datos de asientos.
@@ -214,6 +222,7 @@ Comandos mínimos del frontal:
 | `memory.correction_requested` | Cliente | Recuerdo propio corregido |
 | `memory.deletion_requested` | Cliente | Recuerdo propio eliminado |
 | `memory.clear_requested` | Cliente | Todos los recuerdos propios eliminados; guardado futuro automático |
+| `table.confirmation_decided` | Cliente | Propuesta de mesa o barra confirmada (ocupada) o rechazada (libre) |
 | `order.submitted` | Cliente | Propuesta enviada a cocina para validación |
 | `order.confirmation_decided` | Cliente | Pedido confirmado, modificado o cancelado |
 | `bill.requested` | Cliente | Cuenta generada y pago pendiente de confirmación |
@@ -222,7 +231,9 @@ Comandos mínimos del frontal:
 
 En 3A el contrato público se limita a llegada, mensaje y los cuatro comandos
 de memoria anteriores. La llegada solo abre o recupera la visita; la asignación
-de mesa y los comandos restantes se incorporan en fase 4. No hay comandos ni
+de mesa y los comandos restantes se incorporan en fase 4. La fase 4 empieza
+por `table.confirmation_decided`, que decide la propuesta de mesa o barra
+pendiente con su identificador y versión. No hay comandos ni
 API de concesión o revocación: `memory.consent_granted` y
 `memory.consent_revoked` se rechazan, no se ignoran ni se traducen a borrado.
 
@@ -280,10 +291,13 @@ Mensaje de ejemplo:
 > Hola, soy Majo y venimos dos.
 
 El camarero detecta que ya dispone de nombre presentado y número de comensales.
-El BFF usa el nombre de entrada como identidad local de demostración y consulta
-la disponibilidad. El servicio bloquea una mesa compatible; la interfaz muestra
-la propuesta y el cliente la confirma. Solo entonces la mesa cambia de bloqueada
-a ocupada.
+El BFF usa el nombre de entrada como identidad local de demostración y el
+camarero consulta la disponibilidad. El servicio bloquea una mesa compatible;
+la interfaz muestra la propuesta con los botones «Confirmar» y «Rechazar» y el
+cliente la confirma. Solo entonces la mesa cambia de bloqueada a ocupada, los
+acompañantes aparecen tras el cliente y el grupo se sienta. Si otro cliente
+pide mesa a la vez, recibe otra libre; si no quedan mesas, se le ofrece la
+barra.
 
 Variante para demostrar recopilación selectiva:
 

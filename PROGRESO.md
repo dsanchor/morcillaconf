@@ -1,6 +1,6 @@
 # Progreso de implementación
 
-Última actualización: **2026-09-28**
+Última actualización: **2026-09-29**
 
 Este documento ofrece una vista compartida del estado real del repositorio. No
 sustituye a [SPECS.md](SPECS.md) ni a
@@ -563,6 +563,67 @@ Jesús validó la rama integrada con `main` (56321d6) en su Codespace, con
 La validación cubre también las comprobaciones de 3D acordadas en el sync:
 recarga, memoria, SSE y no duplicación. Revisión conjunta pendiente; no se
 marca ninguna casilla.
+
+## Fase 4: mesas y barra en la vista (en revisión)
+
+Rama `jrubiosainz-fase-4-mesas-en-la-web`, PR en borrador. Conecta el MCP de
+asientos con la web: el camarero bloquea un sitio, la vista lo propone con dos
+botones y el plano muestra la sala.
+
+### Implementado
+
+- **MCP de asientos.** Una mesa, un grupo: una mesa bloqueada u ocupada no está
+  disponible para otra visita aunque le queden sillas (**cambio pedido por
+  Jesús, pendiente de aprobar por dsanchor**; antes se compartía la mesa). La
+  barra elige el tramo que deja el menor hueco y, a igualdad, la posición más
+  baja. Un bloqueo nuevo de la misma visita sustituye en la misma transacción
+  al pendiente. Nuevas tools para la aplicación: `cancel_seating_hold` y
+  `get_seating_map` (sala anónima con marcas `mine`). Errores con código
+  estable. Layout de demostración versionado (mesas de 2, 2, 4, 4 y 6 y barra
+  de 8) y `./scripts/run-mcp.sh [--reset]`.
+- **Contratos.** `table.confirmation_decided` (`proposal_id`, versión,
+  `confirmed`/`rejected`), `RestaurantSnapshot.seating` (sin sitio, propuesta
+  o sentado) y `RoomView` para el plano. Aditivo: sigue `schema_version: 1`.
+- **Camarero.** `restaurant_agent.seating_gateway` para el código de
+  aplicación (bloquear, confirmar, cancelar y leer la sala por Streamable
+  HTTP). El BFF siembra su id de visita y el estado de asiento en cada turno;
+  el middleware solo reutiliza la clave de bloqueo mientras la propuesta
+  pendiente responde a la misma petición. Se corrige la lectura del resultado
+  de `hold_seating`: el MCP devuelve dos contenidos de texto y la propuesta no
+  se guardaba. Instrucciones: bloquear en cuanto se sabe cuántos son, mesa
+  primero, barra si se pide o si no quedan mesas, y confirmar solo con los
+  botones.
+- **BFF.** Propuesta pendiente persistida; decisión con pertenencia, versión,
+  caducidad, bloqueo por conversación e idempotencia por evento y por
+  propuesta; mensajes fijos del camarero; reconciliación con el MCP; `/new`
+  cancela una propuesta y se rechaza con el grupo sentado;
+  `GET /v1/conversations/{id}/room`. El camarero simulado bloquea con «somos
+  N», «barra» y «mesa».
+- **Vista.** Tarjeta de propuesta con «Confirmar» y «Rechazar», plano desde
+  `RoomView` que se refresca solo cada 3 segundos, otros grupos anónimos,
+  sitios reservados en ámbar, propuesta propia en vino y paseo del grupo hasta
+  sus sillas al confirmar (una vez, solo CSS, con `prefers-reduced-motion`).
+- **Recorrido sin Foundry.** `./scripts/test-e2e-seating.sh` levanta el MCP y
+  el BFF simulado y los recorre con el cliente HTTP de la vista; workflow
+  `seating-e2e.yml` solo de pruebas (fuera de la convención de imágenes, en
+  commit propio para decidir si se conserva).
+
+### Evidencia y pendientes
+
+- CI de la rama: MCP 27 pruebas, camarero 86, BFF 124, frontend 142 (con
+  `AppTest`) y recorrido de asientos 3, todas superadas; enlaces e imágenes en
+  el PR. `./scripts/test.sh` pasa a 199 + 27 pruebas.
+- Evidencia no oficial en el Mac sin PyPI: el recorrido de asientos contra el
+  MCP y el BFF reales (camarero simulado) y capturas del plano y del paseo con
+  Chromium sin interfaz.
+- Pendiente: validación en el Codespace con Foundry (`gpt-5.6-luna`) según el
+  plan del PR, smoke real y recorrido de fase 3 sin `SEATING_MCP_URL`.
+- Pendiente de fase 4: liberar la mesa tras el pago (`table.release_requested`),
+  pedido, cuenta y pago; adaptador Cosmos DB del MCP.
+- Riesgos: si el MCP está caído, cada turno del camarero de Foundry falla con
+  un aviso claro (Agent Framework conecta sus tools antes de llamar al
+  modelo); la redacción del modelo puede variar, pero la tarjeta es la que
+  manda.
 
 ## Próximo trabajo previsto
 
