@@ -48,12 +48,13 @@ def test_agent_settings_never_enable_the_fake_identity(monkeypatch, tmp_path) ->
     agent_settings = settings.agent_settings()
     assert agent_settings.enable_dev_fake_identity is False
     assert agent_settings.dev_fake_actor_id is None
-    assert agent_settings.seating_mcp_url is None
+    assert str(agent_settings.seating_mcp_url) == "http://localhost:8080/mcp"
+    assert agent_settings.seating_mcp_timeout_seconds == 5
     assert agent_settings.waiter_max_turns == 7
     assert agent_settings.memory_database_path == tmp_path / "memory.db"
 
 
-def test_the_foundry_waiter_is_built_with_visit_context_and_no_seating(
+def test_the_foundry_waiter_is_built_with_visit_context_and_seating_tools(
     monkeypatch, tmp_path
 ) -> None:
     pytest.importorskip("agent_framework_foundry")
@@ -81,4 +82,25 @@ def test_the_foundry_waiter_is_built_with_visit_context_and_no_seating(
         DurableMemoryContextProvider,
     ]
     assert any(isinstance(m, SeatingToolContextMiddleware) for m in agent.middleware)
-    assert agent.mcp_tools == []
+    assert [tool.allowed_tools for tool in agent.mcp_tools] == [
+        ("get_seating_availability", "hold_seating")
+    ]
+
+
+def test_seating_is_off_without_the_mcp_url(tmp_path) -> None:
+    from bff.adapters import create_seating
+
+    settings = BffSettings(_env_file=None, bff_waiter="scripted")
+    assert settings.seating_mcp_url is None
+    assert create_seating(settings) is None
+
+
+def test_seating_is_on_with_the_mcp_url(monkeypatch) -> None:
+    from restaurant_agent.seating_gateway import McpSeatingGateway
+
+    from bff.adapters import create_seating
+
+    monkeypatch.setenv("SEATING_MCP_URL", "http://127.0.0.1:8080/mcp")
+    monkeypatch.setenv("SEATING_MCP_TIMEOUT_SECONDS", "3")
+    settings = BffSettings(_env_file=None, bff_waiter="scripted")
+    assert isinstance(create_seating(settings), McpSeatingGateway)

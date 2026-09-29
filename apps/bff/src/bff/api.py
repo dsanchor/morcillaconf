@@ -1,4 +1,4 @@
-"""Versioned HTTP API of the BFF: sessions, commands, results, snapshot and SSE."""
+"""Versioned HTTP API of the BFF: sessions, commands, results, snapshot, room and SSE."""
 
 from __future__ import annotations
 
@@ -119,6 +119,12 @@ async def get_snapshot(
     return JSONResponse(content=snapshot.model_dump(mode="json"))
 
 
+@router.get("/conversations/{conversation_id}/room")
+async def get_room(conversation_id: str, service: Service, session: Session) -> JSONResponse:
+    room = await service.room(session, conversation_id)
+    return JSONResponse(content=room.model_dump(mode="json"))
+
+
 @router.get("/conversations/{conversation_id}/events")
 async def stream_events(
     conversation_id: str,
@@ -165,7 +171,12 @@ def install(app: FastAPI) -> None:
 
     @app.get("/healthz")
     async def healthz(request: Request) -> dict[str, str]:
-        return {"status": "ok", "waiter": get_service(request).waiter_mode}
+        service = get_service(request)
+        return {
+            "status": "ok",
+            "waiter": service.waiter_mode,
+            "seating": "on" if service.seating_enabled else "off",
+        }
 
     @app.exception_handler(PublicFailure)
     async def public_failure(request: Request, exc: PublicFailure) -> JSONResponse:

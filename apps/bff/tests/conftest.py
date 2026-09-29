@@ -74,6 +74,22 @@ class Commands:
             payload={"memory_id": memory_id},
         )
 
+    def decide(
+        self,
+        conversation_id: str,
+        proposal_id: str,
+        version: int = 1,
+        decision: str = "confirmed",
+        *,
+        event_id: str | None = None,
+    ) -> Command:
+        return self._command(
+            event_id=event_id,
+            event_type="table.confirmation_decided",
+            conversation_id=conversation_id,
+            payload={"proposal_id": proposal_id, "version": version, "decision": decision},
+        )
+
     def clear_memory(self, conversation_id: str) -> Command:
         return self._command(
             event_type="memory.clear_requested", conversation_id=conversation_id, payload={}
@@ -123,10 +139,11 @@ def make_service(settings: BffSettings, clock: Clock) -> ServiceFactory:
         *,
         max_turns: int = 20,
         retention: int = 500,
+        seating=None,
     ) -> RestaurantService:
         memory_store = SQLiteMemoryStore(settings.memory_database_path)
         waiter = LocalWaiter(
-            agent or ScriptedWaiterAgent(),
+            agent or ScriptedWaiterAgent(seating=seating),
             mode="scripted",
             max_turns=max_turns,
             memory_store=memory_store,
@@ -138,6 +155,8 @@ def make_service(settings: BffSettings, clock: Clock) -> ServiceFactory:
             max_turns=max_turns,
             heartbeat_seconds=0.2,
             clock=clock,
+            seating=seating,
+            room_cache_seconds=0,
         )
 
     return build

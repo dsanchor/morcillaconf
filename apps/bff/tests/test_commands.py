@@ -341,11 +341,11 @@ async def test_a_failure_after_the_waiter_still_ends_the_turn(make_service, comm
     original = service._finish_turn
     calls = []
 
-    def flaky(job, outcome):
+    def flaky(job, outcome, *rest):
         calls.append(outcome)
         if len(calls) == 1:
             raise RuntimeError("disco lleno con datos de Ana")
-        original(job, outcome)
+        original(job, outcome, *rest)
 
     service._finish_turn = flaky
     _, result = await say(service, commands, session, arrival.conversation_id, "Hola")

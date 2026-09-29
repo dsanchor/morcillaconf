@@ -14,11 +14,12 @@ import hashlib
 import json
 import logging
 import secrets
+import time
 import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 
 from restaurant_contracts.application import (
     STREAM_EVENT_ADAPTER,
@@ -32,6 +33,7 @@ from restaurant_contracts.application import (
     CommandStatusChanged,
     CompletedCommandResult,
     CorrectMemoryCommand,
+    DecideTableCommand,
     DeleteMemoryCommand,
     ErrorCode,
     FailedCommandResult,
@@ -46,6 +48,14 @@ from restaurant_contracts.application import (
     VisibleMemory,
 )
 from restaurant_contracts.customer import CustomerSnapshot
+from restaurant_contracts.seating import (
+    RoomPlace,
+    RoomSeat,
+    RoomView,
+    SeatingPlace,
+    SeatingProposal,
+    SeatingView,
+)
 
 from restaurant_agent.contracts import missing_customer_fields
 from restaurant_agent.memory.store import (
@@ -53,15 +63,25 @@ from restaurant_agent.memory.store import (
     MemoryConflictError,
     MemoryNotFoundError,
 )
+from restaurant_agent.seating_gateway import (
+    SeatingConflict,
+    SeatingExpired,
+    SeatingGateway,
+    SeatingGatewayError,
+    SeatingRoom,
+    SeatingUnavailable,
+)
 
 from bff.greeting import greeting
 from bff.identity import InvalidNameError, actor_id_for, presented_name
 from bff.notifier import Notifier
-from bff.storage import ConversationRow, Database, Transaction
+from bff.scripted import seat_positions, stools_text
+from bff.storage import ConversationRow, Database, SeatingRow, Transaction
 from bff.telemetry import tracer
 from bff.waiter import (
     WaiterInvalidResponseError,
     WaiterPort,
+    WaiterSeatingUnavailableError,
     WaiterTurn,
     WaiterTurnLimitError,
     WaiterTurnResult,
@@ -93,6 +113,21 @@ UNAUTHENTICATED = "Tu sesión no es válida o ha caducado. Vuelve a entrar por l
 CURSOR_EXPIRED = "El cursor ha caducado. Recupera un nuevo snapshot."
 FUTURE_CURSOR = "Ese cursor todavía no existe en esta conversación."
 INVALID_CURSOR = "El cursor no es válido."
+SEATING_UNAVAILABLE = (
+    "El servicio de mesas no responde ahora mismo. Inténtalo en un momento."
+)
+NO_PROPOSAL = "No tengo ninguna propuesta de sitio pendiente para ti."
+STALE_PROPOSAL = "Esa propuesta ya no está vigente."
+ALREADY_DECIDED = "Esa propuesta ya está decidida."
+PROPOSAL_EXPIRED = (
+    "La reserva de {place} ha caducado y ya está libre. "
+    "Si queréis, pedidme sitio otra vez."
+)
+SEATED_REPLY = "¡Estupendo! Os acompaño a {place}."
+REJECTED_REPLY = "Sin problema, dejo libre {place}. ¿Preferís otro sitio?"
+NEW_WHILE_SEATED = (
+    "Ya estáis sentados en {place}. Podréis empezar otra visita cuando se libere."
+)
 
 Recovery = Literal["none", "retry_same_command", "fetch_snapshot"]
 
@@ -177,6 +212,12 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _place_text(seat: SeatingRow) -> str:
+    if seat.kind == "bar":
+        return stools_text(seat.seats)
+    return f"la {seat.label}"
+
+
 class RestaurantService:
     def __init__(
         self,
@@ -189,6 +230,8 @@ class RestaurantService:
         heartbeat_seconds: float = 15.0,
         notifier: Notifier | None = None,
         clock: Callable[[], datetime] | None = None,
+        seating: SeatingGateway | None = None,
+        room_cache_seconds: float = 1.0,
     ) -> None:
         self._db = database
         self._memory = memory_store
@@ -199,10 +242,18 @@ class RestaurantService:
         self._notifier = notifier or Notifier()
         self._clock = clock or (lambda: datetime.now(UTC))
         self._tasks: set[asyncio.Task[None]] = set()
+        self._seating = seating
+        self._room_cache_seconds = room_cache_seconds
+        self._room_cache: dict[str, tuple[float, SeatingRoom]] = {}
+        self._seating_locks: dict[str, asyncio.Lock] = {}
 
     @property
     def waiter_mode(self) -> str:
         return self._waiter.mode
+
+    @property
+    def seating_enabled(self) -> bool:
+        return self._seating is not None
 
     # Sessions
 
@@ -248,6 +299,19 @@ class RestaurantService:
     # Commands
 
     async def submit(self, session: DemoSession, command: Command) -> CommandResult:
+        if isinstance(command, DecideTableCommand):
+            return await self._decide_table(session, command)
+        if (
+            isinstance(command, ArriveCommand)
+            and command.payload.resume_visit_id is None
+            and self._seating is not None
+        ):
+            refused = await self._leave_seating_for_new_visit(session, command)
+            if refused is not None:
+                return refused
+        return await self._submit(session, command)
+
+    async def _submit(self, session: DemoSession, command: Command) -> CommandResult:
         actor_id = session.actor.actor_id
         digest = fingerprint(command)
         with tracer.start_as_current_span(
@@ -385,6 +449,12 @@ class RestaurantService:
         for task in list(self._tasks):
             task.cancel()
         await asyncio.gather(*list(self._tasks), return_exceptions=True)
+        close = getattr(self._waiter, "aclose", None)
+        if close is not None:
+            try:
+                await close()
+            except Exception as exc:
+                logger.warning("Could not close the waiter tools: %s", type(exc).__name__)
 
     # Command handlers
 
@@ -593,10 +663,22 @@ class RestaurantService:
                 "bff.waiter.mode": self._waiter.mode,
             },
         ) as span:
+            if self._seating is not None:
+                await self._reconcile(job.conversation_id, expire_stale=True)
             with self._db.read() as tx:
                 row = tx.get_conversation(job.conversation_id)
+                seat = tx.get_seating(job.conversation_id)
             if row is None or row.pending_event_id != job.event_id:
                 return
+            seating_fields: dict[str, Any] = {}
+            if self._seating is not None:
+                seating_fields = {
+                    "visit_id": row.visit_id,
+                    "seating_context": self._seating_context(seat),
+                    "pending_assignment_id": (
+                        seat.assignment_id if seat and seat.status == "proposed" else None
+                    ),
+                }
             turn = WaiterTurn(
                 conversation_id=row.conversation_id,
                 actor=job.actor,
@@ -608,6 +690,7 @@ class RestaurantService:
                 persisted_order_preferences=tuple(row.persisted_order_preferences),
                 session_json=row.agent_session_json,
                 correlation_id=job.correlation_id,
+                **seating_fields,
             )
             outcome: WaiterTurnResult | tuple[ErrorCode, str]
             try:
@@ -616,6 +699,9 @@ class RestaurantService:
                     raise WaiterInvalidResponseError("Empty waiter reply")
             except WaiterTurnLimitError:
                 outcome = (ErrorCode.TURN_LIMIT_EXCEEDED, TURN_LIMIT)
+            except WaiterSeatingUnavailableError:
+                logger.warning("Seating unavailable (correlation %s)", job.correlation_id)
+                outcome = (ErrorCode.UNAVAILABLE, SEATING_UNAVAILABLE)
             except WaiterUnavailableError as exc:
                 logger.warning(
                     "Waiter unavailable (correlation %s): %s", job.correlation_id, exc
@@ -636,18 +722,27 @@ class RestaurantService:
                 outcome = (ErrorCode.INTERNAL_ERROR, WAITER_FAILED)
             succeeded = isinstance(outcome, WaiterTurnResult)
             span.set_attribute("bff.waiter.outcome", "completed" if succeeded else outcome[0])
+            proposal = None
             if succeeded:
                 span.set_attribute("bff.waiter.turn_number", outcome.turn_count)
-            self._finish_turn(job, outcome)
+                proposal = await self._proposal_from_turn(job.conversation_id, outcome)
+            self._finish_turn(job, outcome, proposal)
 
     def _finish_turn(
-        self, job: _TurnJob, outcome: WaiterTurnResult | tuple[ErrorCode, str]
+        self,
+        job: _TurnJob,
+        outcome: WaiterTurnResult | tuple[ErrorCode, str],
+        proposal: SeatingRow | None = None,
     ) -> None:
         now = self._clock()
         with self._db.write() as tx:
             row = tx.get_conversation(job.conversation_id)
             if row is None or row.pending_event_id != job.event_id:
                 return
+            if proposal is not None:
+                current = tx.get_seating(job.conversation_id)
+                if current is None or current.status == "proposed":
+                    tx.put_seating(proposal)
             if isinstance(outcome, WaiterTurnResult):
                 row.customer = outcome.customer
                 row.order_draft = outcome.order_draft
@@ -685,12 +780,528 @@ class RestaurantService:
             self._emit_status(tx, row, job.event_id, job.correlation_id, result)
             tx.update_result(job.actor.actor_id, result, now)
 
+    # Seating
+
+    def _lock(self, conversation_id: str) -> asyncio.Lock:
+        return self._seating_locks.setdefault(conversation_id, asyncio.Lock())
+
+    async def room(self, session: DemoSession, conversation_id: str) -> RoomView:
+        """Anonymous room with the caller's places marked, reconciled with the MCP."""
+
+        with self._db.read() as tx:
+            self._owned(tx, session, conversation_id)
+        now = self._clock()
+        if self._seating is None:
+            return RoomView(schema_version=1, seating_enabled=False, generated_at=now)
+        room = await self._reconcile(conversation_id, expire_stale=False, need_room=True)
+        if room is None:
+            raise PublicFailure(ErrorCode.UNAVAILABLE, SEATING_UNAVAILABLE)
+        return RoomView(
+            schema_version=1,
+            seating_enabled=True,
+            generated_at=now,
+            places=[self._room_place(resource) for resource in room.resources],
+        )
+
+    @staticmethod
+    def _room_place(resource: Any) -> RoomPlace:
+        common = {
+            "place_id": resource.resource_id,
+            "kind": resource.kind,
+            "label": resource.label,
+            "capacity": resource.capacity,
+            "display_order": resource.display_order,
+            "state": resource.state,
+        }
+        if resource.kind == "bar":
+            seats = [
+                RoomSeat(position=seat.position, state=seat.state, mine=seat.mine and seat.state != "free")
+                for seat in resource.seats
+            ]
+            return RoomPlace(**common, mine=any(seat.mine for seat in seats), seats=seats)
+        taken = resource.state != "free"
+        size = min(resource.party_size or 1, resource.capacity, 20) if taken else None
+        return RoomPlace(**common, party_size=size, mine=taken and resource.mine)
+
+    async def _room(self, visit_id: str, *, fresh: bool = False) -> SeatingRoom | None:
+        assert self._seating is not None
+        cached = self._room_cache.get(visit_id)
+        if not fresh and cached and time.monotonic() - cached[0] < self._room_cache_seconds:
+            return cached[1]
+        try:
+            room = await self._seating.room(visit_id)
+        except SeatingGatewayError as exc:
+            logger.warning("Seating room unavailable: %s", type(exc).__name__)
+            return None
+        self._room_cache[visit_id] = (time.monotonic(), room)
+        return room
+
+    async def _reconcile(
+        self, conversation_id: str, *, expire_stale: bool, need_room: bool = False
+    ) -> SeatingRoom | None:
+        async with self._lock(conversation_id):
+            return await self._reconcile_locked(
+                conversation_id, expire_stale=expire_stale, need_room=need_room
+            )
+
+    async def _reconcile_locked(
+        self, conversation_id: str, *, expire_stale: bool, need_room: bool = False
+    ) -> SeatingRoom | None:
+        """Adopt the MCP's truth for the customer's own place.
+
+        An expired proposal stays visible to the room poll, so a late click
+        gets the expiry message; a new turn or /new drops it.
+        """
+
+        with self._db.read() as tx:
+            row = tx.get_conversation(conversation_id)
+            seat = tx.get_seating(conversation_id)
+        if row is None or (seat is None and not need_room):
+            return None
+        room = await self._room(row.visit_id, fresh=seat is not None and not need_room)
+        if room is None or seat is None:
+            return room
+        visit = room.visit
+        same = visit is not None and visit.assignment_id == seat.assignment_id
+        action: str | None = None
+        if seat.status == "proposed":
+            if same and visit.status == "occupied":
+                action = "seat"
+            elif same and visit.status == "expired":
+                action = "drop" if expire_stale else None
+            elif not (same and visit.status == "held"):
+                action = "drop"
+        elif not (same and visit.status == "occupied"):
+            action = "drop"
+        if action is None:
+            return room
+        with self._db.write() as tx:
+            row = tx.get_conversation(conversation_id)
+            current = tx.get_seating(conversation_id)
+            if row is None or current is None or current.proposal_id != seat.proposal_id:
+                return room
+            now = self._clock()
+            if action == "seat":
+                current.status = "seated"
+                current.seated_at = now
+                current.expires_at = None
+                tx.put_seating(current)
+                tx.save_seating_decision(
+                    proposal_id=current.proposal_id,
+                    conversation_id=conversation_id,
+                    decision="confirmed",
+                    outcome="seated",
+                    now=now,
+                )
+            else:
+                tx.delete_seating(conversation_id)
+            self._emit_snapshot(tx, row, new_id("sync"), new_id("corr"))
+        self._room_cache.clear()
+        self._notifier.notify(conversation_id)
+        return room
+
+    @staticmethod
+    def _seating_place(seat: SeatingRow) -> SeatingPlace:
+        return SeatingPlace(
+            place_id=seat.resource_id,
+            kind=seat.kind,
+            label=seat.label,
+            capacity=seat.capacity,
+            seats=seat.seats if seat.kind == "bar" else [],
+        )
+
+    def _seating_view(self, seat: SeatingRow | None) -> SeatingView:
+        if seat is None:
+            return SeatingView()
+        place = self._seating_place(seat)
+        if seat.status == "proposed":
+            return SeatingView(
+                status="proposed",
+                proposal=SeatingProposal(
+                    proposal_id=seat.proposal_id,
+                    version=seat.version,
+                    place=place,
+                    party_size=seat.party_size,
+                    expires_at=seat.expires_at or self._clock(),
+                ),
+            )
+        return SeatingView(
+            status="seated",
+            place=place,
+            party_size=seat.party_size,
+            seated_at=seat.seated_at or self._clock(),
+        )
+
+    @staticmethod
+    def _seating_context(seat: SeatingRow | None) -> dict[str, Any]:
+        if seat is None:
+            return {"status": "none"}
+        context: dict[str, Any] = {
+            "status": seat.status,
+            "place": seat.label,
+            "kind": seat.kind,
+            "party_size": seat.party_size,
+            "capacity": seat.capacity,
+        }
+        if seat.kind == "bar":
+            context["seats"] = seat.seats
+        if seat.status == "proposed" and seat.expires_at is not None:
+            context["expires_at"] = seat.expires_at.isoformat()
+        return context
+
+    async def _proposal_from_turn(
+        self, conversation_id: str, outcome: WaiterTurnResult
+    ) -> SeatingRow | None:
+        """A new hold made during the turn becomes the pending proposal."""
+
+        held = outcome.seating_proposal
+        if self._seating is None or held is None:
+            return None
+        with self._db.read() as tx:
+            seat = tx.get_seating(conversation_id)
+        if seat is not None and (
+            seat.status == "seated" or seat.assignment_id == held["assignment_id"]
+        ):
+            return None
+        kind = held["resource_kind"]
+        label = str(held.get("resource_label") or held["resource_id"])
+        capacity = int(held["party_size"])
+        seats = seat_positions(held.get("seat_ids"))
+        self._room_cache.clear()
+        room = await self._room("")
+        resource = room.resource(held["resource_id"]) if room is not None else None
+        if resource is not None:
+            label, capacity = resource.label, resource.capacity
+            if kind == "bar":
+                seats = resource.positions(tuple(held.get("seat_ids") or ())) or seats
+        expires = held.get("expires_at")
+        return SeatingRow(
+            conversation_id=conversation_id,
+            status="proposed",
+            proposal_id=new_id("prop"),
+            assignment_id=str(held["assignment_id"]),
+            resource_id=str(held["resource_id"]),
+            kind=kind,
+            label=label,
+            capacity=max(capacity, int(held["party_size"])),
+            seats=seats if kind == "bar" else [],
+            party_size=int(held["party_size"]),
+            version=int(held["version"]),
+            expires_at=datetime.fromisoformat(expires) if isinstance(expires, str) else None,
+        )
+
+    async def _decide_table(
+        self, session: DemoSession, command: DecideTableCommand
+    ) -> CommandResult:
+        actor_id = session.actor.actor_id
+        digest = fingerprint(command)
+        payload = command.payload
+        conversation_id = command.conversation_id
+        with tracer.start_as_current_span(
+            "bff.seating.decision",
+            attributes={
+                "bff.command.type": command.event_type,
+                "bff.seating.decision": payload.decision,
+                "bff.conversation_id": conversation_id,
+            },
+        ) as span:
+            async with self._lock(conversation_id):
+                correlation_id = new_id("corr")
+                with self._db.write() as tx:
+                    stored = tx.get_result(actor_id, command.event_id)
+                    if stored is not None:
+                        if stored.fingerprint != digest:
+                            raise PublicFailure(
+                                ErrorCode.IDEMPOTENCY_CONFLICT, IDEMPOTENCY_CONFLICT
+                            )
+                        span.set_attribute("bff.command.replayed", True)
+                        return stored.result
+                    early, seat, row = self._check_decision(
+                        tx, session, command, correlation_id
+                    )
+                    if early is not None:
+                        tx.save_result(
+                            actor_id=actor_id,
+                            fingerprint=digest,
+                            conversation_id=early.conversation_id,
+                            result=early.result,
+                            now=self._clock(),
+                        )
+                    else:
+                        assert row is not None
+                        row.process_status = "processing"
+                        row.pending_event_id = command.event_id
+                        row.updated_at = self._clock()
+                        tx.update_conversation(row)
+                        tx.save_result(
+                            actor_id=actor_id,
+                            fingerprint=digest,
+                            conversation_id=conversation_id,
+                            result=PendingCommandResult(
+                                schema_version=1,
+                                event_id=command.event_id,
+                                correlation_id=correlation_id,
+                                status="pending",
+                            ),
+                            now=self._clock(),
+                        )
+                        self._emit_snapshot(tx, row, command.event_id, correlation_id)
+                if early is not None:
+                    span.set_attribute("bff.seating.outcome", "checked")
+                    if early.conversation_id:
+                        self._notifier.notify(early.conversation_id)
+                    return early.result
+                self._notifier.notify(conversation_id)
+                assert seat is not None and row is not None
+                result_kind = await self._apply_decision(row.visit_id, seat, payload.decision)
+                with self._db.write() as tx:
+                    outcome = self._finish_decision(
+                        tx, command, correlation_id, seat, result_kind
+                    )
+                    tx.update_result(actor_id, outcome.result, self._clock())
+                self._room_cache.clear()
+            span.set_attribute("bff.seating.outcome", result_kind)
+        self._notifier.notify(conversation_id)
+        return outcome.result
+
+    def _check_decision(
+        self,
+        tx: Transaction,
+        session: DemoSession,
+        command: DecideTableCommand,
+        correlation_id: str,
+    ) -> tuple[_Outcome | None, SeatingRow | None, ConversationRow | None]:
+        payload = command.payload
+        row = tx.get_conversation(command.conversation_id)
+        if row is None:
+            return _Outcome(
+                self._failed(
+                    command.event_id, correlation_id, ErrorCode.NOT_FOUND, NOT_FOUND_CONVERSATION
+                )
+            ), None, None
+        if row.actor_id != session.actor.actor_id:
+            return _Outcome(
+                self._failed(
+                    command.event_id, correlation_id, ErrorCode.FORBIDDEN, FORBIDDEN_CONVERSATION
+                )
+            ), None, None
+
+        def fail(code: ErrorCode, message: str) -> tuple[_Outcome, None, ConversationRow]:
+            return self._fail_in(tx, row, command, correlation_id, code, message), None, row
+
+        prior = tx.get_seating_decision(payload.proposal_id)
+        if prior is not None and prior.conversation_id == row.conversation_id:
+            # A double click or a retry with another event id: same answer.
+            if prior.decision == payload.decision and prior.outcome in ("seated", "rejected"):
+                return self._complete(tx, row, command, correlation_id), None, row
+            return fail(
+                ErrorCode.CONFLICT,
+                ALREADY_DECIDED if prior.outcome in ("seated", "rejected") else STALE_PROPOSAL,
+            )
+        seat = tx.get_seating(row.conversation_id)
+        if self._seating is None or seat is None or seat.status != "proposed":
+            return fail(ErrorCode.CONFLICT, NO_PROPOSAL)
+        if seat.proposal_id != payload.proposal_id or seat.version != payload.version:
+            return fail(ErrorCode.CONFLICT, STALE_PROPOSAL)
+        if row.process_status == "processing":
+            return fail(ErrorCode.CONFLICT, BUSY)
+        now = self._clock()
+        if payload.decision == "confirmed" and seat.expires_at is not None and seat.expires_at <= now:
+            tx.delete_seating(row.conversation_id)
+            tx.save_seating_decision(
+                proposal_id=seat.proposal_id,
+                conversation_id=row.conversation_id,
+                decision=payload.decision,
+                outcome="expired",
+                now=now,
+            )
+            self._emit_snapshot(tx, row, command.event_id, correlation_id)
+            return fail(ErrorCode.CONFLICT, PROPOSAL_EXPIRED.format(place=_place_text(seat)))
+        return None, seat, row
+
+    async def _apply_decision(self, visit_id: str, seat: SeatingRow, decision: str) -> str:
+        """Confirm or cancel in the MCP; returns seated, rejected, expired, gone or unavailable."""
+
+        assert self._seating is not None
+        confirmed = decision == "confirmed"
+        arguments = {
+            "assignment_id": seat.assignment_id,
+            "visit_id": visit_id,
+            "expected_version": seat.version,
+            "idempotency_key": f"{'confirm' if confirmed else 'cancel'}:{seat.proposal_id}",
+        }
+        try:
+            if confirmed:
+                await self._seating.confirm(**arguments)
+                return "seated"
+            await self._seating.cancel(**arguments)
+            return "rejected"
+        except SeatingUnavailable:
+            return "unavailable"
+        except SeatingExpired:
+            return "expired" if confirmed else "rejected"
+        except SeatingConflict:
+            room = await self._room(visit_id, fresh=True)
+        except SeatingGatewayError:
+            return "gone"
+        visit = room.visit if room is not None else None
+        if visit is None or visit.assignment_id != seat.assignment_id:
+            return "gone"
+        if visit.status == "occupied":
+            return "seated"
+        if visit.status == "expired":
+            return "expired" if confirmed else "rejected"
+        if visit.status == "cancelled" and not confirmed:
+            return "rejected"
+        return "gone"
+
+    def _finish_decision(
+        self,
+        tx: Transaction,
+        command: DecideTableCommand,
+        correlation_id: str,
+        seat: SeatingRow,
+        result_kind: str,
+    ) -> _Outcome:
+        now = self._clock()
+        conversation_id = command.conversation_id
+        row = tx.get_conversation(conversation_id)
+        assert row is not None
+        current = tx.get_seating(conversation_id)
+        if current is None or current.proposal_id != seat.proposal_id:
+            current = None
+        row.process_status = "idle"
+        row.pending_event_id = None
+        row.updated_at = now
+        decision = command.payload.decision
+
+        def say(text: str) -> None:
+            tx.add_message(
+                conversation_id,
+                ChatMessage(
+                    message_id=new_id("msg"),
+                    role="assistant",
+                    text=text,
+                    occurred_at=now,
+                    command_event_id=command.event_id,
+                ),
+            )
+
+        def fail(code: ErrorCode, message: str) -> _Outcome:
+            tx.update_conversation(row)
+            self._emit_snapshot(tx, row, command.event_id, correlation_id)
+            return self._fail_in(tx, row, command, correlation_id, code, message)
+
+        if result_kind == "unavailable":
+            return fail(ErrorCode.UNAVAILABLE, SEATING_UNAVAILABLE)
+        if result_kind != "seated" and current is not None:
+            tx.delete_seating(conversation_id)
+        tx.save_seating_decision(
+            proposal_id=seat.proposal_id,
+            conversation_id=conversation_id,
+            decision=decision,
+            outcome=result_kind,
+            now=now,
+        )
+        if result_kind == "seated":
+            placed = current or seat
+            placed.status = "seated"
+            placed.seated_at = placed.seated_at or now
+            placed.expires_at = None
+            placed.version = seat.version + 1
+            tx.put_seating(placed)
+            if decision != "confirmed":
+                return fail(ErrorCode.CONFLICT, ALREADY_DECIDED)
+            say(SEATED_REPLY.format(place=_place_text(seat)))
+        elif result_kind == "rejected":
+            say(REJECTED_REPLY.format(place=_place_text(seat)))
+        elif result_kind == "expired":
+            return fail(ErrorCode.CONFLICT, PROPOSAL_EXPIRED.format(place=_place_text(seat)))
+        else:
+            return fail(ErrorCode.CONFLICT, STALE_PROPOSAL)
+        tx.update_conversation(row)
+        return self._complete(tx, row, command, correlation_id)
+
+    async def _leave_seating_for_new_visit(
+        self, session: DemoSession, command: ArriveCommand
+    ) -> CommandResult | None:
+        """/new: refused while seated; a pending proposal is cancelled first."""
+
+        actor_id = session.actor.actor_id
+        with self._db.read() as tx:
+            if tx.get_result(actor_id, command.event_id) is not None:
+                return None
+            latest = tx.latest_visit_id(actor_id)
+            row = tx.get_conversation_by_visit(latest) if latest else None
+        if row is None:
+            return None
+        conversation_id = row.conversation_id
+        async with self._lock(conversation_id):
+            await self._reconcile_locked(conversation_id, expire_stale=True)
+            with self._db.read() as tx:
+                seat = tx.get_seating(conversation_id)
+            if seat is None:
+                return None
+            if seat.status == "seated":
+                correlation_id = new_id("corr")
+                with self._db.write() as tx:
+                    stored = tx.get_result(actor_id, command.event_id)
+                    if stored is not None:
+                        return None
+                    current = tx.get_conversation(conversation_id)
+                    assert current is not None
+                    outcome = self._fail_in(
+                        tx,
+                        current,
+                        command,
+                        correlation_id,
+                        ErrorCode.CONFLICT,
+                        NEW_WHILE_SEATED.format(place=_place_text(seat)),
+                    )
+                    tx.save_result(
+                        actor_id=actor_id,
+                        fingerprint=fingerprint(command),
+                        conversation_id=conversation_id,
+                        result=outcome.result,
+                        now=self._clock(),
+                    )
+                self._notifier.notify(conversation_id)
+                return outcome.result
+            assert self._seating is not None
+            try:
+                await self._seating.cancel(
+                    assignment_id=seat.assignment_id,
+                    visit_id=row.visit_id,
+                    expected_version=seat.version,
+                    idempotency_key=f"cancel:{seat.proposal_id}",
+                )
+            except SeatingGatewayError as exc:
+                # The hold expires by itself; the new visit is not blocked.
+                logger.warning("Could not cancel a pending hold on /new: %s", type(exc).__name__)
+            with self._db.write() as tx:
+                current = tx.get_seating(conversation_id)
+                old = tx.get_conversation(conversation_id)
+                if current is not None and current.proposal_id == seat.proposal_id and old:
+                    tx.delete_seating(conversation_id)
+                    tx.save_seating_decision(
+                        proposal_id=seat.proposal_id,
+                        conversation_id=conversation_id,
+                        decision="rejected",
+                        outcome="abandoned",
+                        now=self._clock(),
+                    )
+                    self._emit_snapshot(tx, old, command.event_id, new_id("corr"))
+            self._room_cache.clear()
+        self._notifier.notify(conversation_id)
+        return None
+
     # Projection and events
 
     def _snapshot(
         self, tx: Transaction, row: ConversationRow, cursor: int
     ) -> RestaurantSnapshot:
         memories = self._visible_memories(tx, row.actor_id)
+        seat = tx.get_seating(row.conversation_id)
         return RestaurantSnapshot(
             schema_version=1,
             visit_id=row.visit_id,
@@ -703,7 +1314,8 @@ class RestaurantService:
             pending_fields=missing_customer_fields(row.customer),
             memory=MemoryView(memories=memories),
             process_status="processing" if row.process_status == "processing" else "idle",
-            allowed_actions=self._allowed_actions(row, memories),
+            allowed_actions=self._allowed_actions(row, memories, seat),
+            seating=self._seating_view(seat),
         )
 
     def _visible_memories(self, tx: Transaction, actor_id: str) -> list[VisibleMemory]:
@@ -725,7 +1337,10 @@ class RestaurantService:
         return sorted(memories, key=lambda memory: int(memory.memory_id[1:]))
 
     def _allowed_actions(
-        self, row: ConversationRow, memories: list[VisibleMemory]
+        self,
+        row: ConversationRow,
+        memories: list[VisibleMemory],
+        seat: SeatingRow | None = None,
     ) -> list[Action]:
         idle = row.process_status != "processing"
         actions = [Action.ARRIVE]
@@ -736,6 +1351,8 @@ class RestaurantService:
             actions.extend((Action.CORRECT_MEMORY, Action.DELETE_MEMORY))
         if idle:
             actions.append(Action.CLEAR_MEMORY)
+        if idle and seat is not None and seat.status == "proposed":
+            actions.append(Action.DECIDE_TABLE)
         return actions
 
     def _complete(

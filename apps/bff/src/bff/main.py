@@ -10,9 +10,10 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI
 
 from restaurant_agent.memory.store import DurableMemoryRepository, SQLiteMemoryStore
+from restaurant_agent.seating_gateway import SeatingGateway
 
 from bff import api
-from bff.adapters import create_waiter
+from bff.adapters import create_seating, create_waiter
 from bff.config import BffSettings
 from bff.service import RestaurantService
 from bff.storage import Database
@@ -20,13 +21,15 @@ from bff.waiter import WaiterPort
 
 logger = logging.getLogger(__name__)
 
-WaiterFactory = Callable[[BffSettings, DurableMemoryRepository], WaiterPort]
+WaiterFactory = Callable[[BffSettings, DurableMemoryRepository, SeatingGateway | None], WaiterPort]
+SeatingFactory = Callable[[BffSettings], SeatingGateway | None]
 
 
 def create_app(
     settings: BffSettings | None = None,
     *,
     waiter_factory: WaiterFactory = create_waiter,
+    seating_factory: SeatingFactory = create_seating,
     clock: Callable[[], datetime] | None = None,
 ) -> FastAPI:
     @asynccontextmanager
@@ -35,12 +38,15 @@ def create_app(
         memory_store = SQLiteMemoryStore(
             config.memory_database_path, max_memories=config.memory_max_items
         )
+        seating = seating_factory(config)
         service = RestaurantService(
             database=Database(
                 config.bff_database_path, event_retention=config.bff_event_retention
             ),
             memory_store=memory_store,
-            waiter=waiter_factory(config, memory_store),
+            waiter=waiter_factory(config, memory_store, seating),
+            seating=seating,
+            room_cache_seconds=config.bff_room_cache_seconds,
             max_turns=config.waiter_max_turns,
             session_ttl=timedelta(hours=config.bff_session_ttl_hours),
             heartbeat_seconds=config.bff_sse_heartbeat_seconds,
@@ -49,7 +55,11 @@ def create_app(
         recovered = service.recover_interrupted_turns()
         if recovered:
             logger.warning("Recovered %d interrupted waiter turns", recovered)
-        logger.info("BFF ready with the %s waiter", service.waiter_mode)
+        logger.info(
+            "BFF ready with the %s waiter; seating %s",
+            service.waiter_mode,
+            "on" if seating is not None else "off",
+        )
         app.state.service = service
         yield
         await service.shutdown()
