@@ -32,10 +32,13 @@ from restaurant_contracts.application import (
     StreamEvent,
 )
 from restaurant_contracts.client import BffClientError
+from restaurant_contracts.seating import RoomView
 
 UNREACHABLE = "No consigo hablar con el restaurante ahora mismo. Inténtalo de nuevo."
 CONNECTION_LOST = "Se ha cortado la conexión con el restaurante. Inténtalo de nuevo."
 UNEXPECTED = "El restaurante ha respondido algo que no entiendo."
+# The plan refreshes itself; a slow answer must not hold the view.
+ROOM_TIMEOUT_SECONDS = 5.0
 
 
 def _error(code: ErrorCode, message: str, recovery: str = "none") -> BffClientError:
@@ -124,6 +127,16 @@ class HttpBffClient:
         )
         return self._parse(RestaurantSnapshot.model_validate, body)
 
+    async def get_room(self, conversation_id: str) -> RoomView:
+        body = await asyncio.to_thread(
+            self._request,
+            "GET",
+            f"/v1/conversations/{quote(conversation_id, safe='')}/room",
+            None,
+            min(self._timeout, ROOM_TIMEOUT_SECONDS),
+        )
+        return self._parse(RoomView.model_validate, body)
+
     def events(
         self, conversation_id: str, *, after_cursor: int
     ) -> AsyncIterator[StreamEvent]:
@@ -168,17 +181,24 @@ class HttpBffClient:
         finally:
             response.close()
 
-    def _request(self, method: str, path: str, payload: Any = None) -> Any:
-        return _read_json(self._open(method, path, payload, "application/json"))
+    def _request(
+        self, method: str, path: str, payload: Any = None, timeout: float | None = None
+    ) -> Any:
+        return _read_json(self._open(method, path, payload, "application/json", timeout))
 
     def _open(
-        self, method: str, path: str, payload: Any, accept: str
+        self,
+        method: str,
+        path: str,
+        payload: Any,
+        accept: str,
+        timeout: float | None = None,
     ) -> HTTPResponse:
         return _open(
             f"{self._base_url}{path}",
             method=method,
             payload=payload,
-            timeout=self._timeout,
+            timeout=timeout or self._timeout,
             headers={"Authorization": f"Bearer {self._session.token}", "Accept": accept},
         )
 

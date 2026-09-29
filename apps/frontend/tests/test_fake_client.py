@@ -58,7 +58,7 @@ def _roundtrip(snapshot: RestaurantSnapshot) -> RestaurantSnapshot:
 
 def test_fake_client_implements_the_bff_protocol() -> None:
     client = _client()
-    for method in ("submit", "get_result", "get_snapshot"):
+    for method in ("submit", "get_result", "get_snapshot", "get_room"):
         assert inspect.iscoroutinefunction(getattr(client, method))
         assert inspect.signature(getattr(client, method)).parameters.keys() == (
             inspect.signature(getattr(BffClient, method)).parameters.keys() - {"self"}

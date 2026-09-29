@@ -78,7 +78,31 @@
   to { transform: translate(192px, 272px); }
 }
 
+/* Seating: reserved places glow like the lantern, the customer's own in wine. */
+.planta .mesa.reservada { stroke: var(--luz); stroke-opacity: .7; stroke-dasharray: 6 5; }
+.planta .mesa.propia { stroke: var(--vino); stroke-width: 3; stroke-dasharray: 6 4; }
+.planta .asiento-reservado { fill: none; stroke: var(--luz); stroke-opacity: .55; stroke-width: 2; stroke-dasharray: 4 4; }
+.planta .asiento-propio { fill: var(--vino); fill-opacity: .28; stroke: var(--vino); stroke-width: 2.5; }
+.planta .comensal { transform-box: view-box; }
+.planta .comensal text { font-size: 18px; }
+.planta .comensal.caminando { animation: caminar-a-la-mesa 2.6s cubic-bezier(.45, 0, .2, 1) both; }
+.planta .cliente-propio.caminando { animation-name: caminar-cliente; }
+
+@keyframes caminar-a-la-mesa {
+  0% { opacity: 0; transform: translate(var(--x0), var(--y0)) scale(.8); }
+  18% { opacity: 1; transform: translate(var(--x0), var(--y0)) scale(1); }
+  38% { opacity: 1; transform: translate(var(--x0), var(--y0)) scale(1); }
+  66% { opacity: 1; transform: translate(var(--xm), var(--ym)) scale(1); }
+  100% { opacity: 1; transform: translate(var(--x1), var(--y1)) scale(1); }
+}
+@keyframes caminar-cliente {
+  0%, 38% { transform: translate(var(--x0), var(--y0)); }
+  66% { transform: translate(var(--xm), var(--ym)); }
+  100% { transform: translate(var(--x1), var(--y1)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .planta .comensal.caminando,
   .escena .resplandor,
   .escena.llama .hojas,
   .escena.abriendo .hoja,

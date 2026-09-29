@@ -13,6 +13,7 @@ from html import escape
 from typing import Literal
 
 from restaurant_contracts.memory import MemoryKind
+from restaurant_contracts.seating import RoomView, SeatingProposal, SeatingView
 
 from frontend.facade import facade_html
 from frontend.floor_plan import floor_plan_svg, waiter_icon_svg
@@ -74,9 +75,38 @@ def simulated_markup() -> str:
     return f'<div class="simulado-linea"><p class="simulado">{SIMULATED_LABEL}</p></div>'
 
 
-def plan_markup(name: str, waiter: str, *, entering: bool = False) -> str:
+def plan_markup(
+    name: str,
+    waiter: str,
+    *,
+    entering: bool = False,
+    room: RoomView | None = None,
+    seating: SeatingView | None = None,
+    walk_elapsed: float | None = None,
+) -> str:
     classes = "planta-marco entrando" if entering else "planta-marco"
-    return f'<div class="{classes}">{_one_line(floor_plan_svg(name, waiter))}</div>'
+    svg = floor_plan_svg(name, waiter, room=room, seating=seating, walk_elapsed=walk_elapsed)
+    return f'<div class="{classes}">{_one_line(svg)}</div>'
+
+
+def proposal_markup(proposal: SeatingProposal) -> str:
+    """The pending place: what it is and how many seats, never an identifier."""
+
+    place = proposal.place
+    if place.kind == "bar":
+        seats = place.seats
+        title = "Barra"
+        detail = f"Puesto {seats[0]}" if len(seats) == 1 else f"Puestos {seats[0]} a {seats[-1]}"
+        kept = "te los guardo unos minutos" if len(seats) > 1 else "te lo guardo unos minutos"
+    else:
+        title = place.label
+        detail = f"{proposal.party_size} de {place.capacity} asientos"
+        kept = "te la guardo unos minutos"
+    return (
+        '<div class="propuesta-mesa" role="group" aria-label="Propuesta de sitio">'
+        f'<p class="titulo">{text_html(title)}</p>'
+        f"<p>{text_html(detail)} · {kept}</p></div>"
+    )
 
 
 def conversation_markup(view: ConversationView, *, reveal: Reveal | None = None) -> str:
