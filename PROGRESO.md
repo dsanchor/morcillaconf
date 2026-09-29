@@ -610,11 +610,11 @@ botones y el plano muestra la sala.
 
 ### Evidencia y pendientes
 
-- CI de la rama: MCP 27 pruebas, camarero 87, BFF 126, frontend 142 (con
-  `AppTest`) y recorrido de asientos 3, todas superadas; enlaces e imágenes en
-  el PR. En el Codespace: `./scripts/test.sh` 200 + 27,
-  `./scripts/test-frontend.sh` 142, `./scripts/test-bff.sh` 126 y
-  `./scripts/test-e2e-seating.sh` 3.
+- CI de la rama tras las correcciones del Codespace: MCP 27 pruebas,
+  camarero 92, BFF 134, frontend 146 (con `AppTest`) y recorrido de asientos
+  3, todas superadas; enlaces e imágenes en el PR. En el Codespace:
+  `./scripts/test.sh` 205 + 27, `./scripts/test-frontend.sh` 146,
+  `./scripts/test-bff.sh` 134 y `./scripts/test-e2e-seating.sh` 3.
 - Evidencia no oficial en el Mac sin PyPI: el recorrido de asientos contra el
   MCP y el BFF reales (camarero simulado) y capturas del plano y del paseo con
   Chromium sin interfaz.
