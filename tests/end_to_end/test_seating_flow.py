@@ -51,8 +51,9 @@ def test_a_typed_yes_never_confirms_and_the_buttons_do() -> None:
 
     ana.send_message("Sí, confírmala")
     again = ana.snapshot.seating
-    assert again.status == "proposed" and again.proposal.proposal_id != proposal.proposal_id
-    assert again.proposal.place.label == "Mesa 3"
+    # The hold stays and the same card comes back.
+    assert again.status == "proposed" and again.proposal.proposal_id == proposal.proposal_id
+    assert ana.snapshot.messages[-1].text.startswith("Para confirmar hay que pulsar «Confirmar»")
 
     ana.decide_table("confirmed")
     assert ana.snapshot.seating.status == "seated"
@@ -83,15 +84,17 @@ def test_a_parallel_session_sees_the_table_and_a_rejection_frees_it() -> None:
     assert place(ana, "Mesa 4").state == "free"
 
 
-def test_a_message_while_pending_keeps_one_proposal_and_new_releases_it() -> None:
+def test_a_message_while_pending_keeps_the_hold_and_new_releases_it() -> None:
     luis = VisitSession(HttpBffClient.open(BFF_URL, "Luis", timeout=30))
     luis.arrive(luis._client.active_visit_id)
     luis.send_message("Mejor somos dos")
     assert luis.snapshot.seating.proposal.place.label == "Mesa 1"
 
+    held = luis.snapshot.seating.proposal.proposal_id
     luis.send_message("¿Tenéis vino de la Ribera?")
     assert luis.snapshot.seating.status == "proposed"
-    assert luis.snapshot.seating.proposal.place.label == "Mesa 1"
+    assert luis.snapshot.seating.proposal.proposal_id == held
+    assert place(luis, "Mesa 1").state == "held"
     luis.refresh_room()
     assert [item.label for item in luis.room.places if item.mine] == ["Mesa 1"]
 

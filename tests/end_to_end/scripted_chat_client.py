@@ -62,6 +62,7 @@ _ORDER = re.compile(
 )
 _BAR = re.compile(r"\bbarra\b", re.IGNORECASE)
 _TABLE = re.compile(r"\bmesa\b", re.IGNORECASE)
+_YES = re.compile(r"^\W*(?:s[ií]|vale|ok|de acuerdo|confirm\w*)\b", re.IGNORECASE)
 _USUAL = re.compile(r"\blo (?:de siempre|habitual)\b|\bcomo siempre\b", re.IGNORECASE)
 _ARTICLE = re.compile(r"^(?:el|la|los|las|un|una|unos|unas)\s+", re.IGNORECASE)
 _SPLIT_ITEMS = re.compile(r",\s*|\s+y\s+")
@@ -180,11 +181,10 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
         message: str, customer: CustomerSnapshot, seating: dict[str, Any]
     ) -> Content | None:
         party, bar, table = _PARTY.search(message), _BAR.search(message), _TABLE.search(message)
-        outcome = (seating.get("last_outcome") or {}).get("decision")
-        again = outcome == "superseded"
-        if seating.get("status") != "none" or not (party or bar or table or again):
+        # A pending proposal stays: hold again only for another size or place.
+        if seating.get("status") == "seated" or not (party or bar or table):
             return None
-        if table and not party and customer.party_size in (None, 1) and not again:
+        if table and not party and customer.party_size in (None, 1):
             return None
         preference = "bar" if bar else "table" if table else "any"
         return Content.from_function_call(
@@ -205,6 +205,11 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
                 return None, None
             if status == "none" and _TABLE.search(message) and not _PARTY.search(message):
                 return "¿Cuántos sois?", None
+            if status == "proposed" and seating.get("awaiting_buttons_again") and _YES.search(message):
+                return (
+                    f"Para confirmar hay que pulsar «Confirmar»; {seating.get('place')} "
+                    "sigue reservada para vosotros."
+                ), None
             return None, None
         text = str(hold_result.result or "")
         try:
@@ -226,12 +231,10 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
         kind = held.get("resource_kind")
         place = place_text(kind, held.get("resource_label") or "", seat_positions(held.get("seat_ids") or ()))
         size = held["party_size"]
-        again = (seating.get("last_outcome") or {}).get("decision") == "superseded"
-        lead = "Para confirmar hay que pulsar «Confirmar». Os la vuelvo a proponer: " if again else ""
         if kind == "bar" and not _BAR.search(message):
-            text = f"{lead}No queda mesa libre para {size}; os propongo {place}. {_BUTTONS}"
+            text = f"No queda mesa libre para {size}; os propongo {place}. {_BUTTONS}"
         else:
-            text = f"{lead}Os propongo {place} para {size}. {_BUTTONS}"
+            text = f"Os propongo {place} para {size}. {_BUTTONS}"
         return text, size
 
     # Customer data
