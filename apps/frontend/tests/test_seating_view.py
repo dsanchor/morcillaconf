@@ -1,9 +1,6 @@
-import json
 import xml.etree.ElementTree as ET
 from datetime import timedelta
-from pathlib import Path
 
-import pytest
 
 from restaurant_contracts.application import Action, ActorContext
 from restaurant_contracts.seating import RoomView, SeatingView
@@ -14,11 +11,105 @@ from frontend.markup import plan_markup, proposal_markup
 from frontend.visit import VisitSession
 
 SVG = "{http://www.w3.org/2000/svg}"
-FIXTURES = Path(__file__).resolve().parents[3] / "tests/fixtures/phase4"
-ROOMS = [RoomView.model_validate(room) for room in json.loads((FIXTURES / "rooms.json").read_text())]
-SNAPSHOTS = json.loads((FIXTURES / "snapshots.json").read_text())
-PROPOSED = SeatingView.model_validate(SNAPSHOTS[0]["seating"])
-SEATED = SeatingView.model_validate(SNAPSHOTS[2]["seating"])
+# Same data as tests/fixtures/phase4; the image's test stage only has this app.
+ROOM_DATA = {'schema_version': 1,
+ 'seating_enabled': True,
+ 'generated_at': '2026-09-29T20:01:00Z',
+ 'places': [{'place_id': 'table-01',
+             'kind': 'table',
+             'label': 'Mesa 1',
+             'capacity': 2,
+             'display_order': 10,
+             'state': 'occupied',
+             'party_size': 2,
+             'mine': False,
+             'seats': []},
+            {'place_id': 'table-02',
+             'kind': 'table',
+             'label': 'Mesa 2',
+             'capacity': 2,
+             'display_order': 20,
+             'state': 'held',
+             'party_size': 1,
+             'mine': False,
+             'seats': []},
+            {'place_id': 'table-03',
+             'kind': 'table',
+             'label': 'Mesa 3',
+             'capacity': 4,
+             'display_order': 30,
+             'state': 'occupied',
+             'party_size': 3,
+             'mine': True,
+             'seats': []},
+            {'place_id': 'table-04',
+             'kind': 'table',
+             'label': 'Mesa 4',
+             'capacity': 4,
+             'display_order': 40,
+             'state': 'free',
+             'party_size': None,
+             'mine': False,
+             'seats': []},
+            {'place_id': 'table-05',
+             'kind': 'table',
+             'label': 'Mesa 5',
+             'capacity': 6,
+             'display_order': 50,
+             'state': 'free',
+             'party_size': None,
+             'mine': False,
+             'seats': []},
+            {'place_id': 'bar',
+             'kind': 'bar',
+             'label': 'Barra',
+             'capacity': 8,
+             'display_order': 100,
+             'state': 'free',
+             'party_size': None,
+             'mine': False,
+             'seats': [{'position': 1, 'state': 'occupied', 'mine': False},
+                       {'position': 2, 'state': 'occupied', 'mine': False},
+                       {'position': 3, 'state': 'held', 'mine': False},
+                       {'position': 4, 'state': 'free', 'mine': False},
+                       {'position': 5, 'state': 'free', 'mine': False},
+                       {'position': 6, 'state': 'free', 'mine': False},
+                       {'position': 7, 'state': 'free', 'mine': False},
+                       {'position': 8, 'state': 'free', 'mine': False}]}]}
+SEATINGS = [{'status': 'proposed',
+  'proposal': {'proposal_id': 'prop_demo',
+               'version': 1,
+               'place': {'place_id': 'table-03',
+                         'kind': 'table',
+                         'label': 'Mesa 3',
+                         'capacity': 4,
+                         'seats': []},
+               'party_size': 3,
+               'expires_at': '2026-09-29T20:05:00Z'}},
+ {'status': 'proposed',
+  'proposal': {'proposal_id': 'prop_bar',
+               'version': 1,
+               'place': {'place_id': 'bar',
+                         'kind': 'bar',
+                         'label': 'Barra',
+                         'capacity': 8,
+                         'seats': [1, 2]},
+               'party_size': 2,
+               'expires_at': '2026-09-29T20:05:00Z'}},
+ {'status': 'seated',
+  'place': {'place_id': 'table-03',
+            'kind': 'table',
+            'label': 'Mesa 3',
+            'capacity': 4,
+            'seats': []},
+  'party_size': 3,
+  'seated_at': '2026-09-29T20:01:00Z'}]
+ROOMS = [
+    RoomView(schema_version=1, seating_enabled=False, generated_at="2026-09-29T20:00:00Z"),
+    RoomView.model_validate(ROOM_DATA),
+]
+PROPOSED = SeatingView.model_validate(SEATINGS[0])
+SEATED = SeatingView.model_validate(SEATINGS[2])
 
 
 class Clock:
@@ -120,7 +211,7 @@ def test_the_plan_markup_is_one_line_with_the_room() -> None:
 def test_the_proposal_card_names_place_and_seats_without_ids() -> None:
     table = proposal_markup(PROPOSED.proposal)
     assert "Mesa 3" in table and "3 de 4 asientos" in table and "prop_" not in table
-    bar = SeatingView.model_validate(SNAPSHOTS[1]["seating"]).proposal
+    bar = SeatingView.model_validate(SEATINGS[1]).proposal
     assert "Puestos 1 a 2" in proposal_markup(bar)
 
 
