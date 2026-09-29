@@ -182,7 +182,7 @@ ensure_role() {
   fi
 }
 
-ensure_role "Azure AI User" "$FOUNDRY_PROJECT_RESOURCE_ID"
+ensure_role "Foundry User" "$FOUNDRY_PROJECT_RESOURCE_ID"
 
 if ! az containerapp env show --name "$CONTAINERAPPS_ENVIRONMENT" --resource-group "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
   az containerapp env create --name "$CONTAINERAPPS_ENVIRONMENT" \
