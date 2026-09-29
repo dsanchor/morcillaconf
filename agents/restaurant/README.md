@@ -49,8 +49,9 @@ Todo lo demás lo hace el propio agente, de forma determinista y por su misma
 conexión MCP:
 
 - `VisitContextProvider` fija la visita del BFF, cancela el bloqueo al
-  momento cuando el cliente rechaza o escribe en lugar de pulsar un botón,
-  lee la sala anónima antes y después de cada ejecución, deriva el sitio
+  momento cuando el cliente rechaza, lo mantiene cuando escribe en lugar de
+  pulsar un botón (la confirmación se vuelve a pedir al final de la
+  ejecución), lee la sala anónima antes y después de cada ejecución, deriva el sitio
   propio (ninguno, propuesto o sentado) y `last_outcome`, se lo indica al
   modelo como contexto y publica un informe de asientos para la aplicación.
 - `SeatingToolContextMiddleware` pone `visit_id`, la clave de idempotencia y,
