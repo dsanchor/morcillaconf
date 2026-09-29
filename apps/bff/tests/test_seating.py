@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from restaurant_contracts.application import Action, ErrorCode
 
 from bff.main import create_app
+from bff.scripted import ScriptedWaiterAgent
 from bff.service import SEATING_UNAVAILABLE
 from conftest import Commands
 from seating_fake import FakeSeatingGateway
@@ -370,3 +371,106 @@ async def test_a_bar_proposal_survives_a_failed_room_lookup(service, commands, s
     session, conversation_id, snapshot = await propose(service, commands, "Ana", "En la barra, somos dos")
     place = snapshot.seating.proposal.place
     assert (place.kind, place.seats) == ("bar", [3, 4]) and place.capacity >= 4
+
+
+def _capture_turns(service):
+    turns = []
+    original = service._waiter.take_turn
+
+    async def take_turn(turn):
+        turns.append(turn)
+        return await original(turn)
+
+    service._waiter.take_turn = take_turn
+    return turns
+
+
+def _history(service, conversation_id):
+    with service._db.read() as tx:
+        raw = tx.get_conversation(conversation_id).agent_session_json
+    state = json.loads(raw)["state"]["in_memory"]
+    return [
+        "".join(content.get("text", "") for content in message.get("contents", []))
+        for message in state.get("messages", [])
+    ]
+
+
+@pytest.mark.parametrize(
+    ("decision", "outcome", "note", "status"),
+    [
+        ("rejected", "rejected", "Sin problema, dejo libre la Mesa 3. ¿Preferís otro sitio?", "none"),
+        ("confirmed", "confirmed", "¡Estupendo! Os acompaño a la Mesa 3.", "seated"),
+    ],
+)
+async def test_a_decision_reaches_the_next_turn(service, commands, decision, outcome, note, status) -> None:
+    session, conversation_id, snapshot = await propose(service, commands)
+    turns = _capture_turns(service)
+    await service.submit(session, commands.decide(conversation_id, snapshot.seating.proposal.proposal_id, decision=decision))
+
+    await say(service, commands, session, conversation_id, "¿Qué tal?")
+    context = turns[-1].seating_context
+    assert context["status"] == status
+    assert context["last_outcome"] == {"decision": outcome, "place": "Mesa 3"}
+    assert turns[-1].history_notes == (note,)
+    history = _history(service, conversation_id)
+    assert note in history
+
+    await say(service, commands, session, conversation_id, "Gracias")
+    assert turns[-1].history_notes == ()
+    assert turns[-1].seating_context["last_outcome"]["decision"] == outcome
+    assert _history(service, conversation_id).count(note) == 1
+
+
+async def test_a_late_confirmation_reaches_the_next_turn_as_expired(service, commands, clock) -> None:
+    session, conversation_id, snapshot = await propose(service, commands)
+    turns = _capture_turns(service)
+    clock.now += timedelta(minutes=6)
+    result = await service.submit(session, commands.decide(conversation_id, snapshot.seating.proposal.proposal_id))
+    await say(service, commands, session, conversation_id, "Vaya")
+    assert turns[-1].seating_context == {
+        "status": "none",
+        "last_outcome": {"decision": "expired", "place": "Mesa 3"},
+    }
+    assert turns[-1].history_notes == (result.error.message,)
+
+
+async def test_a_reset_reaches_the_next_turn_as_cancelled(service, commands, seating) -> None:
+    session, conversation_id, snapshot = await propose(service, commands)
+    await service.submit(session, commands.decide(conversation_id, snapshot.seating.proposal.proposal_id))
+    turns = _capture_turns(service)
+    seating.reset()
+    await say(service, commands, session, conversation_id, "¿Seguimos?")
+    assert turns[-1].seating_context["status"] == "none"
+    assert turns[-1].seating_context["last_outcome"] == {"decision": "cancelled", "place": "Mesa 3"}
+
+
+async def test_a_new_proposal_replaces_the_last_outcome(service, commands) -> None:
+    session, conversation_id, snapshot = await propose(service, commands)
+    await service.submit(session, commands.decide(conversation_id, snapshot.seating.proposal.proposal_id, decision="rejected"))
+    turns = _capture_turns(service)
+    await say(service, commands, session, conversation_id, "Somos dos")
+    await say(service, commands, session, conversation_id, "Vale")
+    context = turns[-1].seating_context
+    assert context["status"] == "proposed" and context["place"] == "Mesa 1"
+    assert "last_outcome" not in context
+
+
+async def test_notes_wait_for_a_turn_that_saves_the_history(make_service, commands, seating) -> None:
+    class FakeServiceError(Exception):
+        pass
+
+    FakeServiceError.__module__ = "agent_framework.exceptions"
+    failing = {"on": False}
+
+    def failure(message):
+        return FakeServiceError("down") if failing["on"] else None
+
+    service = make_service(ScriptedWaiterAgent(seating=seating, failure=failure), seating=seating)
+    session, conversation_id, snapshot = await propose(service, commands)
+    await service.submit(session, commands.decide(conversation_id, snapshot.seating.proposal.proposal_id, decision="rejected"))
+    turns = _capture_turns(service)
+    failing["on"] = True
+    assert (await say(service, commands, session, conversation_id, "Hola")).status == "failed"
+    failing["on"] = False
+    await say(service, commands, session, conversation_id, "Hola")
+    assert turns[-1].history_notes == turns[0].history_notes != ()

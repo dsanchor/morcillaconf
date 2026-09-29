@@ -110,6 +110,12 @@ CREATE TABLE IF NOT EXISTS seating (
     expires_at TEXT,
     seated_at TEXT
 );
+CREATE TABLE IF NOT EXISTS seating_outcomes (
+    conversation_id TEXT PRIMARY KEY REFERENCES conversations(conversation_id),
+    decision TEXT NOT NULL,
+    place TEXT NOT NULL,
+    notes_json TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS seating_decisions (
     proposal_id TEXT PRIMARY KEY,
     conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id),
@@ -169,6 +175,15 @@ class SeatingRow:
     version: int
     expires_at: datetime | None = None
     seated_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class SeatingOutcomeRow:
+    """Latest proposal decided outside a turn, and waiter notes the model has not seen."""
+
+    decision: str
+    place: str
+    notes: list[str]
 
 
 @dataclass(frozen=True)
@@ -504,6 +519,50 @@ class Transaction:
         self._connection.execute(
             "DELETE FROM seating WHERE conversation_id = ?", (conversation_id,)
         )
+
+    def get_seating_outcome(self, conversation_id: str) -> SeatingOutcomeRow | None:
+        row = self._connection.execute(
+            "SELECT decision, place, notes_json FROM seating_outcomes WHERE conversation_id = ?",
+            (conversation_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return SeatingOutcomeRow(row["decision"], row["place"], json.loads(row["notes_json"]))
+
+    def put_seating_outcome(
+        self, conversation_id: str, *, decision: str, place: str, note: str | None
+    ) -> None:
+        current = self.get_seating_outcome(conversation_id)
+        notes = [*(current.notes if current else []), *([note] if note else [])]
+        self._connection.execute(
+            "INSERT OR REPLACE INTO seating_outcomes VALUES (?, ?, ?, ?)",
+            (conversation_id, decision, place, json.dumps(notes, ensure_ascii=False)),
+        )
+
+    def consume_seating_notes(self, conversation_id: str, count: int) -> None:
+        current = self.get_seating_outcome(conversation_id)
+        if current is None or count <= 0:
+            return
+        self._connection.execute(
+            "UPDATE seating_outcomes SET notes_json = ? WHERE conversation_id = ?",
+            (json.dumps(current.notes[count:], ensure_ascii=False), conversation_id),
+        )
+
+    def clear_seating_outcome(self, conversation_id: str) -> None:
+        """A new proposal replaces the outcome; unseen notes stay for the model."""
+
+        current = self.get_seating_outcome(conversation_id)
+        if current is None:
+            return
+        if current.notes:
+            self._connection.execute(
+                "UPDATE seating_outcomes SET decision = '', place = '' WHERE conversation_id = ?",
+                (conversation_id,),
+            )
+        else:
+            self._connection.execute(
+                "DELETE FROM seating_outcomes WHERE conversation_id = ?", (conversation_id,)
+            )
 
     def get_seating_decision(self, proposal_id: str) -> SeatingDecisionRow | None:
         row = self._connection.execute(

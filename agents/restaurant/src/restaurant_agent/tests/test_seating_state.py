@@ -139,3 +139,42 @@ async def test_middleware_ignores_other_tools() -> None:
 
     await SeatingToolContextMiddleware().process(context, call_next)
     assert called == [True]
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected"),
+    [
+        ("rejected", "el cliente la rechazó. Ya no existe"),
+        ("expired", "caducó sin confirmar. Ya no existe"),
+        ("cancelled", "se anuló. Ya no existe"),
+        ("confirmed", "el cliente la confirmó."),
+    ],
+)
+def test_the_last_outcome_is_explained_to_the_model(decision, expected) -> None:
+    state: dict = {}
+    set_seating_context(
+        state, {"status": "none", "last_outcome": {"decision": decision, "place": "Mesa 4"}}
+    )
+    text = seating_instructions(state)
+    assert "La última propuesta (Mesa 4): " + expected in text
+    assert "nunca una que solo esté en el historial" in text
+    assert "llama a seating_hold_seating y describe solo lo que devuelva" in text
+
+
+def test_waiter_notes_go_to_the_history_the_agent_loads() -> None:
+    from agent_framework import InMemoryHistoryProvider
+
+    from restaurant_agent.seating import history_source_id, record_waiter_note
+
+    class Agent:
+        context_providers = [VisitContextProvider()]
+
+    source = history_source_id(Agent())
+    assert source == InMemoryHistoryProvider.DEFAULT_SOURCE_ID
+    Agent.context_providers.append(InMemoryHistoryProvider(source_id="custom"))
+    assert history_source_id(Agent()) == "custom"
+
+    state: dict = {source: {"messages": []}}
+    record_waiter_note(state, "Sin problema, dejo libre la Mesa 4.", source)
+    [message] = state[source]["messages"]
+    assert (message.role, message.text) == ("assistant", "Sin problema, dejo libre la Mesa 4.")

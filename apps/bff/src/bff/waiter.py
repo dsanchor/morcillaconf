@@ -28,7 +28,9 @@ from restaurant_agent.memory.store import DurableMemoryRepository
 from restaurant_agent.seating import (
     bind_visit,
     clear_proposal,
+    history_source_id,
     pending_proposal,
+    record_waiter_note,
     set_seating_context,
 )
 
@@ -54,6 +56,8 @@ class WaiterTurn:
     visit_id: str | None = None
     seating_context: dict[str, Any] | None = None
     pending_assignment_id: str | None = None
+    # What the waiter said outside a turn (seating decisions), for its history.
+    history_notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -154,6 +158,9 @@ class LocalWaiter:
             if pending is not None and pending["assignment_id"] != turn.pending_assignment_id:
                 # Decided, expired or reset: the next hold needs a fresh key.
                 clear_proposal(session.state)
+            source_id = history_source_id(self._agent)
+            for note in turn.history_notes:
+                record_waiter_note(session.state, note, source_id)
         manager = ConversationManager(
             self._agent,
             max_turns=self._max_turns,

@@ -668,13 +668,16 @@ class RestaurantService:
             with self._db.read() as tx:
                 row = tx.get_conversation(job.conversation_id)
                 seat = tx.get_seating(job.conversation_id)
+                last = tx.get_seating_outcome(job.conversation_id)
             if row is None or row.pending_event_id != job.event_id:
                 return
             seating_fields: dict[str, Any] = {}
+            notes = tuple(last.notes) if last is not None else ()
             if self._seating is not None:
                 seating_fields = {
                     "visit_id": row.visit_id,
-                    "seating_context": self._seating_context(seat),
+                    "seating_context": self._seating_context(seat, last),
+                    "history_notes": notes,
                     "pending_assignment_id": (
                         seat.assignment_id if seat and seat.status == "proposed" else None
                     ),
@@ -734,13 +737,14 @@ class RestaurantService:
                         job.correlation_id,
                         type(exc).__name__,
                     )
-            self._finish_turn(job, outcome, proposal)
+            self._finish_turn(job, outcome, proposal, len(seating_fields.get("history_notes", ())))
 
     def _finish_turn(
         self,
         job: _TurnJob,
         outcome: WaiterTurnResult | tuple[ErrorCode, str],
         proposal: SeatingRow | None = None,
+        notes_sent: int = 0,
     ) -> None:
         now = self._clock()
         with self._db.write() as tx:
@@ -751,6 +755,10 @@ class RestaurantService:
                 current = tx.get_seating(job.conversation_id)
                 if current is None or current.status == "proposed":
                     tx.put_seating(proposal)
+                    tx.clear_seating_outcome(job.conversation_id)
+            if isinstance(outcome, WaiterTurnResult) and outcome.session_json is not None:
+                # The notes are in the saved history now.
+                tx.consume_seating_notes(job.conversation_id, notes_sent)
             if isinstance(outcome, WaiterTurnResult):
                 row.customer = outcome.customer
                 row.order_draft = outcome.order_draft
@@ -901,8 +909,13 @@ class RestaurantService:
                     outcome="seated",
                     now=now,
                 )
+                self._record_outcome(tx, conversation_id, current, "confirmed", None)
             else:
                 tx.delete_seating(conversation_id)
+                expired = same and visit is not None and visit.status == "expired"
+                self._record_outcome(
+                    tx, conversation_id, current, "expired" if expired else "cancelled", None
+                )
             self._emit_snapshot(tx, row, new_id("sync"), new_id("corr"))
         self._room_cache.clear()
         self._notifier.notify(conversation_id)
@@ -941,21 +954,32 @@ class RestaurantService:
         )
 
     @staticmethod
-    def _seating_context(seat: SeatingRow | None) -> dict[str, Any]:
+    def _seating_context(seat: SeatingRow | None, last: Any = None) -> dict[str, Any]:
         if seat is None:
-            return {"status": "none"}
-        context: dict[str, Any] = {
-            "status": seat.status,
-            "place": seat.label,
-            "kind": seat.kind,
-            "party_size": seat.party_size,
-            "capacity": seat.capacity,
-        }
-        if seat.kind == "bar":
-            context["seats"] = seat.seats
-        if seat.status == "proposed" and seat.expires_at is not None:
-            context["expires_at"] = seat.expires_at.isoformat()
+            context: dict[str, Any] = {"status": "none"}
+        else:
+            context = {
+                "status": seat.status,
+                "place": seat.label,
+                "kind": seat.kind,
+                "party_size": seat.party_size,
+                "capacity": seat.capacity,
+            }
+            if seat.kind == "bar":
+                context["seats"] = seat.seats
+            if seat.status == "proposed" and seat.expires_at is not None:
+                context["expires_at"] = seat.expires_at.isoformat()
+        if last is not None and last.decision:
+            context["last_outcome"] = {"decision": last.decision, "place": last.place}
         return context
+
+    @staticmethod
+    def _record_outcome(
+        tx: Transaction, conversation_id: str, seat: SeatingRow, decision: str, note: str | None
+    ) -> None:
+        """Keep what happened outside a turn for the model's next turn."""
+
+        tx.put_seating_outcome(conversation_id, decision=decision, place=seat.label, note=note)
 
     async def _proposal_from_turn(
         self, conversation_id: str, outcome: WaiterTurnResult
@@ -1137,8 +1161,10 @@ class RestaurantService:
                 outcome="expired",
                 now=now,
             )
+            notice = PROPOSAL_EXPIRED.format(place=_place_text(seat))
+            self._record_outcome(tx, row.conversation_id, seat, "expired", notice)
             self._emit_snapshot(tx, row, command.event_id, correlation_id)
-            return fail(ErrorCode.CONFLICT, PROPOSAL_EXPIRED.format(place=_place_text(seat)))
+            return fail(ErrorCode.CONFLICT, notice)
         return None, seat, row
 
     async def _apply_decision(self, visit_id: str, seat: SeatingRow, decision: str) -> str:
@@ -1233,13 +1259,21 @@ class RestaurantService:
             placed.version = seat.version + 1
             tx.put_seating(placed)
             if decision != "confirmed":
+                self._record_outcome(tx, conversation_id, seat, "confirmed", None)
                 return fail(ErrorCode.CONFLICT, ALREADY_DECIDED)
-            say(SEATED_REPLY.format(place=_place_text(seat)))
+            text = SEATED_REPLY.format(place=_place_text(seat))
+            self._record_outcome(tx, conversation_id, seat, "confirmed", text)
+            say(text)
         elif result_kind == "rejected":
-            say(REJECTED_REPLY.format(place=_place_text(seat)))
+            text = REJECTED_REPLY.format(place=_place_text(seat))
+            self._record_outcome(tx, conversation_id, seat, "rejected", text)
+            say(text)
         elif result_kind == "expired":
-            return fail(ErrorCode.CONFLICT, PROPOSAL_EXPIRED.format(place=_place_text(seat)))
+            notice = PROPOSAL_EXPIRED.format(place=_place_text(seat))
+            self._record_outcome(tx, conversation_id, seat, "expired", notice)
+            return fail(ErrorCode.CONFLICT, notice)
         else:
+            self._record_outcome(tx, conversation_id, seat, "cancelled", None)
             return fail(ErrorCode.CONFLICT, STALE_PROPOSAL)
         tx.update_conversation(row)
         return self._complete(tx, row, command, correlation_id)
@@ -1312,6 +1346,7 @@ class RestaurantService:
                         outcome="abandoned",
                         now=self._clock(),
                     )
+                    self._record_outcome(tx, conversation_id, seat, "cancelled", None)
                     self._emit_snapshot(tx, old, command.event_id, new_id("corr"))
             self._room_cache.clear()
         self._notifier.notify(conversation_id)

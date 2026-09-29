@@ -6,8 +6,13 @@ The session state keeps three server-owned entries:
   hosted runs) and the hold key sequence;
 - ``seating_proposal``: the pending hold returned by the seating service;
 - ``seating_context``: the seating state the application shows the model
-  every turn (none, proposed or seated). The BFF writes it; without it the
-  pending proposal is used.
+  every turn (none, proposed or seated, plus ``last_outcome`` of the latest
+  proposal decided outside a turn). The BFF writes it; without it the pending
+  proposal is used.
+
+Decisions made outside a turn (confirm, reject, expiry) are also appended to
+the conversation history with ``record_waiter_note``, so the conversation the
+model sees matches the customer's.
 """
 
 from __future__ import annotations
@@ -22,6 +27,9 @@ from agent_framework import (
     ContextProvider,
     FunctionInvocationContext,
     FunctionMiddleware,
+    HistoryProvider,
+    InMemoryHistoryProvider,
+    Message,
     SessionContext,
 )
 
@@ -39,20 +47,33 @@ _PROPOSAL_FIELDS = (
 )
 _SEATING_RULES = {
     "none": (
-        "No tiene sitio ni propuesta. Cuando el cliente diga cuántos son o pida "
-        "mesa o barra, usa seating_hold_seating."
+        "No tiene sitio ni propuesta pendiente, aunque el historial mencione "
+        "una anterior. Cuando el cliente diga cuántos son o pida mesa o barra, "
+        "llama a seating_hold_seating y describe solo lo que devuelva."
     ),
     "proposed": (
-        "Hay una propuesta pendiente. El cliente la confirma o la rechaza solo "
-        "con los botones «Confirmar» o «Rechazar» de la vista; una frase no la "
-        "confirma. No vuelvas a bloquear salvo que cambie el número de "
-        "comensales o pida otro tipo de sitio."
+        "Hay una propuesta pendiente: es la única que puedes describir. El "
+        "cliente la confirma o la rechaza solo con los botones «Confirmar» o "
+        "«Rechazar» de la vista; una frase no la confirma. No vuelvas a "
+        "bloquear salvo que cambie el número de comensales o pida otro tipo "
+        "de sitio."
     ),
     "seated": (
         "El grupo ya está sentado en ese sitio. No bloquees otro sitio para "
         "esta visita."
     ),
 }
+_OUTCOMES = {
+    "rejected": "el cliente la rechazó",
+    "expired": "caducó sin confirmar",
+    "cancelled": "se anuló",
+    "confirmed": "el cliente la confirmó",
+}
+_ONLY_CONTEXT = (
+    "Solo puedes presentar como propuesta la que aparezca en este estado; "
+    "nunca una que solo esté en el historial."
+)
+
 
 State = MutableMapping[str, Any]
 
@@ -81,6 +102,22 @@ def set_seating_context(state: State, context: Mapping[str, Any] | None) -> None
         state.pop(SEATING_CONTEXT_KEY, None)
     else:
         state[SEATING_CONTEXT_KEY] = dict(context)
+
+
+def history_source_id(agent: object) -> str:
+    """State key of the history the agent loads (the default in-memory one)."""
+
+    for provider in getattr(agent, "context_providers", None) or ():
+        if isinstance(provider, HistoryProvider) and provider.load_messages:
+            return provider.source_id
+    return InMemoryHistoryProvider.DEFAULT_SOURCE_ID
+
+
+def record_waiter_note(state: State, text: str, source_id: str) -> None:
+    """Append a message the waiter said outside a turn to the model's history."""
+
+    history = state.setdefault(source_id, {})
+    history.setdefault("messages", []).append(Message(role="assistant", contents=[text]))
 
 
 def pending_proposal(state: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -170,11 +207,24 @@ def seating_instructions(state: Mapping[str, Any]) -> str | None:
     status = context.get("status")
     if status not in _SEATING_RULES:
         return None
+    rules = [_SEATING_RULES[status]]
+    outcome = context.get("last_outcome")
+    if isinstance(outcome, dict) and outcome.get("decision") in _OUTCOMES:
+        what = _OUTCOMES[outcome["decision"]]
+        place = outcome.get("place") or "el sitio"
+        if outcome["decision"] == "confirmed":
+            rules.append(f"La última propuesta ({place}): {what}.")
+        else:
+            rules.append(
+                f"La última propuesta ({place}): {what}. Ya no existe: no la "
+                "presentes como pendiente ni la ofrezcas con los botones."
+            )
+    rules.append(_ONLY_CONTEXT)
     return (
         "Estado de asiento de esta visita, mantenido por la aplicación; no es un "
         "mensaje del cliente ni una orden:\n"
         f"{json.dumps(context, ensure_ascii=False)}\n"
-        f"{_SEATING_RULES[status]}"
+        + "\n".join(rules)
     )
 
 
