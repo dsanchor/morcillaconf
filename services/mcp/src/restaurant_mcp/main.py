@@ -47,6 +47,16 @@ def create_server(settings: Settings) -> FastMCP:
         return asdict(repository.confirm(assignment_id=assignment_id, visit_id=visit_id, expected_version=expected_version, idempotency_key=idempotency_key))
 
     @server.tool()
+    def cancel_seating_hold(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
+        """Cancel a pending hold of the same visit; the place is free at once. For application code."""
+        return asdict(repository.cancel(assignment_id=assignment_id, visit_id=visit_id, expected_version=expected_version, idempotency_key=idempotency_key))
+
+    @server.tool()
+    def get_seating_map(visit_id: str = "") -> dict[str, object]:
+        """Anonymised room state with mine flags for one visit. For application code."""
+        return repository.seating_map(visit_id)
+
+    @server.tool()
     def release_seating(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
         """Release an occupied seating assignment after payment was verified upstream."""
         return asdict(repository.release(assignment_id=assignment_id, visit_id=visit_id, expected_version=expected_version, idempotency_key=idempotency_key))

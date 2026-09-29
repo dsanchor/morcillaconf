@@ -69,7 +69,7 @@ def test_layout_change_deletes_only_seating_state(tmp_path, layout):
     first.hold(visit_id="visit-1", party_size=2, preference="table", idempotency_key="evt-1")
     changed = SeatingLayout.model_validate({"resources": [{"resource_id": "bar", "kind": "bar", "label": "Barra", "capacity": 3, "display_order": 1, "seat_prefix": "bar-seat"}]})
     second = SQLiteSeatingRepository(path, layout_id="v2", layout=changed, expected_hash=changed.fingerprint())
-    assert second.availability() == [{"resource_id": "bar", "kind": "bar", "label": "Barra", "capacity": 3, "available_seats": 3}]
+    assert second.availability() == [{"resource_id": "bar", "kind": "bar", "label": "Barra", "capacity": 3, "available_seats": 3, "largest_group": 3}]
     with pytest.raises(NoSeatingAvailable):
         second.hold(visit_id="visit-2", party_size=2, preference="table", idempotency_key="evt-2")
 
@@ -99,6 +99,6 @@ def test_server_registers_seating_tools(tmp_path, layout, monkeypatch):
     monkeypatch.setenv("SEATING_LAYOUT_JSON", layout.model_dump_json())
     monkeypatch.setenv("SEATING_LAYOUT_SHA256", layout.fingerprint())
     server = create_server(Settings())
-    assert {"get_seating_availability", "hold_seating", "confirm_seating", "release_seating"} <= {
+    assert {"get_seating_availability", "hold_seating", "confirm_seating", "cancel_seating_hold", "get_seating_map", "release_seating"} <= {
         tool.name for tool in server._tool_manager.list_tools()
     }

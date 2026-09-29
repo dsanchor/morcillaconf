@@ -16,19 +16,36 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SeatingError(RuntimeError):
-    """Base error exposed as a deterministic MCP failure."""
+    """Base error exposed as a deterministic MCP failure.
+
+    The message starts with a stable code (``no_seating: ...``) so application
+    clients can map the tool error without parsing free text.
+    """
+
+    code = "seating_error"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(f"{self.code}: {message}")
 
 
 class NoSeatingAvailable(SeatingError):
-    pass
+    code = "no_seating"
 
 
 class SeatingConflict(SeatingError):
-    pass
+    code = "conflict"
+
+
+class SeatingExpired(SeatingConflict):
+    code = "expired"
+
+
+class SeatingNotFound(SeatingConflict):
+    code = "not_found"
 
 
 class IdempotencyConflict(SeatingError):
-    pass
+    code = "idempotency_conflict"
 
 
 class SeatingResource(BaseModel):
@@ -174,8 +191,15 @@ class SQLiteSeatingRepository:
                 if cached["payload_hash"] != payload_hash:
                     raise IdempotencyConflict("idempotency key was previously used with another request")
                 return self._assignment(db, cached["assignment_id"])
-            if db.execute("SELECT 1 FROM assignments WHERE visit_id=? AND status IN ('held','occupied')", (visit_id,)).fetchone():
+            active = db.execute("SELECT assignment_id, status FROM assignments WHERE visit_id=? AND status IN ('held','occupied')", (visit_id,)).fetchall()
+            if any(row["status"] == "occupied" for row in active):
                 raise SeatingConflict("visit already has active seating")
+            # A new request of the same visit replaces its pending hold in this
+            # transaction; if nothing fits, the rollback keeps the old hold.
+            db.executemany(
+                "UPDATE assignments SET status='replaced', expires_at=NULL, version=version+1 WHERE assignment_id=?",
+                [(row["assignment_id"],) for row in active],
+            )
             choice = self._find_choice(db, party_size, preference)
             if choice is None:
                 raise NoSeatingAvailable("no compatible seating is available")
@@ -193,29 +217,62 @@ class SQLiteSeatingRepository:
 
     def _find_choice(self, db: sqlite3.Connection, size: int, preference: str) -> tuple[str, str, list[str]] | None:
         if preference in ("table", "any"):
-            rows = db.execute("""SELECT r.*, COALESCE(SUM(a.party_size),0) used FROM resources r LEFT JOIN assignments a ON a.resource_id=r.resource_id AND a.status IN ('held','occupied') WHERE r.kind='table' AND r.enabled=1 GROUP BY r.resource_id HAVING r.capacity-used >= ? ORDER BY (r.capacity-used) ASC, r.display_order, r.resource_id""", (size,)).fetchall()
-            if rows:
-                return rows[0]["resource_id"], "table", []
+            # One group per table: a held or occupied table is unavailable to
+            # every other visit, even with free chairs.
+            row = db.execute(
+                """SELECT r.resource_id FROM resources r WHERE r.kind='table' AND r.enabled=1 AND r.capacity >= ?
+                AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.resource_id=r.resource_id AND a.status IN ('held','occupied'))
+                ORDER BY r.capacity, r.display_order, r.resource_id LIMIT 1""",
+                (size,),
+            ).fetchone()
+            if row:
+                return row["resource_id"], "table", []
         if preference in ("bar", "any"):
-            rows = db.execute("""SELECT s.seat_id, s.bar_id, s.position FROM bar_seats s WHERE NOT EXISTS (SELECT 1 FROM assignment_seats allocated JOIN assignments a ON a.assignment_id=allocated.assignment_id WHERE allocated.seat_id=s.seat_id AND a.status IN ('held','occupied')) ORDER BY s.bar_id, s.position""").fetchall()
-            by_bar: dict[str, list[sqlite3.Row]] = {}
-            for row in rows:
-                by_bar.setdefault(row["bar_id"], []).append(row)
             candidates = []
-            for bar, seats in by_bar.items():
-                for index in range(len(seats) - size + 1):
-                    window = seats[index:index + size]
-                    if all(window[i]["position"] + 1 == window[i + 1]["position"] for i in range(size - 1)):
-                        candidates.append((len(seats) - size, window[0]["position"], bar, [seat["seat_id"] for seat in window]))
+            for bar_id, display_order, run in self._free_bar_runs(db):
+                if len(run) >= size:
+                    # Smallest leftover gap first, then the lowest position.
+                    candidates.append((len(run) - size, run[0][1], display_order, bar_id, [seat_id for seat_id, _ in run[:size]]))
             if candidates:
-                _, _, bar, selected = min(candidates)
+                _, _, _, bar, selected = min(candidates)
                 return bar, "bar", selected
         return None
+
+    @staticmethod
+    def _taken_seats(db: sqlite3.Connection) -> dict[str, sqlite3.Row]:
+        rows = db.execute(
+            """SELECT allocated.seat_id, a.status, a.visit_id FROM assignment_seats allocated
+            JOIN assignments a ON a.assignment_id=allocated.assignment_id WHERE a.status IN ('held','occupied')"""
+        ).fetchall()
+        return {row["seat_id"]: row for row in rows}
+
+    def _free_bar_runs(self, db: sqlite3.Connection) -> list[tuple[str, int, list[tuple[str, int]]]]:
+        """Maximal runs of contiguous free stools of every enabled bar."""
+
+        taken = self._taken_seats(db)
+        rows = db.execute(
+            """SELECT s.seat_id, s.bar_id, s.position, r.display_order FROM bar_seats s
+            JOIN resources r ON r.resource_id=s.bar_id WHERE r.enabled=1 ORDER BY r.display_order, s.bar_id, s.position"""
+        ).fetchall()
+        runs: list[tuple[str, int, list[tuple[str, int]]]] = []
+        current: list[tuple[str, int]] = []
+        previous: sqlite3.Row | None = None
+        for row in rows:
+            contiguous = previous is not None and previous["bar_id"] == row["bar_id"] and previous["position"] + 1 == row["position"]
+            if current and (row["seat_id"] in taken or not contiguous):
+                runs.append((previous["bar_id"], previous["display_order"], current))
+                current = []
+            if row["seat_id"] not in taken:
+                current.append((row["seat_id"], row["position"]))
+            previous = row
+        if current and previous is not None:
+            runs.append((previous["bar_id"], previous["display_order"], current))
+        return runs
 
     def _assignment(self, db: sqlite3.Connection, assignment_id: str) -> SeatingAssignment:
         row = db.execute("SELECT * FROM assignments WHERE assignment_id=?", (assignment_id,)).fetchone()
         if row is None:
-            raise SeatingConflict("assignment does not exist")
+            raise SeatingNotFound("assignment does not exist")
         return SeatingAssignment(row["assignment_id"], row["visit_id"], row["resource_id"], row["resource_kind"], json.loads(row["seat_ids"]), row["party_size"], row["status"], row["expires_at"], row["version"])
 
     def confirm(self, *, assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str, now: datetime | None = None) -> SeatingAssignment:
@@ -229,7 +286,11 @@ class SQLiteSeatingRepository:
                     raise IdempotencyConflict("idempotency key was previously used with another request")
                 return self._assignment(db, cached["assignment_id"])
             item = self._assignment(db, assignment_id)
-            if item.visit_id != visit_id or item.status != "held" or item.version != expected_version:
+            if item.visit_id != visit_id:
+                raise SeatingNotFound("assignment does not exist")
+            if item.status == "expired":
+                raise SeatingExpired("assignment hold has expired")
+            if item.status != "held" or item.version != expected_version:
                 raise SeatingConflict("assignment cannot be confirmed")
             db.execute("UPDATE assignments SET status='occupied', expires_at=NULL, version=version+1 WHERE assignment_id=?", (assignment_id,))
             db.execute("INSERT INTO idempotency VALUES ('confirm', ?, ?, ?)", (idempotency_key, payload_hash, assignment_id))
@@ -251,8 +312,86 @@ class SQLiteSeatingRepository:
             db.execute("INSERT INTO idempotency VALUES ('release', ?, ?, ?)", (idempotency_key, payload_hash, assignment_id))
             db.commit(); return self._assignment(db, assignment_id)
 
-    def availability(self) -> list[dict[str, object]]:
+    def cancel(self, *, assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str, now: datetime | None = None) -> SeatingAssignment:
+        """Cancel a pending hold of its own visit so the place is free at once."""
+
+        now = now or datetime.now(UTC)
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE"); self._expire(db, now)
+            payload_hash = hashlib.sha256(f"{assignment_id}|{visit_id}|{expected_version}".encode()).hexdigest()
+            cached = db.execute("SELECT payload_hash, assignment_id FROM idempotency WHERE operation='cancel' AND idempotency_key=?", (idempotency_key,)).fetchone()
+            if cached:
+                if cached["payload_hash"] != payload_hash:
+                    raise IdempotencyConflict("idempotency key was previously used with another request")
+                return self._assignment(db, cached["assignment_id"])
+            item = self._assignment(db, assignment_id)
+            if item.visit_id != visit_id:
+                raise SeatingNotFound("assignment does not exist")
+            if item.status == "expired":
+                raise SeatingExpired("assignment hold has expired")
+            if item.status != "held" or item.version != expected_version:
+                raise SeatingConflict("assignment cannot be cancelled")
+            db.execute("UPDATE assignments SET status='cancelled', expires_at=NULL, version=version+1 WHERE assignment_id=?", (assignment_id,))
+            db.execute("INSERT INTO idempotency VALUES ('cancel', ?, ?, ?)", (idempotency_key, payload_hash, assignment_id))
+            db.commit(); return self._assignment(db, assignment_id)
+
+    def availability(self) -> list[dict[str, object]]:
+        """Free capacity per resource; ``largest_group`` is the biggest group that fits now."""
+
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
             self._expire(db, datetime.now(UTC))
-            rows = db.execute("""SELECT r.*, COALESCE(SUM(a.party_size),0) used FROM resources r LEFT JOIN assignments a ON a.resource_id=r.resource_id AND a.status IN ('held','occupied') GROUP BY r.resource_id ORDER BY r.display_order""").fetchall()
-            return [{"resource_id": r["resource_id"], "kind": r["kind"], "label": r["label"], "capacity": r["capacity"], "available_seats": r["capacity"] - r["used"]} for r in rows]
+            busy_tables = {row["resource_id"] for row in db.execute("SELECT DISTINCT resource_id FROM assignments WHERE status IN ('held','occupied')")}
+            runs: dict[str, list[int]] = {}
+            for bar_id, _, run in self._free_bar_runs(db):
+                runs.setdefault(bar_id, []).append(len(run))
+            result = []
+            for r in db.execute("SELECT * FROM resources ORDER BY display_order, resource_id").fetchall():
+                if r["kind"] == "table":
+                    free = r["capacity"] if r["enabled"] and r["resource_id"] not in busy_tables else 0
+                    largest = free
+                else:
+                    free = sum(runs.get(r["resource_id"], []))
+                    largest = max(runs.get(r["resource_id"], [0]))
+                result.append({"resource_id": r["resource_id"], "kind": r["kind"], "label": r["label"], "capacity": r["capacity"], "available_seats": free, "largest_group": largest})
+            db.commit()
+            return result
+
+    def seating_map(self, visit_id: str = "", now: datetime | None = None) -> dict[str, object]:
+        """Anonymised room state for application code.
+
+        Other visits never appear by id: only states, group sizes and ``mine``
+        flags for ``visit_id``. ``visit`` is that visit's latest assignment in
+        any status, so a client can reconcile an expired or cancelled hold.
+        """
+
+        now = now or datetime.now(UTC)
+        visit_id = visit_id.strip()
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._expire(db, now)
+            active = db.execute("SELECT resource_id, visit_id, party_size, status FROM assignments WHERE status IN ('held','occupied')").fetchall()
+            taken = self._taken_seats(db)
+            resources = []
+            for r in db.execute("SELECT * FROM resources WHERE enabled=1 ORDER BY display_order, resource_id").fetchall():
+                item: dict[str, object] = {"resource_id": r["resource_id"], "kind": r["kind"], "label": r["label"], "capacity": r["capacity"], "display_order": r["display_order"]}
+                if r["kind"] == "table":
+                    groups = [a for a in active if a["resource_id"] == r["resource_id"]]
+                    state = "occupied" if any(a["status"] == "occupied" for a in groups) else "held" if groups else "free"
+                    item.update(state=state, party_size=sum(a["party_size"] for a in groups) or None, mine=bool(visit_id) and any(a["visit_id"] == visit_id for a in groups), seats=[])
+                else:
+                    seats = []
+                    for seat in db.execute("SELECT seat_id, position FROM bar_seats WHERE bar_id=? ORDER BY position", (r["resource_id"],)).fetchall():
+                        owner = taken.get(seat["seat_id"])
+                        seats.append({"seat_id": seat["seat_id"], "position": seat["position"], "state": owner["status"] if owner else "free", "mine": bool(visit_id) and owner is not None and owner["visit_id"] == visit_id})
+                    free = sum(1 for seat in seats if seat["state"] == "free")
+                    state = "free" if free else "occupied" if any(seat["state"] == "occupied" for seat in seats) else "held"
+                    item.update(state=state, party_size=None, mine=any(seat["mine"] for seat in seats), seats=seats)
+                resources.append(item)
+            latest = None
+            if visit_id:
+                row = db.execute("SELECT assignment_id FROM assignments WHERE visit_id=? ORDER BY rowid DESC LIMIT 1", (visit_id,)).fetchone()
+                if row:
+                    latest = asdict(self._assignment(db, row["assignment_id"]))
+            db.commit()
+            return {"layout_id": self._layout_id, "resources": resources, "visit": latest}
