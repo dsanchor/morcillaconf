@@ -8,6 +8,7 @@ COPY pyproject.toml uv.lock ./
 FROM base AS test
 RUN uv sync --frozen --all-groups --no-install-project
 COPY src ./src
+COPY layouts ./layouts
 COPY tests ./tests
 ENV PYTHONPATH=/app/src
 CMD ["/app/.venv/bin/python", "-m", "pytest"]
@@ -15,6 +16,7 @@ CMD ["/app/.venv/bin/python", "-m", "pytest"]
 FROM base AS runtime
 RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
+COPY layouts ./layouts
 ENV PYTHONPATH=/app/src
 EXPOSE 8080
 CMD ["/app/.venv/bin/python", "-m", "restaurant_mcp.main"]
