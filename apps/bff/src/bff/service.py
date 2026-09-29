@@ -725,7 +725,15 @@ class RestaurantService:
             proposal = None
             if succeeded:
                 span.set_attribute("bff.waiter.turn_number", outcome.turn_count)
-                proposal = await self._proposal_from_turn(job.conversation_id, outcome)
+                try:
+                    proposal = await self._proposal_from_turn(job.conversation_id, outcome)
+                except Exception as exc:
+                    # The turn stands; the room poll or the next turn reconciles.
+                    logger.error(
+                        "Could not record the seating proposal (correlation %s): %s",
+                        job.correlation_id,
+                        type(exc).__name__,
+                    )
             self._finish_turn(job, outcome, proposal)
 
     def _finish_turn(
@@ -1053,7 +1061,18 @@ class RestaurantService:
                     return early.result
                 self._notifier.notify(conversation_id)
                 assert seat is not None and row is not None
-                result_kind = await self._apply_decision(row.visit_id, seat, payload.decision)
+                try:
+                    result_kind = await self._apply_decision(
+                        row.visit_id, seat, payload.decision
+                    )
+                except Exception as exc:
+                    # Never leave the conversation processing; the MCP stays the truth.
+                    logger.error(
+                        "Seating decision failed (correlation %s): %s",
+                        correlation_id,
+                        type(exc).__name__,
+                    )
+                    result_kind = "unavailable"
                 with self._db.write() as tx:
                     outcome = self._finish_decision(
                         tx, command, correlation_id, seat, result_kind

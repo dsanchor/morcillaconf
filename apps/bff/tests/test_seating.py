@@ -343,3 +343,16 @@ def test_the_room_endpoint_is_owned_and_anonymous(settings, clock) -> None:
         fake.available = False
         down = client.get(path, headers=headers)
         assert down.status_code == 503 and down.json()["message"] == SEATING_UNAVAILABLE
+
+
+async def test_an_unexpected_decision_error_leaves_the_conversation_usable(service, commands, seating) -> None:
+    session, conversation_id, snapshot = await propose(service, commands)
+
+    async def broken(**_):
+        raise RuntimeError("bug")
+
+    seating.confirm = broken
+    result = await service.submit(session, commands.decide(conversation_id, snapshot.seating.proposal.proposal_id))
+    assert result.status == "failed" and result.error.message == SEATING_UNAVAILABLE
+    after = service.get_snapshot(session, conversation_id)
+    assert after.process_status == "idle" and after.seating.status == "proposed"
