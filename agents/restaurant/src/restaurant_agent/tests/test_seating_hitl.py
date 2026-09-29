@@ -369,3 +369,20 @@ async def test_no_room_is_an_answer_the_model_can_read(waiter, seating_server) -
     ]
     assert tool_results and tool_results[-1].startswith("no_seating: no hay ningún sitio libre para 9")
     assert ana.report()["status"] == "none"
+
+
+async def test_a_retry_after_a_lost_confirmation_reports_the_seat(waiter, seating_server) -> None:
+    ana = waiter([hold(3), say("Os propongo la Mesa 3.", 3)])
+    await ana.say("Venimos tres")
+    saved = json.dumps(ana.session.to_dict())
+    await ana.decide(True)
+    # The answer was lost: the application still holds the paused session.
+    ana.session = AgentSession.from_dict(json.loads(saved))
+    ana.manager = ana._manager()
+
+    decided = await ana.decide(True)
+
+    assert decided.outcome == "confirmed"
+    assert decided.reply == "¡Estupendo! Os acompaño a la Mesa 3."
+    assert decided.seating["status"] == "seated"
+    assert [name for name, _ in seating_server.stub.calls].count("confirm_seating") == 1

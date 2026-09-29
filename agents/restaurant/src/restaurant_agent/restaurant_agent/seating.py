@@ -740,6 +740,19 @@ class SeatingToolContextMiddleware(FunctionMiddleware):
             or requested.get("assignment_id") != proposal["assignment_id"]
             or requested.get("expected_version") != proposal["version"]
         ):
+            seated = state.get(SEATED_KEY)
+            if (
+                proposal is None
+                and isinstance(seated, dict)
+                and seated.get("assignment_id") == requested.get("assignment_id")
+            ):
+                # A retry after a lost answer: the service already seated them.
+                state[DECISION_KEY] = {
+                    "decision": "confirmed",
+                    "place": place_text(seated["kind"], seated["label"], seated["seats"]),
+                }
+                context.result = "occupied: el grupo ya está sentado en ese sitio"
+                return
             outcome = state.get(LAST_OUTCOME_KEY)
             if proposal is None and isinstance(outcome, dict) and outcome.get("decision") == "expired":
                 # The service expired it before the click reached the agent.
