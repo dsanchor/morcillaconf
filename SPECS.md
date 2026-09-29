@@ -172,8 +172,8 @@ confirmación es una aprobación humana (HITL) del camarero, que es el único
 cliente del servicio de mesas: el camarero pide la confirmación, el BFF
 persiste y presenta la decisión pendiente, y la respuesta de los botones
 vuelve al camarero, que confirma o libera el bloqueo. Si el cliente escribe en
-lugar de pulsar un botón, el camarero retira la propuesta y vuelve a proponer
-sitio. Una
+lugar de pulsar un botón, el sitio sigue reservado y el camarero vuelve a
+pedir la confirmación con los botones. Una
 cola visible de llegadas puede añadirse a la interfaz, pero no participa en la
 decisión de concurrencia y se pospone si no aporta valor al recorrido
 funcional.

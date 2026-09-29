@@ -66,7 +66,8 @@ MCP, tampoco en pruebas.
   confirmación por bloqueo (la añade si el modelo la olvida), argumentos
   autoritativos, comprobación de vigencia y versión, y respuestas fijas sin
   modelo tras una decisión. Si el cliente escribe con la propuesta pendiente,
-  el camarero la retira y vuelve a proponer sitio.
+  el bloqueo se mantiene y el camarero vuelve a pedir la confirmación con los
+  botones; solo «Rechazar» y `/new` lo cancelan.
 - **Contrato.** `WaiterRequest` distingue `take_turn`, `decide_seating` y
   `sync_seating`; las respuestas llevan `SeatingReport`. Se retiran los campos
   que solo servían a la reconciliación del BFF con el MCP.
