@@ -324,3 +324,32 @@ def test_the_room_endpoint_is_owned_and_anonymous(settings, clock) -> None:
         assert client.get(path, headers={"Authorization": f"Bearer {luis['token']}"}).status_code == 403
         assert client.get(path).status_code == 401
         assert client.get("/healthz").json()["seating"] == "on"
+
+
+async def test_new_visit_waits_for_a_decision_in_flight(make_service, commands, clock) -> None:
+    seating = CountingSeating(clock)
+    service = make_service(seating=seating)
+    session, conversation_id, snapshot = await propose(service, commands)
+
+    original = service._waiter.decide_seating
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow(call, **kwargs):
+        entered.set()
+        await release.wait()
+        return await original(call, **kwargs)
+
+    service._waiter.decide_seating = slow
+    confirm = asyncio.create_task(
+        service.submit(session, commands.decide(conversation_id, snapshot.seating.proposal.proposal_id))
+    )
+    await entered.wait()
+    new_visit = asyncio.create_task(service.submit(session, commands.arrive()))
+    await asyncio.sleep(0.05)
+    release.set()
+    confirmed, refused = await asyncio.gather(confirm, new_visit)
+
+    assert confirmed.status == "completed"
+    assert refused.status == "failed"
+    assert service.get_snapshot(session, conversation_id).seating.status == "seated"

@@ -1190,15 +1190,24 @@ class RestaurantService:
         conversation_id = row.conversation_id
         async with self._lock(conversation_id):
             refusal: str | None = None
-            try:
-                if seat.status == "seated":
-                    # The waiter may notice a release or a reset first.
-                    await self._sync_locked(conversation_id)
-                else:
-                    await self._reject_for_new_visit(conversation_id, seat)
-            except WaiterError:
-                if seat.status == "proposed":
-                    refusal = NEW_WHILE_PROPOSED.format(place=_place_text(seat))
+            with self._db.read() as tx:
+                row = tx.get_conversation(conversation_id)
+                seat = tx.get_seating(conversation_id)
+            if row is None or seat is None:
+                return None
+            if row.process_status == "processing":
+                # A message or a decision is in flight: its outcome decides.
+                refusal = BUSY
+            else:
+                try:
+                    if seat.status == "seated":
+                        # The waiter may notice a release or a reset first.
+                        await self._sync_locked(conversation_id)
+                    else:
+                        await self._reject_for_new_visit(conversation_id, seat)
+                except WaiterError:
+                    if seat.status == "proposed":
+                        refusal = NEW_WHILE_PROPOSED.format(place=_place_text(seat))
             with self._db.read() as tx:
                 current = tx.get_seating(conversation_id)
             if refusal is None and current is not None:
@@ -1236,9 +1245,15 @@ class RestaurantService:
                 proposal_token=seat.token,
             )
         except WaiterNoPendingDecisionError:
-            # Nothing waits on the waiter's side: the card was stale.
+            # Nothing waits on the waiter's side for this card: it was stale.
             with self._db.write() as tx:
-                tx.delete_seating(conversation_id)
+                current = tx.get_seating(conversation_id)
+                if (
+                    current is not None
+                    and current.status == "proposed"
+                    and current.token == seat.token
+                ):
+                    tx.delete_seating(conversation_id)
             return
         with self._db.write() as tx:
             current = tx.get_conversation(conversation_id)
