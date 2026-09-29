@@ -246,6 +246,19 @@ def _proposal_place(proposal: Mapping[str, Any]) -> str:
     )
 
 
+def place_token(assignment_id: str) -> str:
+    """Opaque token the application uses to name a place without MCP ids."""
+
+    return hashlib.sha256(assignment_id.encode()).hexdigest()[:24]
+
+
+def decision_outcome(state: Mapping[str, Any]) -> str | None:
+    """How the last seating decision of this run ended (confirmed, rejected…)."""
+
+    decision = state.get(DECISION_KEY)
+    return decision.get("decision") if isinstance(decision, dict) else None
+
+
 def confirm_arguments(proposal: Mapping[str, Any], visit_id: str) -> dict[str, Any]:
     """Authoritative confirm arguments; the model never supplies them."""
 
@@ -486,7 +499,7 @@ def build_report(state: State, *, awaiting_decision: bool) -> dict[str, Any]:
         report.update(
             status="proposed",
             awaiting_decision=awaiting_decision,
-            token=hashlib.sha256(proposal["assignment_id"].encode()).hexdigest()[:24],
+            token=place_token(proposal["assignment_id"]),
             place={
                 "place_id": proposal["resource_id"],
                 "kind": proposal["resource_kind"],
@@ -503,7 +516,7 @@ def build_report(state: State, *, awaiting_decision: bool) -> dict[str, Any]:
     elif seated is not None:
         report.update(
             status="seated",
-            token=hashlib.sha256(seated["assignment_id"].encode()).hexdigest()[:24],
+            token=place_token(seated["assignment_id"]),
             place={
                 "place_id": seated["resource_id"],
                 "kind": seated["kind"],

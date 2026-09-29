@@ -160,6 +160,7 @@ class SeatingDecisionResult:
     reply: str
     seating: dict[str, Any] | None
     awaiting_seating_decision: bool = False
+    outcome: str | None = None
 
 
 @dataclass(frozen=True)
@@ -412,6 +413,7 @@ class ConversationManager:
         conversation_id: str,
         actor_id: str,
         approved: bool,
+        proposal_token: str | None = None,
     ) -> SeatingDecisionResult:
         """Answer the paused confirmation with the customer's button decision.
 
@@ -423,9 +425,17 @@ class ConversationManager:
         record = self._get_owned_conversation(conversation_id, actor_id)
         async with record.lock:
             pending = seating_state.pending_confirm_request(record.agent_session.state)
+            proposal = seating_state.pending_proposal(record.agent_session.state)
             if pending is None:
                 raise NoPendingSeatingDecisionError(
                     "There is no seating confirmation waiting for a decision"
+                )
+            if proposal_token is not None and (
+                proposal is None
+                or seating_state.place_token(proposal["assignment_id"]) != proposal_token
+            ):
+                raise NoPendingSeatingDecisionError(
+                    "The decision refers to another seating proposal"
                 )
             response = await self._run(
                 record,
@@ -442,6 +452,7 @@ class ConversationManager:
                 seating=self._report(record),
                 awaiting_seating_decision=seating_state.pending_confirm_request(state)
                 is not None,
+                outcome=seating_state.decision_outcome(state),
             )
 
     async def sync_seating(self, *, conversation_id: str, actor_id: str) -> dict[str, Any] | None:
