@@ -200,7 +200,7 @@ async def test_a_turn_fails_clearly_when_seating_is_down(service, commands, seat
     assert result.status == "failed" and result.error.message == SEATING_UNAVAILABLE
 
 
-async def test_writing_while_pending_withdraws_and_a_typed_yes_never_confirms(service, commands, seating) -> None:
+async def test_writing_while_pending_keeps_the_card_and_a_typed_yes_never_confirms(service, commands, seating) -> None:
     session, conversation_id, snapshot = await propose(service, commands)
     first = snapshot.seating.proposal.proposal_id
 
@@ -209,8 +209,18 @@ async def test_writing_while_pending_withdraws_and_a_typed_yes_never_confirms(se
     after = service.get_snapshot(session, conversation_id)
     assert seating.decisions == []
     assert after.seating.status == "proposed"
-    assert after.seating.proposal.proposal_id != first
+    assert after.seating.proposal.proposal_id == first
     assert after.messages[-1].text.startswith("Para confirmar hay que pulsar «Confirmar»")
+    assert (await service.submit(session, commands.decide(conversation_id, first))).status == "completed"
+
+
+async def test_a_new_party_size_while_pending_replaces_the_card(service, commands, seating) -> None:
+    session, conversation_id, snapshot = await propose(service, commands, "Ana", "Somos dos")
+    await say(service, commands, session, conversation_id, "Perdona, somos cinco")
+    after = service.get_snapshot(session, conversation_id)
+    assert after.seating.proposal.place.label == "Mesa 5"
+    assert after.seating.proposal.proposal_id != snapshot.seating.proposal.proposal_id
+    assert len(seating.holds(snapshot.visit_id)) == 1
 
 
 async def test_parallel_customers_see_each_other_after_any_waiter_call(service, commands) -> None:

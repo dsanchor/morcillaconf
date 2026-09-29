@@ -104,15 +104,6 @@ class LocalWaiter:
             if session is None:
                 session = self._agent.create_session(session_id=turn.conversation_id)
             bind_visit(session.state, turn.visit_id)
-            if self._seating is not None:
-                try:
-                    withdrawn = self._seating.withdraw(turn.visit_id)
-                except ScriptedSeatingUnavailable as exc:
-                    raise WaiterSeatingUnavailableError(str(exc)) from exc
-                if withdrawn is not None:
-                    # Written instead of pressing a button: the waiter withdraws
-                    # the proposal and holds again, like the real one.
-                    session.state["scripted_withdrawn"] = withdrawn
         manager = ConversationManager(
             self._agent,
             max_turns=self._max_turns,

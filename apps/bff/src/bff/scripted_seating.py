@@ -4,7 +4,8 @@ It never talks to the seating MCP. It plays the waiter's seating side with the
 same rules and the same report as the real agent: one group per table (the
 smallest that fits), contiguous bar stools that leave the smallest gap, holds
 that expire, a confirmation that waits for the customer's button decision, and
-a message written while it is pending that withdraws it.
+a message written while it is pending that keeps the hold and shows the
+buttons again.
 """
 
 from __future__ import annotations
@@ -58,7 +59,6 @@ class _Hold:
     expires_at: datetime | None
     version: int = 1
     seated_at: datetime | None = None
-    preference: str = "any"
 
     @property
     def token(self) -> str:
@@ -114,6 +114,13 @@ class ScriptedSeating:
         current = self.own(visit_id)
         if current is not None and current.status == "occupied":
             return None
+        if (
+            current is not None
+            and current.party_size == party_size
+            and preference in ("any", current.kind)
+        ):
+            # The same request again: the same hold, like the MCP's idempotency.
+            return current
         choice = self._choose(party_size, preference, ignore=current)
         if choice is None:
             return None
@@ -132,24 +139,10 @@ class ScriptedSeating:
             party_size=party_size,
             status="held",
             expires_at=self._clock() + self._hold,
-            preference=preference,
         )
         self._holds.append(hold)
         self._outcomes.pop(visit_id, None)
         return hold
-
-    def withdraw(self, visit_id: str) -> str | None:
-        """Cancel the pending hold because the customer wrote instead of deciding.
-
-        Returns the withdrawn request's preference, so the waiter can hold again.
-        """
-
-        hold = self.own(visit_id)
-        if hold is None or hold.status != "held":
-            return None
-        self._holds.remove(hold)
-        self._outcomes[visit_id] = {"decision": "superseded", "place": hold.label}
-        return hold.preference
 
     def decide(self, visit_id: str, token: str, approved: bool) -> tuple[str, str]:
         """Answer the paused confirmation; returns the outcome and the fixed reply."""

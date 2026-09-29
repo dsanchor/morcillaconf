@@ -144,15 +144,23 @@ class ScriptedWaiterAgent:
             state["scripted_party_known"] = True
         try:
             own = self._seating.own(visit_id)
-            withdrawn = state.pop("scripted_withdrawn", None)
-            if not (party or bar or table or withdrawn):
+            if own is not None and own.status == "held" and not (party or bar or table):
+                # Written instead of pressing a button: the hold stays and the
+                # buttons come back, like the real waiter.
+                if _YES.search(message):
+                    return (
+                        f"Para confirmar hay que pulsar «Confirmar»; {own.place_text()} "
+                        "sigue reservada para vosotros."
+                    )
+                return None
+            if not (party or bar or table):
                 return None
             if own is not None and own.status == "occupied":
                 return f"Ya estáis sentados en {own.place_text()}."
             if table and not party and not state.get("scripted_party_known"):
                 return "¿Cuántos sois?"
             size = customer.party_size or 1
-            preference = "bar" if bar else "table" if table else withdrawn or "any"
+            preference = "bar" if bar else "table" if table else "any"
             held = self._seating.hold(visit_id, size, preference)
         except ScriptedSeatingUnavailable as exc:
             raise SeatingUnavailableError("The seating service could not be reached") from exc
@@ -160,12 +168,7 @@ class ScriptedWaiterAgent:
             if preference == "table":
                 return f"No queda ninguna mesa libre para {size}. Si queréis, os busco sitio en la barra."
             return f"Lo siento, ahora mismo no hay sitio para {size}."
-        lead = (
-            "Para confirmar hay que pulsar «Confirmar». Os la vuelvo a proponer: "
-            if withdrawn and _YES.search(message)
-            else ""
-        )
-        return lead + _describe(held.place_text(), held.kind, size, preference)
+        return _describe(held.place_text(), held.kind, size, preference)
 
     def _reply(
         self,
