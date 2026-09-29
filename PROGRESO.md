@@ -618,8 +618,26 @@ botones y el plano muestra la sala.
 - Evidencia no oficial en el Mac sin PyPI: el recorrido de asientos contra el
   MCP y el BFF reales (camarero simulado) y capturas del plano y del paseo con
   Chromium sin interfaz.
-- Pendiente: validación en el Codespace con Foundry (`gpt-5.6-luna`) según el
-  plan del PR, smoke real y recorrido de fase 3 sin `SEATING_MCP_URL`.
+- Validación de Jesús en el Codespace (29/09/2026), con Foundry y
+  `gpt-5.6-luna`: escenarios S1 a S10 del PR superados. Dos hallazgos,
+  corregidos en la misma rama:
+  - **Una propuesta rechazada volvía en boca del camarero.** Tras rechazar
+    Marta la Mesa 4 (que luego ocupó Pablo), el camarero le seguía hablando de
+    esa mesa y de sus botones, sin tarjeta. Causa confirmada con una prueba del
+    camino real de la tool: el historial del modelo acababa en su propia
+    propuesta (resultado de `hold_seating` con estado `held`) y nada le
+    contaba el rechazo, que solo era un mensaje del BFF; el contexto decía
+    `none` sin motivo. La tool no fallaba: una llamada en ese turno usa una
+    clave nueva y obtiene un bloqueo nuevo, y la ausencia de tarjeta muestra
+    que el modelo respondió de memoria. Corrección: `last_outcome` en el estado
+    de asiento, los mensajes fijos del camarero se añaden a su historial y la
+    regla de que solo puede describir la propuesta presente en ese estado.
+  - **El plano desaparecía mientras el camarero pensaba.** Se dibujaba al
+    final del turno; ahora se dibuja antes de cualquier espera y se vuelve a
+    dibujar en cuanto el turno cambia el sitio del cliente.
+  - Mejora pedida: cada mesa muestra su número («Mesa N» del layout; 1 a 5 en
+    la sala decorativa).
+- Pendiente: revisión conjunta; no se marca ninguna casilla.
 - Pendiente de fase 4: liberar la mesa tras el pago (`table.release_requested`),
   pedido, cuenta y pago; adaptador Cosmos DB del MCP.
 - Riesgos: si el MCP está caído, cada turno del camarero de Foundry falla con

@@ -173,6 +173,9 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   gateway, comprobando pertenencia, versión y caducidad; un doble clic o un
   reintento no confirma dos veces. El camarero responde con un mensaje fijo,
   sin modelo. Una confirmación tardía recibe «La reserva de … ha caducado».
+  Lo que se decide fuera de un turno (confirmar, rechazar, caducar, `/new` o
+  un reinicio del MCP) llega al camarero en el turno siguiente: el estado de
+  asiento lleva `last_outcome` y los mensajes fijos se añaden a su historial.
   `/new` cancela una propuesta pendiente y se rechaza mientras el grupo está
   sentado. La consulta de la sala y cada turno reconcilian con el MCP: tras
   `./scripts/run-mcp.sh --reset` los sitios propios desaparecen. Si el MCP no
