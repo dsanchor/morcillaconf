@@ -215,7 +215,7 @@ stream hasta que termina.
   por otros con un discontinuo ámbar y la propuesta propia en vino. Las mesas
   se asignan a los huecos del dibujo por orden de presentación: las cuatro
   primeras a las mesas redondas, la quinta a la mesa larga y la barra a los
-  ocho taburetes; cada mesa dibuja tantas sillas como capacidad.
+  ocho taburetes; cada mesa dibuja tantas sillas como capacidad y lleva su número, tomado del rótulo «Mesa N» del layout (en la sala decorativa, 1 a 5). Los taburetes no se numeran.
 - Al confirmar, los acompañantes aparecen detrás del cliente en la puerta y el
   grupo camina hasta sus sillas o taburetes. Se reproduce una vez en este
   navegador (tras recargar ya están sentados), solo con CSS y respeta

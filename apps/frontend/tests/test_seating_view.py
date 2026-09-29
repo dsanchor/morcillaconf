@@ -139,6 +139,40 @@ def _classes(root: ET.Element, name: str) -> list[ET.Element]:
 # Plan
 
 
+def _numbers(root: ET.Element) -> list[tuple[str, str, str]]:
+    return [
+        (text.text, text.get("x"), text.get("y"))
+        for text in root.iter(f"{SVG}text")
+        if text.get("class") == "numero-mesa"
+    ]
+
+
+def test_tables_show_their_layout_number_and_stools_do_not() -> None:
+    root = _parse(floor_plan_svg("Ana", "atendiendo", room=ROOMS[1]))
+    assert _numbers(root) == [
+        ("1", "300", "104"),
+        ("2", "300", "244"),
+        ("3", "462", "174"),
+        ("4", "858", "246"),
+        ("5", "682.0", "229.0"),
+    ]
+    assert all(text.get("aria-hidden") == "true" for text in _classes(root, "numero-mesa"))
+
+
+def test_the_number_comes_from_the_label_not_the_slot() -> None:
+    data = ROOMS[1].model_dump(mode="json")
+    data["places"][0]["label"] = "Mesa 12"
+    data["places"][1]["label"] = "Rincón"
+    root = _parse(floor_plan_svg("Ana", "atendiendo", room=RoomView.model_validate(data)))
+    assert [number for number, _, _ in _numbers(root)] == ["12", "3", "4", "5"]
+
+
+def test_the_decorative_room_numbers_its_five_slots() -> None:
+    root = _parse(floor_plan_svg("Ana", "atendiendo"))
+    assert [number for number, _, _ in _numbers(root)] == ["1", "2", "3", "4", "5"]
+    assert root.get("aria-label").startswith("Plano del comedor: mesas 1 a 5 y barra, vacías")
+
+
 def test_without_seating_the_plan_is_the_decorative_room() -> None:
     assert floor_plan_svg("Ana", "atendiendo", room=ROOMS[0]) == floor_plan_svg("Ana", "atendiendo")
 
@@ -157,7 +191,7 @@ def test_other_groups_are_anonymous_figures_and_holds_are_reserved() -> None:
     assert len(_classes(root, "grupo")) == 2 + 2  # Mesa 1 and two bar stools
     assert len(_classes(root, "asiento-reservado")) == 2 + 1  # Mesa 2 and one stool
     assert _classes(root, "reservada")
-    texts = [text.text for text in root.iter(f"{SVG}text")]
+    texts = [text.text for text in root.iter(f"{SVG}text") if text.get("class") != "numero-mesa"]
     assert texts == ["Ana"]
     label = root.get("aria-label")
     assert "Mesa 1: ocupada por un grupo de 2" in label and "Mesa 2: reservada" in label

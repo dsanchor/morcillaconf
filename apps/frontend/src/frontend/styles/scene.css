@@ -66,6 +66,16 @@
   letter-spacing: .01em;
 }
 .planta .camarero, .planta .cliente { transform-box: view-box; }
+/* Table numbers: quiet stone, like a number carved in the wood. */
+.planta text.numero-mesa {
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 500;
+  fill: var(--piedra-tenue);
+  fill-opacity: .72;
+  font-variant-numeric: lining-nums;
+  pointer-events: none;
+}
 .planta.llegando .cliente { animation: asomar .8s var(--ease-salida) 2.2s both; }
 .planta.llegando .camarero { animation: acercarse 1.7s cubic-bezier(.45, 0, .2, 1) 2.8s both; }
 

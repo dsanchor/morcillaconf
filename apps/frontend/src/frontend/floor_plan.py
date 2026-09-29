@@ -15,6 +15,7 @@ those slots are not drawn.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from html import escape
 
@@ -94,20 +95,50 @@ def _long_chairs(count: int) -> list[tuple[float, float, bool]]:
     return chairs
 
 
-def _round_table(cx: int, cy: int, chairs: list[tuple[float, float, bool]] | None = None, extra: str = "") -> str:
+def table_number(label: str) -> str | None:
+    """«3» from the layout label «Mesa 3»; None when the label has no number."""
+
+    match = re.search(r"(\d+)\s*$", label)
+    return match.group(1) if match else None
+
+
+def _number(x: float, y: float, number: str | None) -> str:
+    if not number:
+        return ""
+    return (
+        f'<text class="numero-mesa" x="{x}" y="{y}" text-anchor="middle" '
+        f'dominant-baseline="central" aria-hidden="true">{escape(number)}</text>'
+    )
+
+
+def _round_table(
+    cx: int,
+    cy: int,
+    chairs: list[tuple[float, float, bool]] | None = None,
+    extra: str = "",
+    number: str | None = None,
+) -> str:
     chairs = chairs if chairs is not None else _round_chairs(cx, cy, 4)
     drawn = "".join(_chair(x, y, vertical) for x, y, vertical in chairs)
     return (
         f"{drawn}<circle{extra} cx=\"{cx}\" cy=\"{cy}\" r=\"34\" {WOOD}/>"
         f'<circle cx="{cx}" cy="{cy}" r="25" fill="none" stroke="#81603f" stroke-width="1.5"/>'
+        f"{_number(cx, cy, number)}"
     )
 
 
-def _long_table(chairs: list[tuple[float, float, bool]] | None = None, extra: str = "") -> str:
+def _long_table(
+    chairs: list[tuple[float, float, bool]] | None = None,
+    extra: str = "",
+    number: str | None = None,
+) -> str:
     x, y, width, height = LONG_TABLE
     chairs = chairs if chairs is not None else _long_chairs(6)
     drawn = "".join(_chair(cx, cy, vertical) for cx, cy, vertical in chairs)
-    return f'{drawn}<rect{extra} x="{x}" y="{y}" width="{width}" height="{height}" rx="6" {WOOD}/>'
+    return (
+        f'{drawn}<rect{extra} x="{x}" y="{y}" width="{width}" height="{height}" rx="6" {WOOD}/>'
+        f"{_number(x + width / 2, y + height / 2, number)}"
+    )
 
 
 def _bar(stools: tuple[tuple[int, int], ...] = STOOLS) -> str:
@@ -202,10 +233,11 @@ def _place_markup(slot: _Slot) -> str:
     table_css = ""
     if place.kind == "table" and place.state == "held":
         table_css = ' class="mesa propia"' if place.mine else ' class="mesa reservada"'
+    number = table_number(place.label)
     if slot.outline[0] == "round":
-        return _round_table(int(slot.outline[1]), int(slot.outline[2]), slot.seats, table_css)
+        return _round_table(int(slot.outline[1]), int(slot.outline[2]), slot.seats, table_css, number)
     if slot.outline[0] == "long":
-        return _long_table(slot.seats, table_css)
+        return _long_table(slot.seats, table_css, number)
     return _bar(tuple((int(x), int(y)) for x, y, _ in slot.seats))
 
 
@@ -307,7 +339,7 @@ def floor_plan_svg(
     waiter_x, waiter_y = WAITER_AT_DOOR if waiter == "atendiendo" else WAITER_AT_BAR
     customer = ""
     live = room is not None and room.seating_enabled
-    label = "Plano del comedor" if live else "Plano del comedor: mesas y barra vacías"
+    label = "Plano del comedor" if live else "Plano del comedor: mesas 1 a 5 y barra, vacías"
     tables = ""
     groups = ""
     own_seats: list[tuple[float, float, bool]] = []
@@ -316,7 +348,11 @@ def floor_plan_svg(
         if described:
             label += ": " + "; ".join(escape(item) for item in described)
     else:
-        tables = "".join(_round_table(cx, cy) for cx, cy in ROUND_TABLES) + _long_table()
+        # Decorative room: the drawing's slots are numbered 1 to 5.
+        tables = "".join(
+            _round_table(cx, cy, number=str(index))
+            for index, (cx, cy) in enumerate(ROUND_TABLES, start=1)
+        ) + _long_table(number=str(len(ROUND_TABLES) + 1))
     seated = bool(own_seats) and seating is not None and seating.status == "seated"
     if customer_name and seated:
         playing = walk_elapsed if walk_elapsed is not None and 0 <= walk_elapsed < WALK_SECONDS else None
