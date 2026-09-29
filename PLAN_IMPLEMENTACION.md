@@ -371,7 +371,10 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
 - [ ] Proponer una mesa bloqueada al cliente y persistir la decisión pendiente;
   confirmar la ocupa y rechazarla o caducar el bloqueo la libera. Guardar
   visita, versión y `seated_at` solo al ocupar; preguntar comensales solo si
-  faltan.
+  faltan. La confirmación es un HITL del camarero: `confirm_seating` requiere
+  aprobación, el BFF persiste y presenta la decisión pendiente y la devuelve
+  al camarero, que la ejecuta en el MCP. El camarero es el único cliente del
+  MCP de asientos.
 - [ ] Si no hay mesa, comunicarlo sin inventar disponibilidad. No bloquear el
   primer recorrido con una lista de espera avanzada. Una vista de cola de
   llegadas es opcional y no participa en la decisión de concurrencia.

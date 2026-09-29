@@ -167,7 +167,13 @@ cuántos son o pide mesa o barra; si no queda mesa, ofrece la barra. La vista
 muestra la propuesta con el sitio y los asientos, y el cliente la confirma o la
 rechaza con dos botones: una frase del chat nunca la confirma. Confirmar la
 convierte en ocupación; rechazarla la libera al momento y dejarla caducar
-también la libera. Una confirmación tardía recibe un aviso de caducidad. Una
+también la libera. Una confirmación tardía recibe un aviso de caducidad. La
+confirmación es una aprobación humana (HITL) del camarero, que es el único
+cliente del servicio de mesas: el camarero pide la confirmación, el BFF
+persiste y presenta la decisión pendiente, y la respuesta de los botones
+vuelve al camarero, que confirma o libera el bloqueo. Si el cliente escribe en
+lugar de pulsar un botón, el camarero retira la propuesta y vuelve a proponer
+sitio. Una
 cola visible de llegadas puede añadirse a la interfaz, pero no participa en la
 decisión de concurrencia y se pospone si no aporta valor al recorrido
 funcional.
