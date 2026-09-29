@@ -75,7 +75,6 @@ class _Hold:
     expires_at: datetime | None
     status: Literal["held", "occupied"] = "held"
     seated_at: datetime | None = None
-    preference: str = "any"
 
     def place(self) -> SeatingPlace:
         return SeatingPlace(
@@ -175,34 +174,29 @@ class FakeRoom:
 
         own = self._holds.get(owner)
         said_party, bar, table = party_size(text) is not None, _BAR.search(text), _TABLE.search(text)
-        withdrawn = None
-        if own is not None and own.status == "held":
-            # Writing instead of pressing a button withdraws the proposal; the
-            # waiter holds again unless the customer changed their mind.
-            del self._holds[owner]
-            withdrawn = own.preference
-        if not (said_party or bar or table or withdrawn):
+        if own is not None and own.status == "held" and not (said_party or bar or table):
+            # Writing instead of pressing a button: the hold stays and the
+            # buttons come back, like the real waiter.
+            if _YES.search(text):
+                return f"Para confirmar hay que pulsar «Confirmar»; {own.text()} sigue reservada para vosotros."
+            return None
+        if not (said_party or bar or table):
             return None
         if own is not None and own.status == "occupied":
             return f"Ya estáis sentados en {own.text()}."
         if table and not said_party and not party_known:
             return "¿Cuántos sois?"
-        preference: Preference = "bar" if bar else "table" if table else withdrawn or "any"
+        preference: Preference = "bar" if bar else "table" if table else "any"
         hold = self.hold(owner, size, preference)
         if hold is None:
             if preference == "table":
                 return f"No queda ninguna mesa libre para {size}. Si queréis, os busco sitio en la barra."
             return f"Lo siento, ahora mismo no hay sitio para {size}."
         buttons = "Confirmadlo o rechazadlo con los botones."
-        again = (
-            "Para confirmar hay que pulsar «Confirmar». Os la vuelvo a proponer: "
-            if withdrawn and _YES.search(text)
-            else ""
-        )
         if hold.kind == "bar":
             lead = f"No queda mesa libre para {size}; os propongo {hold.text()}." if preference == "any" else f"Os propongo {hold.text()}."
-            return f"{again}{lead} {buttons}"
-        return f"{again}Os propongo {hold.text()} para {size}. {buttons}"
+            return f"{lead} {buttons}"
+        return f"Os propongo {hold.text()} para {size}. {buttons}"
 
     # Operations
 
@@ -223,7 +217,6 @@ class FakeRoom:
             capacity=capacity,
             seats=seats,
             party_size=size,
-            preference=preference,
             proposal_id=f"prop_{self._numbers}",
             version=1,
             expires_at=self._clock() + self._hold,

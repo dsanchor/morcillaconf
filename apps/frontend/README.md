@@ -208,7 +208,8 @@ stream hasta que termina.
   «Barra · Puestos 1 a 3») y dos botones: «Confirmar» y «Rechazar». Envían
   `table.confirmation_decided` con el `proposal_id` y la versión; una frase
   en el chat nunca confirma: si el cliente escribe con la propuesta pendiente,
-  el camarero la retira y vuelve a proponer sitio (el falso hace lo mismo). Si la reserva ha caducado, la vista muestra el
+  el sitio sigue reservado y la tarjeta vuelve a aparecer (el falso hace lo
+  mismo). Si la reserva ha caducado, la vista muestra el
   aviso y la tarjeta desaparece.
 - El plano se dibuja desde `RoomView` y se refresca solo cada 3 segundos
   (`st.fragment`), sin tocar la conversación ni el cuadro de texto: otros

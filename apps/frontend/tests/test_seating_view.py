@@ -335,23 +335,23 @@ def test_new_visit_rules_follow_the_seating() -> None:
     assert visit.cards[-1].title.startswith("Ya estáis sentados en la Mesa 1")
 
 
-def test_saying_yes_never_confirms_and_withdraws_the_proposal() -> None:
+def test_saying_yes_never_confirms_and_keeps_the_proposal() -> None:
     visit = _visit(FakeRestaurant())
     visit.send_message("Somos dos")
     first = visit.snapshot.seating.proposal.proposal_id
     visit.send_message("Sí")
     assert visit.snapshot.seating.status == "proposed"
-    assert visit.snapshot.seating.proposal.proposal_id != first
+    assert visit.snapshot.seating.proposal.proposal_id == first
     assert visit.snapshot.messages[-1].text.startswith("Para confirmar hay que pulsar «Confirmar»")
 
 
-def test_writing_while_pending_withdraws_without_holding_twice() -> None:
-    restaurant = FakeRestaurant()
-    visit = _visit(restaurant)
+def test_writing_while_pending_keeps_the_same_stools() -> None:
+    visit = _visit(FakeRestaurant())
     visit.send_message("Nos sentamos en la barra, somos 2")
+    first = visit.snapshot.seating.proposal.proposal_id
     visit.send_message("¿Tenéis vino?")
     proposal = visit.snapshot.seating.proposal
-    assert (proposal.place.kind, proposal.place.seats) == ("bar", [1, 2])
+    assert (proposal.proposal_id, proposal.place.seats) == (first, [1, 2])
 
 
 def test_the_room_poll_picks_up_a_seating_changed_elsewhere() -> None:
