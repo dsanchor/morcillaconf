@@ -133,6 +133,7 @@ async def test_a_model_confirm_request_gets_the_authoritative_arguments(waiter, 
     response = await ana.say("Venimos tres")
 
     assert response.reply == "Os propongo la Mesa 3 para 3. Confirmadlo o rechazadlo con los botones."
+    assert response.customer.party_size == 3
     assert pending_confirm_request(ana.session.state).function_call.parse_arguments()["assignment_id"] == "seat_1"
 
 
@@ -207,6 +208,18 @@ async def test_writing_while_pending_supersedes_and_a_typed_yes_never_confirms(w
     report = ana.report()
     assert report["status"] == "proposed" and report["awaiting_decision"] is True
     assert pending_confirm_request(ana.session.state).function_call.parse_arguments()["assignment_id"] == "seat_2"
+
+
+async def test_a_reply_and_its_confirm_request_travel_together(waiter, seating_server) -> None:
+    step = say("Os propongo la Mesa 3; confirmadla con el botón.", 3)
+    step["calls"] = confirm()["calls"]
+    ana = waiter([hold(3), step])
+    response = await ana.say("Venimos tres")
+
+    assert response.reply == "Os propongo la Mesa 3; confirmadla con el botón."
+    assert response.customer.party_size == 3
+    assert ana.report()["awaiting_decision"] is True
+    assert pending_confirm_request(ana.session.state).function_call.call_id == "call_confirm"
 
 
 async def test_a_confirm_in_the_same_response_as_the_hold_waits_for_the_hold(waiter, seating_server) -> None:

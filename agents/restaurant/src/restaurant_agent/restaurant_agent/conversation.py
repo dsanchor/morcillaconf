@@ -333,10 +333,17 @@ class ConversationManager:
                     )
                 # Paused for the customer's decision without a structured
                 # answer: keep the state and show the proposal.
+                proposal = seating_state.pending_proposal(record.agent_session.state)
+                customer = record.state.customer
+                if proposal is not None:
+                    # The hold was made for the party the customer stated.
+                    customer = customer.model_copy(
+                        update={"party_size": proposal["party_size"]}
+                    )
                 result = WaiterModelResult(
                     reply=seating_state.card_reply(record.agent_session.state)
                     or "Confirmad o rechazad la propuesta con los botones.",
-                    customer=record.state.customer,
+                    customer=customer,
                     order_draft=record.state.order_draft,
                     memory_intent="none",
                 )
