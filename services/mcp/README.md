@@ -25,17 +25,20 @@ contiguos de barra. No contiene prompts ni toma decisiones de conversación.
 
 ## Herramientas
 
-| Herramienta | Consumidor | Uso |
+El camarero es el único cliente del MCP: las llamadas del modelo pasan por
+`MCPStreamableHTTPTool` y el resto las hacen sus propios hooks durante cada
+ejecución. El BFF y la vista no lo llaman nunca.
+
+| Herramienta | Quién la usa | Uso |
 |---|---|---|
 | `get_seating_availability` | Modelo del camarero | Plazas libres y `largest_group` por recurso |
 | `hold_seating` | Modelo del camarero | Bloqueo temporal; `visit_id` e `idempotency_key` los pone el middleware |
-| `confirm_seating` | Aplicación (BFF) | Confirmar un bloqueo vigente con su versión |
-| `cancel_seating_hold` | Aplicación (BFF) | Rechazo del cliente o `/new` con propuesta pendiente |
-| `get_seating_map` | Aplicación (BFF) | Sala anónima: estado por mesa y por puesto, marcas `mine` y última asignación de la visita |
-| `release_seating` | Aplicación, tras el pago | Liberar una ocupación (pendiente de fase 4) |
+| `confirm_seating` | Modelo del camarero, con aprobación | Solo se ejecuta tras «Confirmar» del cliente (HITL); el middleware pone los identificadores y la versión |
+| `cancel_seating_hold` | Hook del camarero | Libera el bloqueo al momento cuando el cliente rechaza o la propuesta se sustituye |
+| `get_seating_map` | Hook del camarero | Sala anónima: estado por mesa y por puesto, caducidad de los bloqueos, marcas `mine` y última asignación de la visita |
+| `release_seating` | Nadie todavía | Liberar una ocupación tras el pago (pendiente de fase 4) |
 
-El modelo solo recibe las dos primeras (`allowed_tools`). El mapa nunca
-devuelve identificadores de otras visitas ni sus asignaciones.
+El mapa nunca devuelve identificadores de otras visitas ni sus asignaciones.
 
 ## Arranque local con `uv`
 

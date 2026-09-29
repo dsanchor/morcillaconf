@@ -242,7 +242,7 @@ class SQLiteSeatingRepository:
     @staticmethod
     def _taken_seats(db: sqlite3.Connection) -> dict[str, sqlite3.Row]:
         rows = db.execute(
-            """SELECT allocated.seat_id, a.status, a.visit_id FROM assignment_seats allocated
+            """SELECT allocated.seat_id, a.status, a.visit_id, a.expires_at FROM assignment_seats allocated
             JOIN assignments a ON a.assignment_id=allocated.assignment_id WHERE a.status IN ('held','occupied')"""
         ).fetchall()
         return {row["seat_id"]: row for row in rows}
@@ -314,7 +314,7 @@ class SQLiteSeatingRepository:
             db.commit(); return self._assignment(db, assignment_id)
 
     def cancel(self, *, assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str, now: datetime | None = None) -> SeatingAssignment:
-        """Cancel a pending hold of its own visit so the place is free at once."""
+        """Cancel a pending hold of its own visit so the place is free at once (customer rejection)."""
 
         now = now or datetime.now(UTC)
         with self._connect() as db:
@@ -359,11 +359,12 @@ class SQLiteSeatingRepository:
             return result
 
     def seating_map(self, visit_id: str = "", now: datetime | None = None) -> dict[str, object]:
-        """Anonymised room state for application code.
+        """Anonymised room state for the waiter's own hooks.
 
-        Other visits never appear by id: only states, group sizes and ``mine``
-        flags for ``visit_id``. ``visit`` is that visit's latest assignment in
-        any status, so a client can reconcile an expired or cancelled hold.
+        Other visits never appear by id: only states, group sizes, hold
+        expiry and ``mine`` flags for ``visit_id``. ``visit`` is that visit's
+        latest assignment in any status, so the waiter notices an expired or
+        cancelled hold.
         """
 
         now = now or datetime.now(UTC)
@@ -371,7 +372,7 @@ class SQLiteSeatingRepository:
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
             self._expire(db, now)
-            active = db.execute("SELECT resource_id, visit_id, party_size, status FROM assignments WHERE status IN ('held','occupied')").fetchall()
+            active = db.execute("SELECT resource_id, visit_id, party_size, status, expires_at FROM assignments WHERE status IN ('held','occupied')").fetchall()
             taken = self._taken_seats(db)
             resources = []
             for r in db.execute("SELECT * FROM resources WHERE enabled=1 ORDER BY display_order, resource_id").fetchall():
@@ -379,15 +380,16 @@ class SQLiteSeatingRepository:
                 if r["kind"] == "table":
                     groups = [a for a in active if a["resource_id"] == r["resource_id"]]
                     state = "occupied" if any(a["status"] == "occupied" for a in groups) else "held" if groups else "free"
-                    item.update(state=state, party_size=sum(a["party_size"] for a in groups) or None, mine=bool(visit_id) and any(a["visit_id"] == visit_id for a in groups), seats=[])
+                    held_until = [a["expires_at"] for a in groups if a["status"] == "held" and a["expires_at"]]
+                    item.update(state=state, party_size=sum(a["party_size"] for a in groups) or None, mine=bool(visit_id) and any(a["visit_id"] == visit_id for a in groups), expires_at=min(held_until) if state == "held" and held_until else None, seats=[])
                 else:
                     seats = []
                     for seat in db.execute("SELECT seat_id, position FROM bar_seats WHERE bar_id=? ORDER BY position", (r["resource_id"],)).fetchall():
                         owner = taken.get(seat["seat_id"])
-                        seats.append({"seat_id": seat["seat_id"], "position": seat["position"], "state": owner["status"] if owner else "free", "mine": bool(visit_id) and owner is not None and owner["visit_id"] == visit_id})
+                        seats.append({"seat_id": seat["seat_id"], "position": seat["position"], "state": owner["status"] if owner else "free", "mine": bool(visit_id) and owner is not None and owner["visit_id"] == visit_id, "expires_at": owner["expires_at"] if owner is not None and owner["status"] == "held" else None})
                     free = sum(1 for seat in seats if seat["state"] == "free")
                     state = "free" if free else "occupied" if any(seat["state"] == "occupied" for seat in seats) else "held"
-                    item.update(state=state, party_size=None, mine=any(seat["mine"] for seat in seats), seats=seats)
+                    item.update(state=state, party_size=None, mine=any(seat["mine"] for seat in seats), expires_at=None, seats=seats)
                 resources.append(item)
             latest = None
             if visit_id:
