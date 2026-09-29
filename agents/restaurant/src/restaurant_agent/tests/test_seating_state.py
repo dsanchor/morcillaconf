@@ -56,12 +56,22 @@ def test_hold_keys_rotate_unless_the_pending_request_repeats() -> None:
     state: dict = {}
     bind_visit(state, "visit_bff")
     _, first, fingerprint = next_hold_key(state, 3, "any")
-    assert first == "seating:visit_bff:1"
+    assert first.startswith("seating:visit_bff:1-")
     assert store_proposal(state, HELD, idempotency_key=first, fingerprint=fingerprint)
     assert next_hold_key(state, 3, "any")[1] == first
-    assert next_hold_key(state, 4, "any")[1] == "seating:visit_bff:2"
+    assert next_hold_key(state, 4, "any")[1].startswith("seating:visit_bff:2-")
     clear_proposal(state)
-    assert next_hold_key(state, 3, "any")[1] == "seating:visit_bff:3"
+    assert next_hold_key(state, 3, "any")[1].startswith("seating:visit_bff:3-")
+
+
+def test_a_key_is_never_reused_after_a_lost_turn() -> None:
+    state: dict = {}
+    bind_visit(state, "visit_bff")
+    saved = {"visit_context": dict(state["visit_context"])}
+    first = next_hold_key(state, 2, "any")[1]
+    # The failed turn's session is not saved: the next turn starts from `saved`.
+    again = next_hold_key(saved, 2, "any")[1]
+    assert first != again
 
 
 def test_only_held_results_become_proposals() -> None:
@@ -116,7 +126,7 @@ async def test_middleware_stores_seats_and_the_key_it_used() -> None:
     await SeatingToolContextMiddleware().process(context, call_next)
     proposal = pending_proposal(session.state)
     assert proposal["seat_ids"] == ["bar-seat-01", "bar-seat-02"]
-    assert proposal["idempotency_key"] == "seating:visit_bff:1"
+    assert proposal["idempotency_key"].startswith("seating:visit_bff:1-")
     assert proposal["fingerprint"] == "2:bar"
 
 

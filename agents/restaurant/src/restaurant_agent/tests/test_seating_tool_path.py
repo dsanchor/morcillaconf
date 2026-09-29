@@ -110,11 +110,12 @@ async def test_a_model_hold_goes_through_the_middleware_to_the_mcp(seating_serve
 
     assert response.reply.startswith("Os propongo")
     name, arguments = next(call for call in seating_server.stub.calls if call[0] == "hold_seating")
-    assert arguments == {
+    assert arguments["idempotency_key"].startswith("seating:visit_bff:1-")
+    assert arguments | {"idempotency_key": "k"} == {
         "party_size": 3,
         "preference": "any",
         "visit_id": "visit_bff",
-        "idempotency_key": "seating:visit_bff:1",
+        "idempotency_key": "k",
     }
     proposal = pending_proposal(session.state)
     assert (proposal["resource_id"], proposal["resource_label"], proposal["version"]) == ("table-03", "Mesa 3", 1)

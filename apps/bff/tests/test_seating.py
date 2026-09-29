@@ -356,3 +356,17 @@ async def test_an_unexpected_decision_error_leaves_the_conversation_usable(servi
     assert result.status == "failed" and result.error.message == SEATING_UNAVAILABLE
     after = service.get_snapshot(session, conversation_id)
     assert after.process_status == "idle" and after.seating.status == "proposed"
+
+
+async def test_a_bar_proposal_survives_a_failed_room_lookup(service, commands, seating) -> None:
+    from restaurant_agent.seating_gateway import SeatingUnavailable
+
+    await seating.hold(visit_id="other", party_size=2, preference="bar", idempotency_key="o")
+
+    async def down(visit_id: str = ""):
+        raise SeatingUnavailable("down")
+
+    seating.room = down
+    session, conversation_id, snapshot = await propose(service, commands, "Ana", "En la barra, somos dos")
+    place = snapshot.seating.proposal.place
+    assert (place.kind, place.seats) == ("bar", [3, 4]) and place.capacity >= 4

@@ -983,6 +983,9 @@ class RestaurantService:
             if kind == "bar":
                 seats = resource.positions(tuple(held.get("seat_ids") or ())) or seats
         expires = held.get("expires_at")
+        if kind == "bar":
+            # Without the room the bar's size is unknown: at least its last stool.
+            capacity = max(capacity, *seats) if seats else capacity
         return SeatingRow(
             conversation_id=conversation_id,
             status="proposed",

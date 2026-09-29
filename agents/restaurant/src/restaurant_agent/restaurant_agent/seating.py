@@ -123,7 +123,9 @@ def next_hold_key(state: State, party_size: int, preference: str) -> tuple[str, 
         raise RuntimeError("Visit context has invalid hold_sequence")
     sequence += 1
     visit_context["hold_sequence"] = sequence
-    key = f"seating:{visit_id}:{sequence}"
+    # The sequence is saved only with a successful turn: the random part keeps
+    # a key from being reused after a failed turn that already held a place.
+    key = f"seating:{visit_id}:{sequence}-{uuid4().hex[:12]}"
     requests = visit_context.setdefault("hold_requests", {})
     if isinstance(requests, dict):
         requests[fingerprint] = key
