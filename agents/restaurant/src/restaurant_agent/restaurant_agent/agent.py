@@ -29,6 +29,26 @@ def load_instructions() -> str:
     return INSTRUCTIONS_PATH.read_text(encoding="utf-8")
 
 
+def create_seating_tools(settings: Settings) -> list[MCPStreamableHTTPTool] | None:
+    """Direct MCP seating tools for the model: availability and hold only."""
+
+    if settings.seating_mcp_url is None:
+        return None
+    return [
+        MCPStreamableHTTPTool(
+            name="seating",
+            url=str(settings.seating_mcp_url),
+            tool_name_prefix="seating",
+            allowed_tools=(
+                "get_seating_availability",
+                "hold_seating",
+            ),
+            request_timeout=settings.seating_mcp_timeout_seconds,
+            description="Disponibilidad y bloqueos temporales de asientos.",
+        )
+    ]
+
+
 def create_waiter_agent(
     settings: Settings,
     *,
@@ -90,21 +110,7 @@ def create_waiter_agent(
                 option_merger=option_merger,
             )
         )
-    tools = None
-    if settings.seating_mcp_url is not None:
-        tools = [
-            MCPStreamableHTTPTool(
-                name="seating",
-                url=str(settings.seating_mcp_url),
-                tool_name_prefix="seating",
-                allowed_tools=(
-                    "get_seating_availability",
-                    "hold_seating",
-                ),
-                request_timeout=settings.seating_mcp_timeout_seconds,
-                description="Disponibilidad y bloqueos temporales de asientos.",
-            )
-        ]
+    tools = create_seating_tools(settings)
     default_options = {"store": False}
     if settings.enable_dev_fake_identity:
         default_options["response_format"] = WaiterModelResult

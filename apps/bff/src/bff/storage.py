@@ -24,7 +24,7 @@ from restaurant_contracts.application import (
 )
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
@@ -95,6 +95,34 @@ CREATE TABLE IF NOT EXISTS memory_alias_counters (
     actor_id TEXT PRIMARY KEY,
     last_number INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS seating (
+    conversation_id TEXT PRIMARY KEY REFERENCES conversations(conversation_id),
+    status TEXT NOT NULL CHECK(status IN ('proposed', 'seated')),
+    proposal_id TEXT NOT NULL UNIQUE,
+    assignment_id TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('table', 'bar')),
+    label TEXT NOT NULL,
+    capacity INTEGER NOT NULL,
+    seats_json TEXT NOT NULL,
+    party_size INTEGER NOT NULL,
+    version INTEGER NOT NULL,
+    expires_at TEXT,
+    seated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS seating_outcomes (
+    conversation_id TEXT PRIMARY KEY REFERENCES conversations(conversation_id),
+    decision TEXT NOT NULL,
+    place TEXT NOT NULL,
+    notes_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS seating_decisions (
+    proposal_id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id),
+    decision TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    decided_at TEXT NOT NULL
+);
 """
 
 
@@ -128,6 +156,42 @@ class ConversationRow:
     order_draft: OrderDraft = field(default_factory=OrderDraft)
     persisted_order_preferences: list[str] = field(default_factory=list)
     agent_session_json: str | None = None
+
+
+@dataclass
+class SeatingRow:
+    """The customer's own place: a pending proposal or a confirmed seat."""
+
+    conversation_id: str
+    status: str
+    proposal_id: str
+    assignment_id: str
+    resource_id: str
+    kind: str
+    label: str
+    capacity: int
+    seats: list[int]
+    party_size: int
+    version: int
+    expires_at: datetime | None = None
+    seated_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class SeatingOutcomeRow:
+    """Latest proposal decided outside a turn, and waiter notes the model has not seen."""
+
+    decision: str
+    place: str
+    notes: list[str]
+
+
+@dataclass(frozen=True)
+class SeatingDecisionRow:
+    proposal_id: str
+    conversation_id: str
+    decision: str
+    outcome: str
 
 
 @dataclass(frozen=True)
@@ -397,6 +461,131 @@ class Transaction:
             ),
         )
 
+    # Seating
+
+    def get_seating(self, conversation_id: str) -> SeatingRow | None:
+        row = self._connection.execute(
+            "SELECT * FROM seating WHERE conversation_id = ?", (conversation_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return SeatingRow(
+            conversation_id=row["conversation_id"],
+            status=row["status"],
+            proposal_id=row["proposal_id"],
+            assignment_id=row["assignment_id"],
+            resource_id=row["resource_id"],
+            kind=row["kind"],
+            label=row["label"],
+            capacity=row["capacity"],
+            seats=json.loads(row["seats_json"]),
+            party_size=row["party_size"],
+            version=row["version"],
+            expires_at=_optional_datetime(row["expires_at"]),
+            seated_at=_optional_datetime(row["seated_at"]),
+        )
+
+    def put_seating(self, seating: SeatingRow) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO seating VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(conversation_id) DO UPDATE SET
+                status = excluded.status, proposal_id = excluded.proposal_id,
+                assignment_id = excluded.assignment_id,
+                resource_id = excluded.resource_id, kind = excluded.kind,
+                label = excluded.label, capacity = excluded.capacity,
+                seats_json = excluded.seats_json,
+                party_size = excluded.party_size, version = excluded.version,
+                expires_at = excluded.expires_at, seated_at = excluded.seated_at
+            """,
+            (
+                seating.conversation_id,
+                seating.status,
+                seating.proposal_id,
+                seating.assignment_id,
+                seating.resource_id,
+                seating.kind,
+                seating.label,
+                seating.capacity,
+                json.dumps(seating.seats),
+                seating.party_size,
+                seating.version,
+                seating.expires_at.isoformat() if seating.expires_at else None,
+                seating.seated_at.isoformat() if seating.seated_at else None,
+            ),
+        )
+
+    def delete_seating(self, conversation_id: str) -> None:
+        self._connection.execute(
+            "DELETE FROM seating WHERE conversation_id = ?", (conversation_id,)
+        )
+
+    def get_seating_outcome(self, conversation_id: str) -> SeatingOutcomeRow | None:
+        row = self._connection.execute(
+            "SELECT decision, place, notes_json FROM seating_outcomes WHERE conversation_id = ?",
+            (conversation_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return SeatingOutcomeRow(row["decision"], row["place"], json.loads(row["notes_json"]))
+
+    def put_seating_outcome(
+        self, conversation_id: str, *, decision: str, place: str, note: str | None
+    ) -> None:
+        current = self.get_seating_outcome(conversation_id)
+        notes = [*(current.notes if current else []), *([note] if note else [])]
+        self._connection.execute(
+            "INSERT OR REPLACE INTO seating_outcomes VALUES (?, ?, ?, ?)",
+            (conversation_id, decision, place, json.dumps(notes, ensure_ascii=False)),
+        )
+
+    def consume_seating_notes(self, conversation_id: str, count: int) -> None:
+        current = self.get_seating_outcome(conversation_id)
+        if current is None or count <= 0:
+            return
+        self._connection.execute(
+            "UPDATE seating_outcomes SET notes_json = ? WHERE conversation_id = ?",
+            (json.dumps(current.notes[count:], ensure_ascii=False), conversation_id),
+        )
+
+    def clear_seating_outcome(self, conversation_id: str) -> None:
+        """A new proposal replaces the outcome; unseen notes stay for the model."""
+
+        current = self.get_seating_outcome(conversation_id)
+        if current is None:
+            return
+        if current.notes:
+            self._connection.execute(
+                "UPDATE seating_outcomes SET decision = '', place = '' WHERE conversation_id = ?",
+                (conversation_id,),
+            )
+        else:
+            self._connection.execute(
+                "DELETE FROM seating_outcomes WHERE conversation_id = ?", (conversation_id,)
+            )
+
+    def get_seating_decision(self, proposal_id: str) -> SeatingDecisionRow | None:
+        row = self._connection.execute(
+            "SELECT proposal_id, conversation_id, decision, outcome "
+            "FROM seating_decisions WHERE proposal_id = ?",
+            (proposal_id,),
+        ).fetchone()
+        return SeatingDecisionRow(**dict(row)) if row else None
+
+    def save_seating_decision(
+        self,
+        *,
+        proposal_id: str,
+        conversation_id: str,
+        decision: str,
+        outcome: str,
+        now: datetime,
+    ) -> None:
+        self._connection.execute(
+            "INSERT OR REPLACE INTO seating_decisions VALUES (?, ?, ?, ?, ?)",
+            (proposal_id, conversation_id, decision, outcome, now.isoformat()),
+        )
+
     # Short, typeable memory ids
 
     def memory_aliases(self, actor_id: str, memory_ids: list[str]) -> dict[str, str]:
@@ -474,6 +663,10 @@ class Transaction:
         )
 
 
+def _optional_datetime(value: str | None) -> datetime | None:
+    return datetime.fromisoformat(value) if value else None
+
+
 class Database:
     """SQLite file owned by one BFF process."""
 
@@ -488,6 +681,12 @@ class Database:
             if connection.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == 0:
                 connection.execute(
                     "INSERT INTO schema_version VALUES (?)", (SCHEMA_VERSION,)
+                )
+            else:
+                # Version 2 only adds seating tables, created above if missing.
+                connection.execute(
+                    "UPDATE schema_version SET version = ? WHERE version < ?",
+                    (SCHEMA_VERSION, SCHEMA_VERSION),
                 )
 
     @property

@@ -8,6 +8,7 @@ an interrupted rerun consults its result instead of sending it again.
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from restaurant_contracts.application import (
     CommandStatusChanged,
     CorrectMemoryCommand,
     CorrectMemoryPayload,
+    DecideTableCommand,
     DeleteMemoryCommand,
     DeleteMemoryPayload,
     EmptyPayload,
@@ -37,9 +39,11 @@ from restaurant_contracts.application import (
     SendMessageCommand,
     SendMessagePayload,
     SnapshotUpdated,
+    TableDecisionPayload,
     VisibleMemory,
 )
 from restaurant_contracts.client import BffClient, BffClientError
+from restaurant_contracts.seating import RoomView
 
 Updater = Callable[[], None]
 CommandFactory = Callable[[str, datetime, str], Command]
@@ -94,6 +98,11 @@ class VisitSession:
         self.outgoing: str | None = None
         self._provisional: dict[str, str] = {}
         self._reported: str | None = None
+        self.room: RoomView | None = None
+        # Monotonic time when this browser saw its group sit down: the walk
+        # to the seats plays once from here, never after a reload.
+        self.seated_since: float | None = None
+        self._monotonic = time.monotonic
 
     @property
     def name(self) -> str:
@@ -233,6 +242,77 @@ class VisitSession:
             action=Action.CLEAR_MEMORY,
         )
 
+    def decide_table(self, decision: str, on_update: Updater | None = None) -> None:
+        """Confirm or reject the pending proposal with its id and version."""
+
+        seating = self.snapshot.seating if self.snapshot is not None else None
+        if seating is None or seating.proposal is None or self.pending is not None:
+            # A second click after the first one decided: nothing to do.
+            return
+        proposal = seating.proposal
+        self._send(
+            lambda event_id, at, conversation_id: DecideTableCommand(
+                schema_version=1,
+                event_id=event_id,
+                occurred_at=at,
+                event_type="table.confirmation_decided",
+                conversation_id=conversation_id,
+                payload=TableDecisionPayload(
+                    proposal_id=proposal.proposal_id,
+                    version=proposal.version,
+                    decision=decision,
+                ),
+            ),
+            on_update,
+            action=Action.DECIDE_TABLE,
+        )
+
+    def walk_elapsed(self) -> float | None:
+        """Seconds since this browser saw the group sit down, for the walk."""
+
+        if self.seated_since is None:
+            return None
+        return self._monotonic() - self.seated_since
+
+    def refresh_room(self) -> bool:
+        """Read the room; returns True when it revealed a newer own seating."""
+
+        if self.snapshot is None:
+            return False
+        try:
+            self.room = self._run_value(self._client.get_room(self.snapshot.conversation_id))
+        except BffClientError:
+            return False
+        if self.room is None or not self.room.seating_enabled:
+            return False
+        mine = any(place.mine for place in self.room.places)
+        seated_in_room = any(
+            place.mine
+            and (
+                place.state == "occupied"
+                if place.kind == "table"
+                else any(seat.mine and seat.state == "occupied" for seat in place.seats)
+            )
+            for place in self.room.places
+        )
+        status = self.snapshot.seating.status
+        consistent = (
+            (status == "seated" and seated_in_room)
+            or (status == "none" and not mine)
+            or (status == "proposed" and mine and not seated_in_room)
+        )
+        if consistent or self.pending is not None:
+            return False
+        previous = self.snapshot
+        try:
+            self._run(self._reload(previous.conversation_id))
+        except BffClientError:
+            return False
+        return self.snapshot is not None and self.snapshot.seating != previous.seating
+
+    async def _reload(self, conversation_id: str) -> None:
+        self._apply_snapshot(await self._client.get_snapshot(conversation_id))
+
     def reject_unknown_command(self) -> None:
         self._notice(UNKNOWN_COMMAND)
 
@@ -319,6 +399,12 @@ class VisitSession:
         self._reported = None
         if result.status == "failed":
             self._notice(result.error.message)
+            if isinstance(command, DecideTableCommand) and self.snapshot is not None:
+                # An expired or stale proposal is gone: show the confirmed state.
+                try:
+                    await self._reload(self.snapshot.conversation_id)
+                except BffClientError:
+                    pass
         else:
             self._conclude(command)
         _notify(on_update)
@@ -390,6 +476,8 @@ class VisitSession:
             self.cards.clear()
             self._provisional.clear()
             self.cursor = 0
+            self.room = None
+            self.seated_since = None
         elif current is not None and snapshot.cursor < current.cursor:
             return
         self.snapshot = snapshot
@@ -398,6 +486,12 @@ class VisitSession:
             self._provisional.pop(message.message_id, None)
 
     def _conclude(self, command: Command) -> None:
+        if (
+            isinstance(command, DecideTableCommand)
+            and self.snapshot is not None
+            and self.snapshot.seating.status == "seated"
+        ):
+            self.seated_since = self._monotonic()
         memories = tuple(self.snapshot.memory.memories) if self.snapshot else ()
         if isinstance(command, ReadMemoryCommand):
             self._card(REMEMBERED if memories else NOTHING_REMEMBERED, memories)
@@ -434,6 +528,10 @@ class VisitSession:
     @staticmethod
     def _run(work: Coroutine[Any, Any, None]) -> None:
         asyncio.run(work)
+
+    @staticmethod
+    def _run_value(work: Coroutine[Any, Any, Any]) -> Any:
+        return asyncio.run(work)
 
 
 def _notify(on_update: Updater | None) -> None:

@@ -48,6 +48,10 @@ class AgentUnavailableError(ConversationError):
     """Raised when the model service cannot complete a turn."""
 
 
+class SeatingUnavailableError(AgentUnavailableError):
+    """Raised when the seating MCP cannot be reached for the turn."""
+
+
 class GuestMemoryError(ConversationError):
     """Raised when a guest attempts to create a durable profile."""
 
@@ -76,7 +80,21 @@ def _describe_service_failure(exc: BaseException) -> str:
     return f"{name}, HTTP {status}" if isinstance(status, int) else name
 
 
+def _is_seating_connection_failure(exc: BaseException) -> bool:
+    return any(
+        type(item).__module__.startswith("agent_framework")
+        and type(item).__name__ in ("ToolException", "ToolExecutionException")
+        and "MCP" in str(item)
+        for item in _exception_chain(exc)
+    )
+
+
 def _as_conversation_error(exc: Exception) -> ConversationError | None:
+    if _is_seating_connection_failure(exc):
+        return SeatingUnavailableError(
+            "The seating service could not be reached "
+            f"({_describe_service_failure(exc)})."
+        )
     if any(isinstance(item, ValidationError) for item in _exception_chain(exc)):
         return InvalidAgentResponseError(
             "The waiter returned a response that does not match the contract"

@@ -1,0 +1,26 @@
+[
+  {
+    "schema_version": 1,
+    "event_id": "cmd_table_yes",
+    "event_type": "table.confirmation_decided",
+    "occurred_at": "2026-09-29T20:01:00Z",
+    "conversation_id": "conv_demo",
+    "payload": {
+      "proposal_id": "prop_demo",
+      "version": 1,
+      "decision": "confirmed"
+    }
+  },
+  {
+    "schema_version": 1,
+    "event_id": "cmd_table_no",
+    "event_type": "table.confirmation_decided",
+    "occurred_at": "2026-09-29T20:01:00Z",
+    "conversation_id": "conv_demo",
+    "payload": {
+      "proposal_id": "prop_demo",
+      "version": 1,
+      "decision": "rejected"
+    }
+  }
+]

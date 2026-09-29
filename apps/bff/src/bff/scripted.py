@@ -2,7 +2,8 @@
 
 It never calls a model. It reads the prompt that ConversationManager builds,
 so the whole application path (turn limit, memory, order guard, presented
-name) runs exactly as with the Foundry waiter.
+name) runs exactly as with the Foundry waiter. With a seating gateway it holds
+places like the real waiter's tool call: «somos N», «barra» and «mesa».
 """
 
 from __future__ import annotations
@@ -20,7 +21,23 @@ from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, OrderIte
 from restaurant_contracts.memory import MemoryCandidate, MemoryKind
 
 from restaurant_agent.contracts import WaiterModelResult
+from restaurant_agent.conversation import SeatingUnavailableError
 from restaurant_agent.memory.contracts import MemoryIntent
+from restaurant_agent.seating import (
+    SEATING_CONTEXT_KEY,
+    VISIT_CONTEXT_KEY,
+    next_hold_key,
+    pending_proposal,
+    store_proposal,
+)
+from restaurant_agent.seating_gateway import (
+    NoSeatingAvailable,
+    SeatingAssignment,
+    SeatingConflict,
+    SeatingGateway,
+    SeatingGatewayError,
+    SeatingUnavailable,
+)
 
 _STATE = re.compile(r"Estado confirmado antes de este turno:\n(?P<state>.*?)\n\n", re.S)
 _MESSAGE = re.compile(
@@ -46,6 +63,9 @@ _ORDER = re.compile(
     r"\b(?:quiero|ponme|p[oó]nme|tr[aá]eme)\s+(?P<value>[^.;!?]+?)" + _END,
     re.IGNORECASE,
 )
+_BAR = re.compile(r"\bbarra\b", re.IGNORECASE)
+_TABLE = re.compile(r"\bmesa\b", re.IGNORECASE)
+_YES = re.compile(r"^\W*(?:s[ií]|vale|ok|de acuerdo|confirm\w*)\b", re.IGNORECASE)
 _ARTICLE = re.compile(r"^(?:el|la|los|las|un|una|unos|unas)\s+", re.IGNORECASE)
 _SPLIT_ITEMS = re.compile(r",\s*|\s+y\s+")
 
@@ -56,6 +76,48 @@ def _clean(value: str) -> str:
     return _ARTICLE.sub("", value.strip(" \t\n\"'¡¿«»,"))[:200].strip()
 
 
+def _as_result(held: SeatingAssignment) -> dict[str, Any]:
+    return {
+        "assignment_id": held.assignment_id,
+        "resource_id": held.resource_id,
+        "resource_kind": held.resource_kind,
+        "resource_label": held.resource_label or held.resource_id,
+        "seat_ids": list(held.seat_ids),
+        "party_size": held.party_size,
+        "status": held.status,
+        "version": held.version,
+        "expires_at": held.expires_at.isoformat() if held.expires_at else None,
+    }
+
+
+def seat_positions(seat_ids: Any) -> list[int]:
+    """Bar stool positions from the seating service's ``<prefix>-NN`` ids."""
+
+    positions = []
+    for seat_id in seat_ids or ():
+        suffix = str(seat_id).rsplit("-", 1)[-1]
+        if suffix.isdigit():
+            positions.append(int(suffix))
+    return positions
+
+
+def stools_text(positions: list[int]) -> str:
+    if not positions:
+        return "la barra"
+    if len(positions) == 1:
+        return f"la barra, puesto {positions[0]}"
+    return f"la barra, puestos {positions[0]} a {positions[-1]}"
+
+
+def _describe(held: SeatingAssignment, preference: str) -> str:
+    buttons = "Confirmadlo o rechazadlo con los botones."
+    if held.resource_kind == "bar":
+        place = stools_text(seat_positions(held.seat_ids))
+        lead = f"No queda mesa libre para {held.party_size}; os propongo {place}." if preference == "any" else f"Os propongo {place}."
+        return f"{lead} {buttons}"
+    return f"Os propongo la {held.resource_label or held.resource_id} para {held.party_size}. {buttons}"
+
+
 def _join(values: list[str]) -> str:
     return values[0] if len(values) == 1 else f"{', '.join(values[:-1])} y {values[-1]}"
 
@@ -63,11 +125,18 @@ def _join(values: list[str]) -> str:
 class ScriptedWaiterAgent:
     """Implements the StructuredAgent subset used by ConversationManager."""
 
-    def __init__(self, *, delay_seconds: float = 0.0, failure: Failure | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        delay_seconds: float = 0.0,
+        failure: Failure | None = None,
+        seating: SeatingGateway | None = None,
+    ) -> None:
         if delay_seconds < 0:
             raise ValueError("delay_seconds cannot be negative")
         self._delay = delay_seconds
         self._failure = failure
+        self._seating = seating
         self.prompts: list[str] = []
 
     def create_session(self, *, session_id: str | None = None) -> AgentSession:
@@ -97,9 +166,62 @@ class ScriptedWaiterAgent:
             OrderDraft.model_validate(state["order_draft"]),
             fixed_name,
         )
+        note = await self._seat(message, result.customer, session.state)
+        if note:
+            reply = note if result.reply.startswith("Tomo nota") else f"{result.reply} {note}"
+            result = result.model_copy(update={"reply": reply[:2_000]})
         history = session.state.setdefault("scripted_history", [])
         history.append(message)
         return SimpleNamespace(value=result)
+
+    async def _seat(
+        self, message: str, customer: CustomerSnapshot, state: dict[str, Any]
+    ) -> str | None:
+        """Hold a place the way the real waiter calls its seating tool."""
+
+        if self._seating is None or VISIT_CONTEXT_KEY not in state:
+            return None
+        context = state.get(SEATING_CONTEXT_KEY) or {"status": "none"}
+        status = context.get("status")
+        party, bar, table = (
+            _PARTY.search(message), _BAR.search(message), _TABLE.search(message)
+        )
+        if party:
+            state["scripted_party_known"] = True
+        if status == "proposed" and not (party or bar or table) and _YES.search(message):
+            return "Para confirmar la propuesta usa el botón «Confirmar»; si no os convence, «Rechazar»."
+        if not (party or bar or table):
+            return None
+        if status == "seated":
+            return f"Ya estáis sentados en {context.get('place', 'vuestro sitio')}."
+        if table and not party and not state.get("scripted_party_known"):
+            return "¿Cuántos sois?"
+        size = customer.party_size or 1
+        preference = "bar" if bar else "table" if table else "any"
+        pending = pending_proposal(state)
+        if (
+            status == "proposed"
+            and pending is not None
+            and pending.get("fingerprint") == f"{size}:{preference}"
+        ):
+            return "Ya tenéis una propuesta: usad los botones «Confirmar» o «Rechazar»."
+        visit_id, key, fingerprint = next_hold_key(state, size, preference)
+        try:
+            held = await self._seating.hold(
+                visit_id=visit_id, party_size=size, preference=preference, idempotency_key=key
+            )
+        except NoSeatingAvailable:
+            if preference == "table":
+                return f"No queda ninguna mesa libre para {size}. Si queréis, os busco sitio en la barra."
+            return f"Lo siento, ahora mismo no hay sitio para {size}."
+        except SeatingUnavailable as exc:
+            raise SeatingUnavailableError("The seating service could not be reached") from exc
+        except SeatingConflict:
+            return "Ya tenéis sitio en esta visita."
+        except SeatingGatewayError:
+            return "Ahora mismo no puedo reservaros sitio."
+        store_proposal(state, _as_result(held), idempotency_key=key, fingerprint=fingerprint)
+        return _describe(held, preference)
 
     def _reply(
         self,

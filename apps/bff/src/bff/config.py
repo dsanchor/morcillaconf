@@ -27,6 +27,9 @@ class BffSettings(BaseSettings):
     bff_event_retention: int = Field(default=500, ge=2, le=100_000)
     bff_sse_heartbeat_seconds: float = Field(default=15, gt=0, le=300)
     bff_scripted_delay_seconds: float = Field(default=0, ge=0, le=30)
+    seating_mcp_url: HttpUrl | None = None
+    seating_mcp_timeout_seconds: int = Field(default=5, ge=1, le=60)
+    bff_room_cache_seconds: float = Field(default=1, ge=0, le=30)
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -52,10 +55,10 @@ class BffSettings(BaseSettings):
         return self
 
     def agent_settings(self) -> AgentSettings:
-        """Waiter settings built explicitly: no fake dev identity and no seating yet.
+        """Waiter settings built explicitly: never the fake dev identity.
 
-        Seating (SEATING_MCP_URL) belongs to phase 4, which must also give the
-        waiter the BFF visit id; until then an exported variable is ignored.
+        Seating is on only when SEATING_MCP_URL is set; the BFF seeds its own
+        visit id into the waiter session before every turn.
         """
 
         from restaurant_agent.config import Settings
@@ -70,5 +73,6 @@ class BffSettings(BaseSettings):
             app_environment=self.app_environment,
             enable_dev_fake_identity=False,
             dev_fake_actor_id=None,
-            seating_mcp_url=None,
+            seating_mcp_url=self.seating_mcp_url,
+            seating_mcp_timeout_seconds=self.seating_mcp_timeout_seconds,
         )

@@ -1,0 +1,10 @@
+{
+  "resources": [
+    {"resource_id": "table-01", "kind": "table", "label": "Mesa 1", "capacity": 2, "display_order": 10},
+    {"resource_id": "table-02", "kind": "table", "label": "Mesa 2", "capacity": 2, "display_order": 20},
+    {"resource_id": "table-03", "kind": "table", "label": "Mesa 3", "capacity": 4, "display_order": 30},
+    {"resource_id": "table-04", "kind": "table", "label": "Mesa 4", "capacity": 4, "display_order": 40},
+    {"resource_id": "table-05", "kind": "table", "label": "Mesa 5", "capacity": 6, "display_order": 50},
+    {"resource_id": "bar", "kind": "bar", "label": "Barra", "capacity": 8, "display_order": 100, "seat_prefix": "bar-seat"}
+  ]
+}

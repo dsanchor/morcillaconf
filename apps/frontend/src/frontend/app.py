@@ -8,6 +8,8 @@ talks to the BffClient contract and renders confirmed snapshots.
 
 from __future__ import annotations
 
+import time
+
 import streamlit as st
 
 from restaurant_contracts.application import Action
@@ -22,6 +24,7 @@ from frontend.markup import (
     facade_markup,
     identity_markup,
     plan_markup,
+    proposal_markup,
     simulated_markup,
 )
 from frontend.slash_commands import SlashCommand, parse_slash_command
@@ -30,6 +33,9 @@ from frontend.visit import VisitSession
 
 OUTSIDE, OPENING, INSIDE = "outside", "opening", "inside"
 ARRIVING_NOTICE = "Un momento, que ya te abrimos."
+# The plan refreshes by itself so parallel customers see each other.
+PLAN_REFRESH_SECONDS = 3
+ENTRANCE_SECONDS = 4.5
 SIDEBAR_BUTTONS = {
     "new": ("/new", "Nueva visita", Action.ARRIVE),
     "memory": ("/memory", "Lo que recuerdo de ti", Action.READ_MEMORY),
@@ -113,16 +119,18 @@ def _render_inside(*, opening: bool) -> None:
                         _command_button(visit, item)
                     else:
                         st.markdown(command_row_markup(item), unsafe_allow_html=True)
+    if opening:
+        state.opened_at = time.monotonic()
     with st.container(key="sala", gap=10):
         with st.container(key="ventana", gap=None):
             window = st.empty()
+            card = st.empty()
             text = st.chat_input("Escribe al camarero", key="redactor", max_chars=2_000)
         if state.get("simulated", True):
             st.markdown(simulated_markup(), unsafe_allow_html=True)
-        st.markdown(
-            plan_markup(visit.name, "llegando" if opening else "atendiendo", entering=opening),
-            unsafe_allow_html=True,
-        )
+        # Drawn before any blocking work (a waiter turn, /new) so it never
+        # disappears while the waiter thinks.
+        _live_plan(opening)
     if opening:
         with st.container(key="puerta"):
             st.markdown(facade_markup("abriendo"), unsafe_allow_html=True)
@@ -132,6 +140,7 @@ def _render_inside(*, opening: bool) -> None:
         reveal = Reveal(greeting, reveal_pace) if reveal_pace and greeting else None
         window.markdown(conversation_markup(visit.view(), reveal=reveal), unsafe_allow_html=True)
 
+    seating_before = _seating_of(visit)
     if text is not None:
         command = parse_slash_command(text)
         if command is None:
@@ -141,6 +150,76 @@ def _render_inside(*, opening: bool) -> None:
         else:
             reveal_pace = _apply_slash(visit, command) or reveal_pace
     render()
+    _proposal_card(card, visit)
+    if text is not None and _seating_of(visit) != seating_before:
+        # The plan was drawn before the turn: redraw it now with the new place.
+        if reveal_pace:
+            state.reveal = reveal_pace
+        st.rerun()
+
+
+def _seating_of(visit: VisitSession) -> object:
+    snapshot = visit.snapshot
+    return None if snapshot is None else (snapshot.conversation_id, snapshot.seating)
+
+
+def _proposal_card(slot, visit: VisitSession) -> None:
+    """The pending place with its two explicit decisions; a phrase never confirms."""
+
+    snapshot = visit.snapshot
+    proposal = snapshot.seating.proposal if snapshot is not None else None
+    if proposal is None or not visit.allows(Action.DECIDE_TABLE):
+        slot.empty()
+        return
+    with slot.container(key="propuesta"):
+        st.markdown(proposal_markup(proposal), unsafe_allow_html=True)
+        with st.container(horizontal=True, key="propuesta-botones", gap=10):
+            st.button(
+                "Confirmar",
+                key=f"mesa-si-{proposal.proposal_id}",
+                type="primary",
+                on_click=_decide_table,
+                args=("confirmed",),
+            )
+            st.button(
+                "Rechazar",
+                key=f"mesa-no-{proposal.proposal_id}",
+                type="secondary",
+                on_click=_decide_table,
+                args=("rejected",),
+            )
+
+
+@st.fragment(run_every=PLAN_REFRESH_SECONDS)
+def _live_plan(opening: bool) -> None:
+    """The plan reads the room by itself, without touching conversation or composer."""
+
+    state = st.session_state
+    visit: VisitSession | None = state.get("visit")
+    if visit is None or visit.snapshot is None:
+        return
+    if visit.refresh_room():
+        st.rerun()
+    entering = opening and time.monotonic() - state.get("opened_at", 0.0) < ENTRANCE_SECONDS
+    seating = visit.snapshot.seating
+    waiter = "llegando" if entering else "barra" if seating.status == "seated" else "atendiendo"
+    st.markdown(
+        plan_markup(
+            visit.name,
+            waiter,
+            entering=entering,
+            room=visit.room,
+            seating=seating,
+            walk_elapsed=visit.walk_elapsed(),
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _decide_table(decision: str) -> None:
+    visit: VisitSession | None = st.session_state.get("visit")
+    if visit is not None:
+        visit.decide_table(decision)
 
 
 def _command_button(visit: VisitSession, action: str) -> None:

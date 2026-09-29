@@ -3,6 +3,57 @@
 Servidor MCP HTTP determinista para consultar y asignar mesas y puestos
 contiguos de barra. No contiene prompts ni toma decisiones de conversación.
 
+## Reglas
+
+- **Una mesa, un grupo.** Una mesa bloqueada u ocupada no está disponible para
+  ninguna otra visita, aunque le queden sillas libres. Se elige la mesa libre
+  más pequeña en la que cabe el grupo y, a igualdad, la de menor orden.
+- **Barra.** Cada grupo ocupa puestos contiguos. Se elige el tramo libre que
+  deja el menor hueco y, a igualdad, la posición más baja: en una barra vacía
+  los grupos se sientan 1, 2, 3… en orden y sin huecos.
+- **Preferencia.** `any` busca mesa y, si no cabe en ninguna, barra; `table`
+  solo mesa; `bar` solo barra. Si nada encaja, `no_seating`.
+- **Bloqueo, confirmación y cancelación.** `hold_seating` bloquea durante
+  `SEATING_HOLD_MINUTES`. Una visita tiene como máximo un sitio activo: un
+  bloqueo nuevo con otra clave sustituye en la misma transacción al bloqueo
+  pendiente de esa visita (queda `replaced`); si no cabe nada, se conserva el
+  anterior. `confirm_seating` lo convierte en ocupación, `cancel_seating_hold`
+  lo cancela y libera el sitio al momento y, al caducar, queda `expired`. Una
+  ocupación solo se libera con `release_seating`.
+- **Errores.** Empiezan por un código estable: `no_seating:`, `conflict:`,
+  `expired:`, `not_found:` o `idempotency_conflict:`.
+
+## Herramientas
+
+| Herramienta | Consumidor | Uso |
+|---|---|---|
+| `get_seating_availability` | Modelo del camarero | Plazas libres y `largest_group` por recurso |
+| `hold_seating` | Modelo del camarero | Bloqueo temporal; `visit_id` e `idempotency_key` los pone el middleware |
+| `confirm_seating` | Aplicación (BFF) | Confirmar un bloqueo vigente con su versión |
+| `cancel_seating_hold` | Aplicación (BFF) | Rechazo del cliente o `/new` con propuesta pendiente |
+| `get_seating_map` | Aplicación (BFF) | Sala anónima: estado por mesa y por puesto, marcas `mine` y última asignación de la visita |
+| `release_seating` | Aplicación, tras el pago | Liberar una ocupación (pendiente de fase 4) |
+
+El modelo solo recibe las dos primeras (`allowed_tools`). El mapa nunca
+devuelve identificadores de otras visitas ni sus asignaciones.
+
+## Arranque local con `uv`
+
+```bash
+./scripts/setup-mcp.sh
+./scripts/run-mcp.sh           # conserva la sala
+./scripts/run-mcp.sh --reset   # vacía la base de asientos antes de arrancar
+```
+
+Usa el layout versionado
+[`layouts/morcillaconf-demo-v1.json`](layouts/morcillaconf-demo-v1.json):
+Mesa 1 y Mesa 2 de 2, Mesa 3 y Mesa 4 de 4, Mesa 5 de 6 y una barra de 8
+puestos. El hash se calcula con el propio servicio
+(`python -m restaurant_mcp.layout FICHERO --sha256`). Variables opcionales:
+`SEATING_LAYOUT_FILE`, `SEATING_DATABASE_PATH` (por defecto
+`services/mcp/data/seating.db`), `SEATING_HOLD_MINUTES`, `MCP_HOST` y
+`MCP_PORT` (8080). Para probar caducidades: `SEATING_HOLD_MINUTES=1`.
+
 ## Configuración
 
 El layout llega por configuración, no se incorpora a la imagen:
@@ -47,7 +98,7 @@ Python del anfitrión:
 
 ```bash
 export SEATING_LAYOUT_ID="morcillaconf-demo-v1"
-export SEATING_LAYOUT_JSON='{"resources":[{"resource_id":"table-01","kind":"table","label":"Mesa 1","capacity":2,"display_order":10,"enabled":true},{"resource_id":"bar","kind":"bar","label":"Barra","capacity":4,"display_order":100,"enabled":true,"seat_prefix":"bar-seat"}]}'
+export SEATING_LAYOUT_JSON="$(cat layouts/morcillaconf-demo-v1.json)"
 export SEATING_LAYOUT_SHA256="$(
   docker run --rm \
     --env SEATING_LAYOUT_JSON \

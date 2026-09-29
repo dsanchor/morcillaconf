@@ -15,6 +15,7 @@ from pydantic import (
 
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
 from restaurant_contracts.memory import MemoryKind
+from restaurant_contracts.seating import SeatingView
 
 Identifier = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
@@ -46,6 +47,7 @@ class Action(StrEnum):
     CORRECT_MEMORY = "memory.correction_requested"
     DELETE_MEMORY = "memory.deletion_requested"
     CLEAR_MEMORY = "memory.clear_requested"
+    DECIDE_TABLE = "table.confirmation_decided"
 
 
 class EmptyPayload(ContractModel):
@@ -67,6 +69,14 @@ class CorrectMemoryPayload(ContractModel):
 
 class DeleteMemoryPayload(ContractModel):
     memory_id: Identifier
+
+
+class TableDecisionPayload(ContractModel):
+    """Explicit, versioned answer to one seating proposal (table or bar)."""
+
+    proposal_id: Identifier
+    version: Annotated[int, Field(strict=True, ge=1)]
+    decision: Literal["confirmed", "rejected"]
 
 
 class CommandEnvelope(ContractModel):
@@ -109,13 +119,19 @@ class ClearMemoryCommand(ConversationCommand):
     payload: EmptyPayload
 
 
+class DecideTableCommand(ConversationCommand):
+    event_type: Literal["table.confirmation_decided"]
+    payload: TableDecisionPayload
+
+
 Command = Annotated[
     ArriveCommand
     | SendMessageCommand
     | ReadMemoryCommand
     | CorrectMemoryCommand
     | DeleteMemoryCommand
-    | ClearMemoryCommand,
+    | ClearMemoryCommand
+    | DecideTableCommand,
     Field(discriminator="event_type"),
 ]
 COMMAND_ADAPTER = TypeAdapter(Command)
@@ -150,7 +166,7 @@ class ChatMessage(ContractModel):
 
 
 class RestaurantSnapshot(ContractModel):
-    """Confirmed phase-three projection; no phase-four business resources yet."""
+    """Confirmed projection: conversation, memory and the customer's own seating."""
 
     schema_version: Literal[1]
     visit_id: Identifier
@@ -164,6 +180,7 @@ class RestaurantSnapshot(ContractModel):
     memory: MemoryView
     process_status: Literal["idle", "processing", "awaiting_customer"]
     allowed_actions: list[Action]
+    seating: SeatingView = Field(default_factory=SeatingView)
 
     @model_validator(mode="after")
     def projection_is_consistent(self) -> "RestaurantSnapshot":
@@ -179,6 +196,11 @@ class RestaurantSnapshot(ContractModel):
             raise ValueError("pending_fields must match missing customer data")
         if len(self.allowed_actions) != len(set(self.allowed_actions)):
             raise ValueError("allowed_actions must not contain duplicates")
+        if (
+            Action.DECIDE_TABLE in self.allowed_actions
+            and self.seating.status != "proposed"
+        ):
+            raise ValueError("A seating decision needs a pending proposal")
         ids = [message.message_id for message in self.messages]
         if len(ids) != len(set(ids)):
             raise ValueError("Message IDs must be unique")

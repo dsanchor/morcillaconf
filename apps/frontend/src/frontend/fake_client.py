@@ -25,6 +25,7 @@ from restaurant_contracts.application import (
     CommandStatusChanged,
     CompletedCommandResult,
     CorrectMemoryCommand,
+    DecideTableCommand,
     DeleteMemoryCommand,
     ErrorCode,
     FailedCommandResult,
@@ -42,7 +43,9 @@ from restaurant_contracts.application import (
 from restaurant_contracts.client import BffClientError
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
 from restaurant_contracts.memory import MemoryKind
+from restaurant_contracts.seating import RoomView
 
+from frontend.fake_seating import FakeRoom, party_size
 from frontend.greeting import greeting
 
 ProcessStatus = Literal["idle", "processing", "awaiting_customer"]
@@ -147,6 +150,8 @@ class _Conversation:
     cursor: int = 0
     process_status: ProcessStatus = "idle"
     turns: int = 0
+    party_size: int = 1
+    party_known: bool = False
 
 
 class FakeRestaurant:
@@ -181,6 +186,7 @@ class FakeRestaurant:
         self._memories: dict[str, list[VisibleMemory]] = {}
         self._memory_numbers: dict[str, int] = {}
         self._counters: dict[str, int] = {}
+        self.room = FakeRoom(self._clock)
 
     def client(self, identity: ActorContext) -> FakeBffClient:
         return FakeBffClient(self, identity)
@@ -214,6 +220,10 @@ class FakeRestaurant:
     def get_snapshot(self, identity: ActorContext, conversation_id: str) -> RestaurantSnapshot:
         conversation = self._owned(identity, conversation_id)
         return self._snapshot(conversation, conversation.cursor, conversation.process_status)
+
+    def get_room(self, identity: ActorContext, conversation_id: str) -> RoomView:
+        self._owned(identity, conversation_id)
+        return self.room.view(conversation_id)
 
     async def stream(
         self, identity: ActorContext, conversation_id: str, after_cursor: int
@@ -274,6 +284,11 @@ class FakeRestaurant:
                 return self._failed(command, correlation_id, ErrorCode.FORBIDDEN, "Esa visita no es tuya.")
             self._publish_status(conversation, command, correlation_id, self._pending(command, correlation_id))
             return self._complete(conversation, command, correlation_id)
+        active = self._visits.get(self._active_visits.get(identity.actor_id, ""))
+        if active is not None:
+            refused = self.room.leave(active)
+            if refused is not None:
+                return self._failed(command, correlation_id, ErrorCode.CONFLICT, refused)
         conversation = self._open_visit(identity)
         self._publish_status(conversation, command, correlation_id, self._pending(command, correlation_id))
         self._say(conversation, command, correlation_id, greeting(conversation.presented_name), pause=0.0)
@@ -284,6 +299,8 @@ class FakeRestaurant:
     ) -> _Failure | None:
         if isinstance(command, SendMessageCommand):
             return self._converse(conversation, command, correlation_id)
+        if isinstance(command, DecideTableCommand):
+            return self._decide(conversation, command, correlation_id)
         if not conversation.owner.authenticated:
             return _Failure(ErrorCode.FORBIDDEN, "Los invitados no tienen recuerdos guardados.")
         memories = self._memories.setdefault(conversation.owner.actor_id, [])
@@ -340,8 +357,31 @@ class FakeRestaurant:
         reply = scripted_reply(
             conversation.presented_name, preferences, restrictions, conversation.turns - 1
         )
+        size = party_size(text)
+        if size is not None:
+            conversation.party_size, conversation.party_known = size, True
+        self.room.drop_expired(conversation.conversation_id)
+        note = self.room.converse(
+            conversation.conversation_id, text, conversation.party_size, conversation.party_known
+        )
+        if note:
+            reply = f"{reply} {note}" if preferences or restrictions else note
         self._say(conversation, command, correlation_id, reply, pause=self.pause_seconds)
         return None
+
+    def _decide(
+        self, conversation: _Conversation, command: DecideTableCommand, correlation_id: str
+    ) -> _Failure | None:
+        payload = command.payload
+        outcome, text = self.room.decide(
+            conversation.conversation_id, payload.proposal_id, payload.version, payload.decision
+        )
+        if outcome in ("seated", "rejected"):
+            self._say(conversation, command, correlation_id, text, pause=0.0)
+            return None
+        if outcome == "repeated":
+            return None
+        return _Failure(ErrorCode.CONFLICT, text)
 
     def _say(
         self,
@@ -506,7 +546,7 @@ class FakeRestaurant:
         memories = list(self._memories.get(owner.actor_id, [])) if owner.authenticated else []
         customer = CustomerSnapshot(
             presented_name=conversation.presented_name,
-            party_size=1,
+            party_size=conversation.party_size,
             preferences=list(conversation.preferences),
             restrictions=list(conversation.restrictions),
         )
@@ -527,11 +567,15 @@ class FakeRestaurant:
             pending_fields=pending,
             memory=MemoryView(memories=memories),
             process_status=process_status,
-            allowed_actions=self._allowed_actions(conversation, memories),
+            allowed_actions=self._allowed_actions(conversation, memories, process_status),
+            seating=self.room.seating(conversation.conversation_id),
         )
 
     def _allowed_actions(
-        self, conversation: _Conversation, memories: list[VisibleMemory]
+        self,
+        conversation: _Conversation,
+        memories: list[VisibleMemory],
+        process_status: ProcessStatus = "idle",
     ) -> list[Action]:
         actions = [Action.ARRIVE]
         if conversation.turns < self.max_turns:
@@ -541,6 +585,11 @@ class FakeRestaurant:
             if memories:
                 actions.extend((Action.CORRECT_MEMORY, Action.DELETE_MEMORY))
             actions.append(Action.CLEAR_MEMORY)
+            if (
+                process_status == "idle"
+                and self.room.seating(conversation.conversation_id).status == "proposed"
+            ):
+                actions.append(Action.DECIDE_TABLE)
         return actions
 
     def _owned(self, identity: ActorContext, conversation_id: str) -> _Conversation:
@@ -623,6 +672,9 @@ class FakeBffClient:
 
     async def get_snapshot(self, conversation_id: str) -> RestaurantSnapshot:
         return self._restaurant.get_snapshot(self._identity, conversation_id)
+
+    async def get_room(self, conversation_id: str) -> RoomView:
+        return self._restaurant.get_room(self._identity, conversation_id)
 
     def events(
         self, conversation_id: str, *, after_cursor: int

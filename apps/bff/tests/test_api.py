@@ -60,7 +60,7 @@ def assert_public_error(response, status: int, code: str) -> dict:
 
 
 def test_health_reports_the_waiter_mode(client) -> None:
-    assert client.get("/healthz").json() == {"status": "ok", "waiter": "scripted"}
+    assert client.get("/healthz").json() == {"status": "ok", "waiter": "scripted", "seating": "off"}
 
 
 def test_session_binds_the_normalized_name(client) -> None:

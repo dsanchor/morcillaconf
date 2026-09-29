@@ -1,0 +1,30 @@
+name: Seating end to end
+
+# Test-only workflow (no image): the seating MCP, the BFF with the scripted
+# waiter and the view's HTTP client together, without Foundry.
+on:
+  push:
+    paths:
+      - services/mcp/**
+      - apps/bff/**
+      - apps/frontend/**
+      - agents/restaurant/src/restaurant_agent/**
+      - packages/contracts/**
+      - tests/end_to_end/**
+      - scripts/run-mcp.sh
+      - scripts/test-e2e-seating.sh
+      - .github/workflows/seating-e2e.yml
+
+permissions:
+  contents: read
+
+jobs:
+  seating-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.7"
+      - run: uv python install 3.13
+      - run: ./scripts/test-e2e-seating.sh -v

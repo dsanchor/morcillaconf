@@ -68,6 +68,7 @@ pertenece a 3C. El servidor actual construye el agente directamente; no pasa por
 | `CorrectMemoryCommand` | `memory.correction_requested` | `memory_id`, `value` |
 | `DeleteMemoryCommand` | `memory.deletion_requested` | `memory_id` |
 | `ClearMemoryCommand` | `memory.clear_requested` | Vacío |
+| `DecideTableCommand` | `table.confirmation_decided` | `proposal_id`, `version`, `decision` (`confirmed` o `rejected`) |
 
 Todos llevan versión, `event_id` y `occurred_at` con zona horaria. Salvo llegada,
 requieren `conversation_id`. Los nombres de clases son imperativos; los
@@ -87,7 +88,8 @@ identidad de demo; la procedencia y fecha de los recuerdos siguen siendo
 responsabilidad del servidor. Esta demo no incorpora Entra ID ni otro proveedor
 externo de identidad.
 
-Estos son los seis comandos públicos de 3A. No hay API ni comandos de concesión
+Estos son los seis comandos públicos de 3A; la fase 4 añade
+`table.confirmation_decided`. No hay API ni comandos de concesión
 o revocación: los antiguos `memory.consent_granted` y
 `memory.consent_revoked` se rechazan, al igual que campos de consentimiento.
 No se reinterpretan como borrado ni se aceptan silenciosamente.
@@ -147,8 +149,31 @@ estado de proceso, acciones permitidas y cursor.
   restaurar datos eliminados. El borrado total solo elimina preferencias y
   restricciones; conserva visita, borrador y `completed_order_history`.
   Los contratos no añaden herramientas de borrado por lenguaje natural.
-- Los campos de mesa, propuesta, cuenta y HITL se introducirán en fase 4 con
-  sus consumidores. No se añaden diccionarios libres como extensiones futuras.
+- `seating` (fase 4, por defecto `none`) muestra solo el sitio propio:
+  `proposed` con la propuesta pendiente (`proposal_id`, versión, lugar,
+  comensales y caducidad) o `seated` con lugar, comensales y `seated_at`.
+  `table.confirmation_decided` solo figura en `allowed_actions` mientras hay
+  una propuesta pendiente. Cuenta, pedido y HITL de pago llegarán con sus
+  consumidores. No se añaden diccionarios libres como extensiones futuras.
+
+## Mesas y barra (fase 4)
+
+`restaurant_contracts.seating` define los modelos públicos de asientos:
+
+- `SeatingPlace`: mesa o barra del layout (`place_id`, tipo, rótulo, capacidad
+  y, en barra, las posiciones contiguas del grupo). Una mesa se asigna entera.
+- `SeatingProposal` y `SeatingView`: la propuesta y el sitio propios del
+  snapshot.
+- `RoomView`, `RoomPlace` y `RoomSeat`: la sala anónima del plano. Cada lugar
+  tiene estado `free`, `held` u `occupied`, tamaño del grupo en mesas, estado
+  por taburete en barra y marcas `mine` solo para quien consulta. Nunca lleva
+  nombres, visitas ni asignaciones del servicio de asientos.
+- `BffClient.get_room(conversation_id)` devuelve esa sala;
+  `seating_enabled=false` indica que el plano es decorativo.
+
+Todo es aditivo y se mantiene `schema_version: 1`: los consumidores viven en
+este repositorio y se publican desde el mismo commit, y los campos nuevos
+tienen valores por defecto que mantienen válidos los payloads de fase 3.
 
 ## Eventos, SSE y recuperación
 
@@ -197,6 +222,10 @@ Los [fixtures JSON](../../tests/fixtures/phase3a) son datos sintéticos:
 - `results.json`: pendiente, completado y fallo independiente;
 - `events.json`: secuencia de un mensaje con texto parcial y estado confirmado;
 - `cursor-expired.json`: recuperación explícita.
+
+Los [fixtures de fase 4](../../tests/fixtures/phase4) cubren la decisión de
+mesa, snapshots con propuesta de mesa y de barra y con grupo sentado, y dos
+salas (sin asientos y con otros grupos).
 
 Las [pruebas unitarias](tests/test_application_contracts.py) validan formas e
 invariantes. Las [pruebas de compatibilidad](../../tests/contract/test_waiter_public_contracts.py)

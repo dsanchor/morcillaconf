@@ -176,6 +176,23 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .tarjeta ul { margin: .4rem 0 0; padding: 0; list-style: none; display: grid; gap: .25rem; }
 .stApp .tarjeta li { margin: 0; padding: 0; font: inherit; }
 .stApp .tarjeta code { padding: 0; background: none; color: var(--luz); font: .88rem var(--mono); }
+/* Seating proposal: a note on the table, decided only with its two buttons. */
+.stApp .st-key-propuesta {
+  align-self: center; width: min(46ch, 100%); margin: .4rem auto .6rem; padding: .8rem 1.1rem;
+  border: 1px dashed var(--vino); border-radius: 4px; background: rgba(140, 28, 43, .12);
+}
+.stApp .propuesta-mesa p { margin: 0; font: 400 1rem/1.45 var(--sans); color: var(--piedra); }
+.stApp .propuesta-mesa p.titulo { font: 500 1.2rem/1.3 var(--serif); }
+.stApp .st-key-propuesta-botones { justify-content: center; margin-top: .5rem; }
+.stApp .st-key-propuesta-botones button { border-radius: 4px !important; }
+.stApp .st-key-propuesta-botones button[kind="primary"] {
+  border: 0 !important; background: var(--luz) !important; color: var(--tinta) !important;
+}
+.stApp .st-key-propuesta-botones button[kind="primary"]:hover { background: #ffc766 !important; }
+.stApp .st-key-propuesta-botones button[kind="secondary"] {
+  border: 1px solid var(--veta) !important; background: transparent !important; color: var(--piedra) !important;
+}
+.stApp .st-key-propuesta-botones button p { margin: 0; font: 700 1rem/1 var(--sans); color: inherit; }
 .stApp .escribiendo { display: inline-flex; gap: 6px; padding: 1rem 1.1rem; }
 .stApp .escribiendo i {
   width: 8px; height: 8px; border-radius: 50%; background: var(--luz);

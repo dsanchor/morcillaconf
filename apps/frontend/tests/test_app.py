@@ -119,3 +119,59 @@ def test_an_unreachable_bff_keeps_the_door_closed_with_a_notice(monkeypatch) -> 
     assert not at.exception
     assert at.session_state["stage"] == "outside"
     assert "No consigo hablar con el restaurante ahora mismo" in _markup(at)
+
+
+def test_a_seating_proposal_is_decided_with_buttons(app) -> None:
+    at = _enter(app, "Ana").run()
+    at = _say(at, "Venimos tres")
+    assert not at.exception
+    markup = _markup(at)
+    assert "Mesa 3" in markup and "3 de 4 asientos" in markup
+    assert "asiento-propio" in markup
+    confirm = next(button for button in at.button if button.label == "Confirmar")
+    at = confirm.click().run()
+    assert not at.exception
+    markup = _markup(at)
+    assert "Os acompaño a la Mesa 3." in markup
+    assert "comensal cliente-propio caminando" in markup and markup.count("acompanante") == 2
+    assert not [button for button in at.button if button.label in ("Confirmar", "Rechazar")]
+    at = _say(at, "/new")
+    assert "Ya estáis sentados en la Mesa 3" in _markup(at)
+
+
+def test_rejecting_a_proposal_removes_the_card(app) -> None:
+    at = _enter(app, "Ana").run()
+    at = _say(at, "Nos sentamos en la barra, somos 2")
+    assert "Puestos 1 a 2" in _markup(at)
+    reject = next(button for button in at.button if button.label == "Rechazar")
+    at = reject.click().run()
+    assert not at.exception
+    assert "dejo libre la barra, puestos 1 a 2" in _markup(at)
+    assert not [button for button in at.button if button.label == "Confirmar"]
+
+
+def test_the_plan_is_drawn_before_the_waiter_answers(app, monkeypatch) -> None:
+    import frontend.markup as markup
+    from frontend.visit import VisitSession
+
+    events: list[str] = []
+    draw, send = markup.plan_markup, VisitSession.send_message
+
+    def spy_plan(*args, **kwargs):
+        events.append("plan")
+        return draw(*args, **kwargs)
+
+    def spy_send(self, *args, **kwargs):
+        events.append("send")
+        return send(self, *args, **kwargs)
+
+    monkeypatch.setattr(markup, "plan_markup", spy_plan)
+    monkeypatch.setattr(VisitSession, "send_message", spy_send)
+    at = _enter(app, "Ana").run()
+    events.clear()
+    at = _say(at, "Venimos tres")
+    assert not at.exception
+    assert events[:2] == ["plan", "send"]
+    # The new proposal is drawn right after the turn, not a refresh later.
+    assert events[-1] == "plan" and events.count("plan") >= 2
+    assert "asiento-propio" in _markup(at)

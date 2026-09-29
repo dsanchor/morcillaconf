@@ -93,6 +93,9 @@ class Handler(BaseHTTPRequestHandler):
             if parts[-1] == "snapshot":
                 snapshot = restaurant.get_snapshot(identity, parts[2])
                 return self._json(200, snapshot.model_dump(mode="json"))
+            if parts[-1] == "room":
+                room = restaurant.get_room(identity, parts[2])
+                return self._json(200, room.model_dump(mode="json"))
             if parts[-1] == "events":
                 cursor = int(parse_qs(url.query)["after_cursor"][0])
                 return self._stream(identity, parts[2], cursor)
@@ -287,3 +290,19 @@ def test_the_visit_reports_nothing_remembered_over_http(bff) -> None:
     visit.arrive()
     visit.read_memory()
     assert visit.cards[-1].title == NOTHING_REMEMBERED
+
+
+def test_the_room_and_the_table_decision_travel_over_http(bff) -> None:
+    client = HttpBffClient.open(bff.url, "Ana")
+    visit = VisitSession(client)
+    visit.arrive()
+    visit.send_message("Venimos tres")
+    assert visit.snapshot.seating.status == "proposed"
+    assert visit.refresh_room() is False
+    assert any(place.mine and place.state == "held" for place in visit.room.places)
+    visit.decide_table("confirmed")
+    assert visit.snapshot.seating.status == "seated"
+    method, path, headers, _ = bff.requests[-1]
+    assert headers["Authorization"].startswith("Bearer ")
+    visit.refresh_room()
+    assert any(p.path.endswith("/room") for p in [urlparse(r[1]) for r in bff.requests])

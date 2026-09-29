@@ -37,9 +37,21 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
 - Separa sesión, preferencias, restricciones e historial de pedidos completados.
 
 El camarero consulta y crea propuestas temporales de asiento mediante las tools
-directas del MCP de asientos. La propuesta no confirma una ocupación y el modelo
-no puede invocar todavía confirmación o liberación. Todavía no existen
-herramientas de carta, inventario, cocina, cuenta o pago.
+directas del MCP de asientos (`seating_get_seating_availability` y
+`seating_hold_seating`) en cuanto sabe cuántos son o le piden mesa o barra.
+La propuesta no confirma una ocupación: el cliente la confirma o la rechaza
+con los botones de la vista y el modelo nunca puede confirmar, cancelar ni
+liberar. Cada turno, `VisitContextProvider` le indica el estado de asiento de
+la visita (sin sitio, propuesta pendiente o sentado) como contexto de la
+aplicación, y el middleware sustituye `visit_id` e `idempotency_key`: reutiliza
+la clave solo mientras la propuesta pendiente responde a la misma petición.
+Si el MCP no responde, el turno falla con `SeatingUnavailableError`.
+
+El código de aplicación (BFF y camarero simulado) usa
+`restaurant_agent.seating_gateway`: bloquear, confirmar, cancelar y leer la
+sala por Streamable HTTP, con una sesión MCP corta por llamada. Así el BFF no
+importa MCP ni su transporte. Todavía no existen herramientas de carta,
+inventario, cocina, cuenta o pago.
 
 Los tipos públicos de cliente y borrador se comparten con
 [`packages/contracts`](../../packages/contracts); las importaciones anteriores

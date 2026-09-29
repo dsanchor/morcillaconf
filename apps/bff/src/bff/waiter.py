@@ -20,10 +20,19 @@ from restaurant_agent.conversation import (
     ConversationError,
     ConversationManager,
     InvalidAgentResponseError,
+    SeatingUnavailableError,
     StructuredAgent,
     TurnLimitExceededError,
 )
 from restaurant_agent.memory.store import DurableMemoryRepository
+from restaurant_agent.seating import (
+    bind_visit,
+    clear_proposal,
+    history_source_id,
+    pending_proposal,
+    record_waiter_note,
+    set_seating_context,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +51,13 @@ class WaiterTurn:
     persisted_order_preferences: tuple[str, ...]
     session_json: str | None
     correlation_id: str
+    # Seating: the BFF visit id, the state shown to the model (None when
+    # seating is off) and the assignment of the proposal still pending.
+    visit_id: str | None = None
+    seating_context: dict[str, Any] | None = None
+    pending_assignment_id: str | None = None
+    # What the waiter said outside a turn (seating decisions), for its history.
+    history_notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -52,6 +68,7 @@ class WaiterTurnResult:
     turn_count: int
     persisted_order_preferences: tuple[str, ...]
     session_json: str | None
+    seating_proposal: dict[str, Any] | None = None
 
 
 class WaiterError(RuntimeError):
@@ -68,6 +85,10 @@ class WaiterInvalidResponseError(WaiterError):
 
 class WaiterTurnLimitError(WaiterError):
     """The conversation already used all of its turns."""
+
+
+class WaiterSeatingUnavailableError(WaiterUnavailableError):
+    """The seating service could not be reached during the turn."""
 
 
 class WaiterPort(Protocol):
@@ -127,6 +148,19 @@ class LocalWaiter:
         self._codec = codec or AgentSessionCodec()
 
     async def take_turn(self, turn: WaiterTurn) -> WaiterTurnResult:
+        session = self._codec.load(turn.session_json)
+        if turn.visit_id is not None:
+            if session is None:
+                session = self._agent.create_session(session_id=turn.conversation_id)
+            bind_visit(session.state, turn.visit_id)
+            set_seating_context(session.state, turn.seating_context)
+            pending = pending_proposal(session.state)
+            if pending is not None and pending["assignment_id"] != turn.pending_assignment_id:
+                # Decided, expired or reset: the next hold needs a fresh key.
+                clear_proposal(session.state)
+            source_id = history_source_id(self._agent)
+            for note in turn.history_notes:
+                record_waiter_note(session.state, note, source_id)
         manager = ConversationManager(
             self._agent,
             max_turns=self._max_turns,
@@ -137,7 +171,7 @@ class LocalWaiter:
             actor_id=turn.actor.actor_id,
             authenticated=turn.actor.authenticated,
             presented_name=turn.presented_name,
-            agent_session=self._codec.load(turn.session_json),
+            agent_session=session,
             state=SessionState(
                 customer=turn.customer,
                 order_draft=turn.order_draft,
@@ -154,6 +188,8 @@ class LocalWaiter:
             )
         except TurnLimitExceededError as exc:
             raise WaiterTurnLimitError(str(exc)) from exc
+        except SeatingUnavailableError as exc:
+            raise WaiterSeatingUnavailableError(str(exc)) from exc
         except AgentUnavailableError as exc:
             raise WaiterUnavailableError(str(exc)) from exc
         except InvalidAgentResponseError as exc:
@@ -163,6 +199,7 @@ class LocalWaiter:
         exported = manager.export_conversation(
             conversation_id=turn.conversation_id, actor_id=turn.actor.actor_id
         )
+        proposal = pending_proposal(exported.agent_session.state)
         return WaiterTurnResult(
             reply=response.reply,
             customer=exported.state.customer,
@@ -170,4 +207,11 @@ class LocalWaiter:
             turn_count=exported.state.turn_count,
             persisted_order_preferences=tuple(exported.persisted_order_preferences),
             session_json=self._codec.dump(exported.agent_session),
+            seating_proposal=dict(proposal) if proposal is not None else None,
         )
+
+    async def aclose(self) -> None:
+        """Close the waiter's MCP tools, connected lazily on its first turn."""
+
+        if getattr(self._agent, "mcp_tools", None):
+            await self._agent.__aexit__(None, None, None)

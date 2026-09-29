@@ -100,24 +100,29 @@ La imagen se ejecuta como usuario no root, guarda SQLite en `/data` y expone un
 | `BFF_SSE_HEARTBEAT_SECONDS` | Intervalo del latido SSE | `15` |
 | `BFF_SCRIPTED_DELAY_SECONDS` | Pausa del camarero simulado | `0` |
 | `BFF_HOST`, `BFF_PORT` | Dirección de `run-bff.sh` (`BFF_PORT` también en la imagen) | `0.0.0.0`, `8000` |
+| `SEATING_MCP_URL` | MCP de asientos (`http://127.0.0.1:8080/mcp` con `./scripts/run-mcp.sh`); sin ella no hay mesas | vacío |
+| `SEATING_MCP_TIMEOUT_SECONDS` | Tiempo máximo de cada llamada al MCP | `5` |
+| `BFF_ROOM_CACHE_SECONDS` | Caché de la sala por visita | `1` |
 
 `gpt-5.6-luna` funciona con la salida estructurada del camarero; `gpt-6-luna`
 la rechaza a través del endpoint del proyecto. La identidad falsa de desarrollo
 del camarero (`ENABLE_DEV_FAKE_IDENTITY`) queda siempre desactivada en el BFF,
-aunque la variable esté exportada. Lo mismo ocurre con `SEATING_MCP_URL`: los
-asientos son de la fase 4, que además tendrá que pasar al camarero el id de
-visita del BFF.
+aunque la variable esté exportada. Con `SEATING_MCP_URL` los asientos se
+activan en los dos modos: el camarero de Foundry recibe sus tools de
+disponibilidad y bloqueo, y el simulado bloquea con «somos N», «barra» y
+«mesa». Sin ella el comportamiento es el de la fase 3.
 
 ## API (`/v1`)
 
 | Método y ruta | Respuesta |
 |---|---|
 | `POST /v1/sessions` `{"name": "Ana"}` | 201: `token`, `identity`, `presented_name`, `active_visit_id`, `waiter`, `expires_at` |
-| `POST /v1/commands` (comando 3A) | 202 si queda `pending`; 200 con `completed` o `failed` |
+| `POST /v1/commands` (comando público) | 202 si queda `pending`; 200 con `completed` o `failed` |
 | `GET /v1/commands/{event_id}` | Resultado propio por `event_id` |
 | `GET /v1/conversations/{id}/snapshot` | `RestaurantSnapshot` confirmado |
 | `GET /v1/conversations/{id}/events?after_cursor=N` | SSE: `id` = cursor, `event` = tipo, `data` = evento; honra `Last-Event-ID` |
-| `GET /healthz` | `{"status": "ok", "waiter": ...}` |
+| `GET /v1/conversations/{id}/room` | `RoomView` anónimo de la sala, con `mine` en los sitios propios |
+| `GET /healthz` | `{"status": "ok", "waiter": ..., "seating": "on"/"off"}` |
 
 Salvo `sessions` y `healthz`, todo exige `Authorization: Bearer <token>`. Los
 errores de transporte devuelven un `PublicError`: `invalid_command` 422,
@@ -159,7 +164,24 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   Framework en JSON), eventos y resultados viven en SQLite y sobreviven a un
   reinicio. Un turno interrumpido por un reinicio se marca como fallido al
   arrancar.
-- **Observabilidad.** Spans `bff.command` y `bff.waiter.turn` con tipo,
+- **Mesas y barra.** El MCP es la fuente de verdad. Antes de cada turno el
+  BFF siembra su id de visita en la sesión del camarero (también en sesiones
+  de la fase 3 con un id aleatorio) y le pasa el estado de asiento de la
+  visita. Si el turno bloquea un sitio, el BFF guarda la propuesta pendiente
+  con un `proposal_id` público. `table.confirmation_decided` la confirma
+  (ocupada, con `seated_at`) o la rechaza (libre al momento) mediante el
+  gateway, comprobando pertenencia, versión y caducidad; un doble clic o un
+  reintento no confirma dos veces. El camarero responde con un mensaje fijo,
+  sin modelo. Una confirmación tardía recibe «La reserva de … ha caducado».
+  Lo que se decide fuera de un turno (confirmar, rechazar, caducar, `/new` o
+  un reinicio del MCP) llega al camarero en el turno siguiente: el estado de
+  asiento lleva `last_outcome` y los mensajes fijos se añaden a su historial.
+  `/new` cancela una propuesta pendiente y se rechaza mientras el grupo está
+  sentado. La consulta de la sala y cada turno reconcilian con el MCP: tras
+  `./scripts/run-mcp.sh --reset` los sitios propios desaparecen. Si el MCP no
+  responde: «El servicio de mesas no responde ahora mismo…».
+- **Observabilidad.** Spans `bff.command`, `bff.waiter.turn` y
+  `bff.seating.decision` con tipo,
   correlación, conversación y resultado, sin texto ni nombres. Solo se usa la
   API de OpenTelemetry: falta configurar un exportador (Application Insights,
   fase 9).
@@ -177,8 +199,10 @@ persistencia compartida llega en la fase 9.
 
 ## Límites
 
-- El camarero real con Foundry todavía no se ha ejecutado en esta rama; se
-  valida en el Codespace.
+- El camarero real con Foundry y el MCP de asientos se validan en el
+  Codespace; en CI se usa el camarero simulado.
+- Una ocupación solo se libera tras el pago (pendiente de fase 4); para
+  demostraciones se vacía la sala con `./scripts/run-mcp.sh --reset`.
 - El modelo puede mencionar otro nombre o saludar en su texto; la aplicación
   fija el dato, no la redacción.
 - Las reglas del saludo están duplicadas en `bff/greeting.py` y en el frontend;

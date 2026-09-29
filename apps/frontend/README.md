@@ -201,6 +201,31 @@ escribir el nombre recupera la misma visita sin reenviar mensajes. Si al
 recuperarla el camarero aún responde un mensaje anterior, la vista sigue el
 stream hasta que termina.
 
+### Mesas y barra (fase 4)
+
+- Cuando el camarero bloquea un sitio, aparece bajo la conversación una
+  propuesta con el lugar y los asientos («Mesa 3 · 3 de 4 asientos» o
+  «Barra · Puestos 1 a 3») y dos botones: «Confirmar» y «Rechazar». Envían
+  `table.confirmation_decided` con el `proposal_id` y la versión; una frase
+  en el chat nunca confirma. Si la reserva ha caducado, la vista muestra el
+  aviso y la tarjeta desaparece.
+- El plano se dibuja desde `RoomView` y se refresca solo cada 3 segundos
+  (`st.fragment`), sin tocar la conversación ni el cuadro de texto: otros
+  grupos aparecen como figuras anónimas en sus sillas, los sitios bloqueados
+  por otros con un discontinuo ámbar y la propuesta propia en vino. Las mesas
+  se asignan a los huecos del dibujo por orden de presentación: las cuatro
+  primeras a las mesas redondas, la quinta a la mesa larga y la barra a los
+  ocho taburetes; cada mesa dibuja tantas sillas como capacidad y lleva su número, tomado del rótulo «Mesa N» del layout (en la sala decorativa, 1 a 5). Los taburetes no se numeran.
+- Al confirmar, los acompañantes aparecen detrás del cliente en la puerta y el
+  grupo camina hasta sus sillas o taburetes. Se reproduce una vez en este
+  navegador (tras recargar ya están sentados), solo con CSS y respeta
+  `prefers-reduced-motion`.
+- Sin asientos en el BFF (`seating_enabled=false`) el plano es la sala
+  decorativa de la fase 3.
+- El falso aplica las mismas reglas en memoria (mesas exclusivas, barra sin
+  huecos, caducidad, `/new`), pero solo dentro de una sesión del navegador:
+  para ver clientes en paralelo hace falta el BFF.
+
 ## Fronteras de arquitectura
 
 - `app.py` solo usa el protocolo `BffClient` a través de `VisitSession`.
@@ -264,9 +289,10 @@ El sistema visual está descrito en [DESIGN.md](../../DESIGN.md) y
 
 ## Limitaciones
 
-- El camarero simulado solo entiende las frases descritas; con el BFF y
-  Foundry responde el camarero real. No hay mesas ocupadas, cuenta ni pago
-  (fase 4).
+- El camarero simulado solo entiende las frases descritas («somos N»,
+  «barra», «mesa» para los asientos); con el BFF y Foundry responde el
+  camarero real. Todavía no hay cuenta, pago ni liberación de mesa.
+- La vista previa estática muestra la sala decorativa, sin asientos.
 - La identidad es el nombre escrito en la puerta: identidad sintética de
   desarrollo, no autenticación.
 - El estado simulado vive en la sesión del navegador y se pierde al recargar;

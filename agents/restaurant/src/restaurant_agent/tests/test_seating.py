@@ -60,7 +60,7 @@ async def test_hold_seating_uses_session_values_and_persists_proposal() -> None:
 
     async def call_next() -> None:
         assert context.arguments["visit_id"] == "visit-1"
-        assert context.arguments["idempotency_key"] == "seating:visit-1:1"
+        assert context.arguments["idempotency_key"].startswith("seating:visit-1:1-")
         context.result = json.dumps(
             {
                 "assignment_id": "seat-1",
@@ -78,14 +78,24 @@ async def test_hold_seating_uses_session_values_and_persists_proposal() -> None:
 
 
 @pytest.mark.asyncio
-async def test_same_hold_request_reuses_idempotency_key() -> None:
+async def test_same_hold_request_reuses_idempotency_key_while_pending() -> None:
     session = SimpleNamespace(
         state={
             "visit_context": {
                 "visit_id": "visit-1",
                 "hold_sequence": 1,
                 "hold_requests": {"2:table": "seating:visit-1:1"},
-            }
+            },
+            "seating_proposal": {
+                "assignment_id": "seat-1",
+                "resource_id": "table-01",
+                "resource_kind": "table",
+                "party_size": 2,
+                "version": 1,
+                "expires_at": "2026-09-28T18:30:00+00:00",
+                "idempotency_key": "seating:visit-1:1",
+                "fingerprint": "2:table",
+            },
         }
     )
     context = SimpleNamespace(
