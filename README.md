@@ -48,9 +48,10 @@ con un camarero simulado: `./scripts/setup-frontend.sh` y después
 `./scripts/run-frontend.sh` (puerto 8501); sus pruebas, con
 `./scripts/test-frontend.sh`.
 
-El BFF ([`apps/bff`](apps/bff)) conecta esa vista con el camarero real en
-Microsoft Foundry: `./scripts/setup-bff.sh`, `./scripts/test-bff.sh` y
-`./scripts/run-bff.sh` (puerto 8000). La vista lo usa con
+El BFF ([`apps/bff`](apps/bff)) conecta esa vista con el agente independiente
+por Responses 2.0. El agente usa el modelo de Microsoft Foundry y escucha en
+el puerto 8088; el BFF escucha en el 8000. Usa `./scripts/setup-bff.sh`,
+`./scripts/test-bff.sh` y `./scripts/run-bff.sh`. La vista lo usa con
 `FRONTEND_BFF_CLIENT=http FRONTEND_BFF_URL=http://127.0.0.1:8000
 ./scripts/run-frontend.sh`. Configuración y permisos en
 [su README](apps/bff/README.md).
@@ -93,3 +94,40 @@ existentes; no desactiva el guardado automático de interacciones futuras.
 
 Consulta el README del agente para ejecutar la CLI, el servidor local o el smoke
 test opt-in contra Foundry.
+
+## Despliegue en Azure Container Apps
+
+El script [`scripts/deploy-container-apps.sh`](scripts/deploy-container-apps.sh)
+crea o actualiza en un único grupo de recursos una identidad administrada, un
+entorno de Container Apps, almacenamiento Azure Files para BFF y MCP, y las cuatro
+aplicaciones. Solo el frontend tiene entrada externa; BFF, agente y MCP usan
+entrada interna y se descubren mediante sus FQDN del mismo entorno. Cada
+BFF y MCP montan su propio recurso compartido y cada aplicación queda fijada a
+una réplica. El BFF usa el journal `DELETE` en Azure Files porque SQLite WAL no
+es compatible con sistemas de archivos de red.
+
+Requisitos: Bash, Python 3, Azure CLI con la extensión `containerapp`, una sesión
+iniciada con `az login` y permisos para crear recursos y asignaciones RBAC. Copia
+el ejemplo versionado y completa todos sus marcadores:
+
+```bash
+cp scripts/container-apps.env.example scripts/container-apps.env
+${EDITOR:-vi} scripts/container-apps.env
+./scripts/deploy-container-apps.sh scripts/container-apps.env
+```
+
+El fichero usa sintaxis simple `NOMBRE=valor`; el script lo analiza sin
+ejecutarlo como Bash. No necesita secretos ni credenciales de registro: recibe
+cuatro referencias públicas completas de GHCR y las despliega directamente. Usa preferentemente digest
+`sha256` o etiquetas de commit SHA, nunca `latest`. La identidad solo se asigna
+al agente y recibe `Azure AI User` sobre el proyecto Foundry indicado. La clave
+de Azure Files se obtiene durante la ejecución, no se imprime y no se guarda.
+Conviene mantener `scripts/container-apps.env` fuera del control de versiones.
+
+El despliegue es idempotente y no construye ni publica imágenes, pero no realiza
+una previsualización: revisa el fichero de entorno antes de ejecutarlo. Para
+validar solo la sintaxis sin crear recursos:
+
+```bash
+bash -n scripts/deploy-container-apps.sh
+```

@@ -360,7 +360,7 @@ async def test_an_unexpected_decision_error_leaves_the_conversation_usable(servi
 
 
 async def test_a_bar_proposal_survives_a_failed_room_lookup(service, commands, seating) -> None:
-    from restaurant_agent.seating_gateway import SeatingUnavailable
+    from bff.seating import SeatingUnavailable
 
     await seating.hold(visit_id="other", party_size=2, preference="bar", idempotency_key="o")
 

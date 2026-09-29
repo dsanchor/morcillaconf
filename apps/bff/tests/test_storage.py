@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import UTC, datetime
 
 from restaurant_contracts.application import (
@@ -8,6 +9,14 @@ from restaurant_contracts.application import (
 from bff.storage import ConversationRow, Database
 
 NOW = datetime(2026, 9, 28, 12, 0, tzinfo=UTC)
+
+
+def test_delete_journal_mode_is_available_for_network_storage(tmp_path) -> None:
+    path = tmp_path / "bff.db"
+    Database(path, journal_mode="DELETE")
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
 
 
 def conversation(db: Database) -> ConversationRow:

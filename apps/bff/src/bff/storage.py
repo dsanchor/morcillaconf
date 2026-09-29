@@ -1,9 +1,4 @@
-"""SQLite persistence of the BFF: sessions, visits, conversations and events.
-
-Durable memory stays in the waiter's own store. Every write runs inside one
-``BEGIN IMMEDIATE`` transaction so state, events and command results are
-persisted together before anything is published.
-"""
+"""SQLite persistence of BFF sessions, visits, conversations and events."""
 
 from __future__ import annotations
 
@@ -670,11 +665,21 @@ def _optional_datetime(value: str | None) -> datetime | None:
 class Database:
     """SQLite file owned by one BFF process."""
 
-    def __init__(self, path: Path, *, event_retention: int = 500) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        event_retention: int = 500,
+        journal_mode: str = "WAL",
+    ) -> None:
         if event_retention < 1:
             raise ValueError("event_retention must be positive")
+        normalized_journal_mode = journal_mode.upper()
+        if normalized_journal_mode not in {"WAL", "DELETE"}:
+            raise ValueError("journal_mode must be WAL or DELETE")
         self._path = path.expanduser().resolve()
         self._retention = event_retention
+        self._journal_mode = normalized_journal_mode
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             connection.executescript(_SCHEMA)
@@ -720,7 +725,7 @@ class Database:
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute("PRAGMA busy_timeout = 5000")
-            connection.execute("PRAGMA journal_mode = WAL")
+            connection.execute(f"PRAGMA journal_mode = {self._journal_mode}")
             yield connection
         finally:
             connection.close()

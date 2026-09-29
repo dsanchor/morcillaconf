@@ -1,7 +1,7 @@
-"""Application access to the seating MCP: hold, confirm, cancel and room map.
+"""BFF access to the seating MCP: hold, confirm, cancel and room map.
 
-Application code (the BFF and its scripted waiter) uses this gateway; the
-model never sees it and the BFF never imports MCP or its transport. Each call
+The BFF and its scripted waiter use this gateway; the model never sees it.
+Each call
 opens its own Streamable HTTP session under a timeout, so an MCP restart never
 leaves a broken shared connection behind.
 """
@@ -54,6 +54,25 @@ _ERRORS: dict[str, type[SeatingGatewayError]] = {
     "conflict": SeatingConflict,
     "idempotency_conflict": SeatingIdempotencyConflict,
 }
+
+
+def seat_positions(seat_ids: Any) -> list[int]:
+    """Return bar-stool positions from ``<prefix>-NN`` seat identifiers."""
+
+    positions = []
+    for seat_id in seat_ids or ():
+        suffix = str(seat_id).rsplit("-", 1)[-1]
+        if suffix.isdigit():
+            positions.append(int(suffix))
+    return positions
+
+
+def stools_text(positions: list[int]) -> str:
+    if not positions:
+        return "la barra"
+    if len(positions) == 1:
+        return f"la barra, puesto {positions[0]}"
+    return f"la barra, puestos {positions[0]} a {positions[-1]}"
 
 
 @dataclass(frozen=True)

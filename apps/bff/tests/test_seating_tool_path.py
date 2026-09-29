@@ -22,12 +22,12 @@ from agent_framework import (
     MCPStreamableHTTPTool,
 )
 
-from restaurant_agent.memory.store import SQLiteMemoryStore
+from restaurant_contracts.memory_store import SQLiteMemoryStore
 from restaurant_agent.seating import SeatingToolContextMiddleware, VisitContextProvider
 
 from bff.service import RestaurantService
 from bff.storage import Database
-from bff.waiter import LocalWaiter
+from bff.local_waiter import LocalWaiter
 from seating_fake import FakeSeatingGateway
 from seating_tool_server import SeatingToolServer
 
@@ -103,7 +103,7 @@ def world(tmp_path, clock):
     service = RestaurantService(
         database=Database(tmp_path / "bff.db"),
         memory_store=memory,
-        waiter=LocalWaiter(agent, mode="foundry", max_turns=20, memory_store=memory),
+        waiter=LocalWaiter(agent, mode="remote", max_turns=20, memory_store=memory),
         clock=clock,
         seating=seating,
         room_cache_seconds=0,

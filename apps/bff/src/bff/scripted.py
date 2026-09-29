@@ -30,13 +30,15 @@ from restaurant_agent.seating import (
     pending_proposal,
     store_proposal,
 )
-from restaurant_agent.seating_gateway import (
+from bff.seating import (
     NoSeatingAvailable,
     SeatingAssignment,
     SeatingConflict,
     SeatingGateway,
     SeatingGatewayError,
     SeatingUnavailable,
+    seat_positions,
+    stools_text,
 )
 
 _STATE = re.compile(r"Estado confirmado antes de este turno:\n(?P<state>.*?)\n\n", re.S)
@@ -88,25 +90,6 @@ def _as_result(held: SeatingAssignment) -> dict[str, Any]:
         "version": held.version,
         "expires_at": held.expires_at.isoformat() if held.expires_at else None,
     }
-
-
-def seat_positions(seat_ids: Any) -> list[int]:
-    """Bar stool positions from the seating service's ``<prefix>-NN`` ids."""
-
-    positions = []
-    for seat_id in seat_ids or ():
-        suffix = str(seat_id).rsplit("-", 1)[-1]
-        if suffix.isdigit():
-            positions.append(int(suffix))
-    return positions
-
-
-def stools_text(positions: list[int]) -> str:
-    if not positions:
-        return "la barra"
-    if len(positions) == 1:
-        return f"la barra, puesto {positions[0]}"
-    return f"la barra, puestos {positions[0]} a {positions[-1]}"
 
 
 def _describe(held: SeatingAssignment, preference: str) -> str:

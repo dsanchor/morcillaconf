@@ -3,25 +3,22 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from pydantic import Field, HttpUrl, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-if TYPE_CHECKING:
-    from restaurant_agent.config import Settings as AgentSettings
-
-
 class BffSettings(BaseSettings):
     """Everything the BFF needs; no local environment has to be sourced."""
 
-    bff_waiter: Literal["foundry", "scripted"] = "foundry"
+    bff_waiter: Literal["remote", "scripted"] = "remote"
     bff_database_path: Path = Path("data/bff.db")
     memory_database_path: Path = Path("data/memory.db")
+    bff_sqlite_journal_mode: Literal["WAL", "DELETE"] = "WAL"
     memory_max_items: int = Field(default=20, ge=1, le=100)
     waiter_max_turns: int = Field(default=20, ge=1, le=100)
-    foundry_project_endpoint: HttpUrl | None = None
-    azure_ai_model_deployment_name: str | None = None
+    waiter_agent_url: HttpUrl | None = None
+    waiter_agent_timeout_seconds: int = Field(default=60, ge=1, le=300)
     app_environment: Literal["development", "test", "production"] = "development"
     bff_session_ttl_hours: float = Field(default=12, gt=0, le=168)
     bff_event_retention: int = Field(default=500, ge=2, le=100_000)
@@ -38,41 +35,12 @@ class BffSettings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def foundry_needs_a_project(self) -> BffSettings:
-        if self.bff_waiter != "foundry":
+    def remote_waiter_needs_an_endpoint(self) -> BffSettings:
+        if self.bff_waiter != "remote":
             return self
-        missing = []
-        if self.foundry_project_endpoint is None:
-            missing.append("FOUNDRY_PROJECT_ENDPOINT")
-        if not self.azure_ai_model_deployment_name:
-            missing.append("AZURE_AI_MODEL_DEPLOYMENT_NAME")
-        if missing:
+        if self.waiter_agent_url is None:
             raise ValueError(
-                "BFF_WAITER=foundry needs "
-                + ", ".join(missing)
-                + " (or use BFF_WAITER=scripted for the simulated waiter)"
+                "BFF_WAITER=remote needs WAITER_AGENT_URL "
+                "(or use BFF_WAITER=scripted for local development)"
             )
         return self
-
-    def agent_settings(self) -> AgentSettings:
-        """Waiter settings built explicitly: never the fake dev identity.
-
-        Seating is on only when SEATING_MCP_URL is set; the BFF seeds its own
-        visit id into the waiter session before every turn.
-        """
-
-        from restaurant_agent.config import Settings
-
-        return Settings(
-            _env_file=None,
-            foundry_project_endpoint=self.foundry_project_endpoint,
-            azure_ai_model_deployment_name=self.azure_ai_model_deployment_name,
-            waiter_max_turns=self.waiter_max_turns,
-            memory_database_path=self.memory_database_path,
-            memory_max_items=self.memory_max_items,
-            app_environment=self.app_environment,
-            enable_dev_fake_identity=False,
-            dev_fake_actor_id=None,
-            seating_mcp_url=self.seating_mcp_url,
-            seating_mcp_timeout_seconds=self.seating_mcp_timeout_seconds,
-        )

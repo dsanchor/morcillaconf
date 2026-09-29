@@ -47,7 +47,7 @@ from restaurant_contracts.application import (
     StreamEvent,
     VisibleMemory,
 )
-from restaurant_contracts.customer import CustomerSnapshot
+from restaurant_contracts.customer import CustomerSnapshot, missing_customer_fields
 from restaurant_contracts.seating import (
     RoomPlace,
     RoomSeat,
@@ -57,25 +57,26 @@ from restaurant_contracts.seating import (
     SeatingView,
 )
 
-from restaurant_agent.contracts import missing_customer_fields
-from restaurant_agent.memory.store import (
+from restaurant_contracts.memory_store import (
     DurableMemoryRepository,
     MemoryConflictError,
     MemoryNotFoundError,
 )
-from restaurant_agent.seating_gateway import (
+from bff.seating import (
     SeatingConflict,
     SeatingExpired,
     SeatingGateway,
     SeatingGatewayError,
     SeatingRoom,
     SeatingUnavailable,
+    seat_positions,
+    stools_text,
 )
 
 from bff.greeting import greeting
 from bff.identity import InvalidNameError, actor_id_for, presented_name
 from bff.notifier import Notifier
-from bff.scripted import seat_positions, stools_text
+
 from bff.storage import ConversationRow, Database, SeatingRow, Transaction
 from bff.telemetry import tracer
 from bff.waiter import (
@@ -693,6 +694,7 @@ class RestaurantService:
                 persisted_order_preferences=tuple(row.persisted_order_preferences),
                 session_json=row.agent_session_json,
                 correlation_id=job.correlation_id,
+                memories=tuple(self._memory.list_memories(row.actor_id)),
                 **seating_fields,
             )
             outcome: WaiterTurnResult | tuple[ErrorCode, str]
@@ -764,6 +766,13 @@ class RestaurantService:
                 row.order_draft = outcome.order_draft
                 row.turn_count = outcome.turn_count
                 row.persisted_order_preferences = list(outcome.persisted_order_preferences)
+                for candidate in outcome.memory_candidates:
+                    self._memory.remember_memory(
+                        row.actor_id,
+                        kind=candidate.kind,
+                        value=candidate.value,
+                        source_conversation_id=row.conversation_id,
+                    )
                 if outcome.session_json is not None:
                     row.agent_session_json = outcome.session_json
                 tx.add_message(

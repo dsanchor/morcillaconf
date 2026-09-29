@@ -9,13 +9,13 @@ from datetime import datetime, timedelta
 
 from fastapi import FastAPI
 
-from restaurant_agent.memory.store import DurableMemoryRepository, SQLiteMemoryStore
-from restaurant_agent.seating_gateway import SeatingGateway
+from restaurant_contracts.memory_store import DurableMemoryRepository, SQLiteMemoryStore
 
 from bff import api
 from bff.adapters import create_seating, create_waiter
 from bff.config import BffSettings
 from bff.service import RestaurantService
+from bff.seating import SeatingGateway
 from bff.storage import Database
 from bff.waiter import WaiterPort
 
@@ -36,12 +36,16 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         config = settings or BffSettings()
         memory_store = SQLiteMemoryStore(
-            config.memory_database_path, max_memories=config.memory_max_items
+            config.memory_database_path,
+            max_memories=config.memory_max_items,
+            journal_mode=config.bff_sqlite_journal_mode,
         )
         seating = seating_factory(config)
         service = RestaurantService(
             database=Database(
-                config.bff_database_path, event_retention=config.bff_event_retention
+                config.bff_database_path,
+                event_retention=config.bff_event_retention,
+                journal_mode=config.bff_sqlite_journal_mode,
             ),
             memory_store=memory_store,
             waiter=waiter_factory(config, memory_store, seating),

@@ -47,20 +47,28 @@ aplicación, y el middleware sustituye `visit_id` e `idempotency_key`: reutiliza
 la clave solo mientras la propuesta pendiente responde a la misma petición.
 Si el MCP no responde, el turno falla con `SeatingUnavailableError`.
 
-El código de aplicación (BFF y camarero simulado) usa
-`restaurant_agent.seating_gateway`: bloquear, confirmar, cancelar y leer la
-sala por Streamable HTTP, con una sesión MCP corta por llamada. Así el BFF no
-importa MCP ni su transporte. Todavía no existen herramientas de carta,
-inventario, cocina, cuenta o pago.
+El agente se sirve como proceso independiente mediante Responses 2.0. El BFF
+envía un contrato tipado dentro de `input`, fija la conversación con
+`conversation.id` y aporta `x-agent-user-id`; el servidor exige que la
+identidad del contrato y la cabecera coincidan. El agente devuelve el estado
+estructurado del turno como texto JSON de la respuesta estándar.
+
+El BFF posee su propio gateway de aplicación para confirmar, cancelar y leer la
+sala. El agente solo recibe las tools MCP de disponibilidad y bloqueo. Todavía
+no existen herramientas de carta, inventario, cocina, cuenta o pago.
 
 Los tipos públicos de cliente y borrador se comparten con
 [`packages/contracts`](../../packages/contracts); las importaciones anteriores
 del agente se conservan. Preparar el entorno desde el checkout completo instala
 esa dependencia local. La extracción inicial de 3A no cambió
 Responses/invocations ni los prompts; la política vigente de memoria es automática.
-Antes de un despliegue con `remote_build` habrá que incluir el paquete compartido
-en el artefacto remoto; copiar solo la carpeta del servicio ya no es suficiente.
-Esa validación de empaquetado y hosting permanece pendiente en fase 5.
+La imagen Docker se construye desde la raíz e incorpora ese paquete. El script
+de Container Apps despliega la imagen pública de GHCR como aplicación
+independiente.
+
+En el recorrido web, el BFF conserva la memoria duradera y envía al agente una
+instantánea por turno; el agente devuelve únicamente los candidatos nuevos
+para que el BFF los persista. La CLI independiente mantiene su SQLite local.
 
 Las alergias y restricciones se guardan en una categoría separada. Todos los
 recuerdos son contexto no vinculante, llevan procedencia y fecha, y requieren

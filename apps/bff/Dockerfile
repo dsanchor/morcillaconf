@@ -6,11 +6,11 @@ COPY --from=uv /uv /uvx /bin/
 ENV UV_LINK_MODE=copy
 WORKDIR /workspace/apps/bff
 COPY packages/contracts /workspace/packages/contracts
-COPY agents/restaurant/src/restaurant_agent/pyproject.toml agents/restaurant/src/restaurant_agent/uv.toml /workspace/agents/restaurant/src/restaurant_agent/
-COPY agents/restaurant/src/restaurant_agent/restaurant_agent /workspace/agents/restaurant/src/restaurant_agent/restaurant_agent
 COPY apps/bff/pyproject.toml apps/bff/uv.lock ./
 
 FROM base AS test
+COPY agents/restaurant/src/restaurant_agent/pyproject.toml agents/restaurant/src/restaurant_agent/uv.toml /workspace/agents/restaurant/src/restaurant_agent/
+COPY agents/restaurant/src/restaurant_agent/restaurant_agent /workspace/agents/restaurant/src/restaurant_agent/restaurant_agent
 RUN uv sync --frozen --all-groups --no-install-project
 COPY apps/bff/src ./src
 COPY apps/bff/tests ./tests

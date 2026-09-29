@@ -1,6 +1,6 @@
 import pytest
 
-from restaurant_agent.seating_gateway import (
+from bff.seating import (
     McpSeatingGateway,
     NoSeatingAvailable,
     SeatingConflict,

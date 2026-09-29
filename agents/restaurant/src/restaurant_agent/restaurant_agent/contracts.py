@@ -8,6 +8,7 @@ from restaurant_contracts.customer import (
     OrderDraft,
     OrderItemDraft,
     PendingField,
+    missing_customer_fields,
 )
 from restaurant_agent.memory.contracts import MemoryCandidate, MemoryIntent
 
@@ -20,17 +21,6 @@ class SessionState(BaseModel):
     customer: CustomerSnapshot = Field(default_factory=CustomerSnapshot)
     order_draft: OrderDraft = Field(default_factory=OrderDraft)
     turn_count: int = Field(default=0, ge=0)
-
-
-def missing_customer_fields(customer: CustomerSnapshot) -> list[PendingField]:
-    """Customer data that is still unknown, derived deterministically."""
-
-    missing = []
-    if customer.presented_name is None:
-        missing.append(PendingField.CUSTOMER_NAME)
-    if customer.party_size is None:
-        missing.append(PendingField.PARTY_SIZE)
-    return missing
 
 
 class WaiterModelResult(BaseModel):

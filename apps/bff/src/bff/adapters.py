@@ -1,18 +1,12 @@
-"""Waiter and seating adapters selected by configuration.
-
-The Foundry part is deliberately thin: it only builds the existing waiter
-agent. Everything else is shared with the scripted waiter. Seating is on only
-when SEATING_MCP_URL is set; the gateway hides MCP and its transport.
-"""
+"""Waiter and seating adapters selected by configuration."""
 
 from __future__ import annotations
 
-from restaurant_agent.memory.store import DurableMemoryRepository
-from restaurant_agent.seating_gateway import McpSeatingGateway, SeatingGateway
+from restaurant_contracts.memory_store import DurableMemoryRepository
 
 from bff.config import BffSettings
-from bff.scripted import ScriptedWaiterAgent
-from bff.waiter import LocalWaiter
+from bff.seating import McpSeatingGateway, SeatingGateway
+from bff.waiter import RemoteWaiter, WaiterPort
 
 
 def create_seating(settings: BffSettings) -> SeatingGateway | None:
@@ -27,19 +21,22 @@ def create_waiter(
     settings: BffSettings,
     memory_store: DurableMemoryRepository,
     seating: SeatingGateway | None = None,
-) -> LocalWaiter:
+) -> WaiterPort:
     if settings.bff_waiter == "scripted":
+        from bff.local_waiter import LocalWaiter
+        from bff.scripted import ScriptedWaiterAgent
+
         agent = ScriptedWaiterAgent(
             delay_seconds=settings.bff_scripted_delay_seconds, seating=seating
         )
-    else:
-        # Imported lazily: agent_framework.foundry is only needed for the real waiter.
-        from restaurant_agent.agent import create_waiter_agent
-
-        agent = create_waiter_agent(settings.agent_settings(), memory_store=memory_store)
-    return LocalWaiter(
-        agent,
-        mode=settings.bff_waiter,
-        max_turns=settings.waiter_max_turns,
-        memory_store=memory_store,
+        return LocalWaiter(
+            agent,
+            mode="scripted",
+            max_turns=settings.waiter_max_turns,
+            memory_store=memory_store,
+        )
+    assert settings.waiter_agent_url is not None
+    return RemoteWaiter(
+        str(settings.waiter_agent_url),
+        timeout_seconds=settings.waiter_agent_timeout_seconds,
     )

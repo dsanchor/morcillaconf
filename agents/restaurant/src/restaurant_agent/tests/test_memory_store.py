@@ -15,6 +15,14 @@ def create_store(path: Path, *, max_memories: int = 20) -> SQLiteMemoryStore:
     return SQLiteMemoryStore(path, max_memories=max_memories)
 
 
+def test_delete_journal_mode_is_available_for_network_storage(tmp_path: Path) -> None:
+    path = tmp_path / "memory.db"
+    SQLiteMemoryStore(path, journal_mode="DELETE")
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+
+
 def test_memory_is_stored_automatically_for_a_new_identity(tmp_path: Path) -> None:
     store = create_store(tmp_path / "memory.db")
 

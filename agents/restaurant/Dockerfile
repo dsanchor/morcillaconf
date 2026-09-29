@@ -18,6 +18,15 @@ FROM base AS runtime
 RUN uv sync --frozen --no-dev --no-install-project
 COPY agents/restaurant/src/restaurant_agent/restaurant_agent ./restaurant_agent
 COPY agents/restaurant/src/restaurant_agent/main.py ./
+RUN uv sync --frozen --no-dev \
+    && useradd --create-home --uid 10001 restaurant \
+    && mkdir -p /data \
+    && chown restaurant /data
 
+ENV PORT=8088 \
+    MEMORY_DATABASE_PATH=/data/memory.db
+USER restaurant
 EXPOSE 8088
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
+    CMD ["/workspace/agents/restaurant/src/restaurant_agent/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/readiness', timeout=3)"]
 CMD ["/workspace/agents/restaurant/src/restaurant_agent/.venv/bin/python", "main.py"]

@@ -1,4 +1,6 @@
 .env
+scripts/container-apps.env
+.container-apps-deploy.*/
 .local/
 .venv
 __pycache__/

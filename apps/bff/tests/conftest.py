@@ -8,13 +8,14 @@ import pytest
 
 from restaurant_contracts.application import COMMAND_ADAPTER, Command
 
-from restaurant_agent.memory.store import SQLiteMemoryStore
+from restaurant_contracts.memory_store import SQLiteMemoryStore
 
 from bff.config import BffSettings
 from bff.scripted import ScriptedWaiterAgent
 from bff.service import RestaurantService
 from bff.storage import Database
-from bff.waiter import LocalWaiter
+from bff.local_waiter import LocalWaiter
+from seating_stub import RunningServer, StubSeating
 
 
 class Clock:
@@ -116,6 +117,16 @@ def commands() -> Commands:
 @pytest.fixture
 def clock() -> Clock:
     return Clock()
+
+
+@pytest.fixture
+def seating_server():
+    server = RunningServer(StubSeating())
+    server.start()
+    try:
+        yield server
+    finally:
+        server.stop()
 
 
 @pytest.fixture

@@ -1175,8 +1175,9 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
+    { name = "mcp" },
     { name = "morcillaconf-contracts" },
-    { name = "morcillaconf-restaurant-agent" },
     { name = "opentelemetry-api" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -1186,6 +1187,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "httpx" },
+    { name = "morcillaconf-restaurant-agent" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
 ]
@@ -1193,8 +1195,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "mcp", specifier = ">=1.30,<2" },
     { name = "morcillaconf-contracts", editable = "../../packages/contracts" },
-    { name = "morcillaconf-restaurant-agent", editable = "../../agents/restaurant/src/restaurant_agent" },
     { name = "opentelemetry-api", specifier = ">=1.30" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-settings", specifier = ">=2.12" },
@@ -1204,6 +1207,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpx", specifier = ">=0.28" },
+    { name = "morcillaconf-restaurant-agent", editable = "../../agents/restaurant/src/restaurant_agent" },
     { name = "pytest", specifier = ">=8.4" },
     { name = "pytest-asyncio", specifier = ">=1.2" },
 ]

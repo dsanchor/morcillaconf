@@ -29,6 +29,12 @@ jobs:
           fi
       - run: docker build --file apps/bff/Dockerfile --target test --tag morcillaconf-bff:test .
       - run: docker run --rm morcillaconf-bff:test
+      - run: docker build --file apps/bff/Dockerfile --target runtime --tag morcillaconf-bff:runtime .
+      - name: Verify runtime is independent from the agent package
+        run: >-
+          docker run --rm morcillaconf-bff:runtime
+          /workspace/apps/bff/.venv/bin/python -c
+          "import importlib.util; import bff.main; assert importlib.util.find_spec('restaurant_agent') is None"
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io

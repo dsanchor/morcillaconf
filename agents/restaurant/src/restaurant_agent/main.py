@@ -1,19 +1,13 @@
-from agent_framework_foundry_hosting import ResponsesHostServer
 from dotenv import load_dotenv
 
-from restaurant_agent.agent import create_waiter_agent
 from restaurant_agent.config import Settings
-from restaurant_agent.memory import create_memory_store
+from restaurant_agent.remote import create_server
 
 
 def main() -> None:
     load_dotenv()
     settings = Settings()
-    memory_store = create_memory_store(settings)
-    server = ResponsesHostServer(
-        create_waiter_agent(settings, memory_store=memory_store)
-    )
-    server.run()
+    create_server(settings).run()
 
 
 if __name__ == "__main__":

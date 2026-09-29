@@ -5,10 +5,10 @@ import pytest
 from restaurant_contracts.application import ActorContext
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 
-from restaurant_agent.memory.store import SQLiteMemoryStore
+from restaurant_contracts.memory_store import SQLiteMemoryStore
 
 from bff.scripted import ScriptedWaiterAgent
-from bff.waiter import (
+from bff.local_waiter import (
     LocalWaiter,
     WaiterTurn,
     WaiterTurnLimitError,
@@ -133,7 +133,7 @@ async def test_scripted_waiter_rejects_an_unknown_prompt() -> None:
 def test_agent_sessions_with_history_round_trip_as_json() -> None:
     from agent_framework import AgentSession, Message
 
-    from bff.waiter import AgentSessionCodec
+    from bff.local_waiter import AgentSessionCodec
 
     session = AgentSession(session_id="conv_1")
     session.state["messages"] = [
@@ -159,7 +159,7 @@ async def test_the_visit_context_survives_the_session_round_trip() -> None:
 
     from restaurant_agent.seating import VisitContextProvider
 
-    from bff.waiter import AgentSessionCodec
+    from bff.local_waiter import AgentSessionCodec
 
     provider = VisitContextProvider()
     codec = AgentSessionCodec()

@@ -29,6 +29,26 @@ indicadas en el propio plan.
 | 9. Integración duradera en Azure | Pendiente | Pendiente | Sin implementación |
 | 10. Evaluación y ensayo final | Pendiente | Pendiente | Sin implementación |
 
+## Separación de procesos y primer despliegue en Container Apps
+
+- El BFF ya no construye el camarero de Foundry en su proceso productivo.
+  `BFF_WAITER=remote` invoca el endpoint Responses 2.0 del contenedor del
+  agente mediante `WAITER_AGENT_URL`; `scripted` queda como adaptador local de
+  pruebas.
+- El contrato remoto tipado transporta estado confirmado, sesión opaca,
+  contexto de asientos y candidatos de memoria. El BFF sigue siendo la
+  autoridad de identidad, visita, snapshots, SSE, HITL y memoria persistida.
+- El agente valida `x-agent-user-id`, ejecuta `ConversationManager`, llama al
+  modelo de Foundry y a las tools MCP, y devuelve el resultado estructurado
+  dentro de una respuesta estándar.
+- `scripts/deploy-container-apps.sh` despliega imágenes públicas e inmutables
+  de GHCR en cuatro Container Apps independientes dentro del mismo entorno.
+  Solo el frontend tiene ingress externo; BFF, agente y MCP usan ingress
+  interno. El agente recibe una identidad administrada con `Azure AI User`.
+- Mientras BFF y MCP sigan usando SQLite, cada uno monta su Azure Files
+  separado y todas las aplicaciones quedan limitadas a una réplica. Es una
+  topología inicial de demo, no el diseño de persistencia escalable de fase 9.
+
 ## Acuerdos del sync del 28/09/2026
 
 Los acuerdos siguientes actualizan el alcance futuro; no constituyen evidencia

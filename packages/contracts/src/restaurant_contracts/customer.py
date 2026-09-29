@@ -46,3 +46,14 @@ class OrderDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: list[OrderItemDraft] = Field(default_factory=list, max_length=50)
+
+
+def missing_customer_fields(customer: CustomerSnapshot) -> list[PendingField]:
+    """Derive the customer fields that are still unknown."""
+
+    missing = []
+    if customer.presented_name is None:
+        missing.append(PendingField.CUSTOMER_NAME)
+    if customer.party_size is None:
+        missing.append(PendingField.PARTY_SIZE)
+    return missing

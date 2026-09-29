@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime, timedelta
 
-from restaurant_agent.seating_gateway import (
+from bff.seating import (
     NoSeatingAvailable,
     RoomResource,
     RoomSeatState,

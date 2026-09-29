@@ -6,11 +6,10 @@ envía los mensajes al camarero y publica el estado confirmado por HTTP y SSE,
 según los [contratos públicos](../../packages/contracts/README.md) (versión 1,
 sin cambios).
 
-En la fase 3 el camarero se ejecuta **dentro del BFF** (adaptador local
-explícito) y llama al modelo de Microsoft Foundry con `DefaultAzureCredential`.
-Publicarlo como Hosted Agent y el adaptador remoto son de la fase 5; el BFF ya
-se comunica con el camarero mediante un puerto estrecho (`WaiterPort`) pensado
-para ese cambio.
+El camarero se ejecuta como un servicio independiente y el BFF lo invoca por
+su endpoint estándar Responses 2.0. Solo el contenedor del agente conoce el
+proyecto Foundry, el deployment del modelo y sus credenciales. El BFF conserva
+sesiones web, visitas, snapshots, SSE y confirmaciones HITL.
 
 ## Preparar, probar y arrancar (Codespace)
 
@@ -24,39 +23,19 @@ Desde la raíz del repositorio:
 
 `apps/bff/uv.lock` está versionado y los scripts usan `--frozen`.
 
-El BFF ejecuta el camarero en su proceso, así que usa exactamente las versiones
-con las que se validó el camarero: `[tool.uv] constraint-dependencies` fija
-todos los paquetes de `agents/restaurant/src/restaurant_agent/uv.lock`, y
-`tests/test_lock_alignment.py` falla si las restricciones o los dos lockfiles
-difieren en algún paquete compartido. Si cambia el lockfile del camarero,
-regenera las restricciones y el lockfile:
+Camarero remoto con el agente ejecutándose en otro proceso:
 
 ```bash
-python3 - <<'PY'
-import re, tomllib
-from pathlib import Path
-lock = tomllib.load(open("agents/restaurant/src/restaurant_agent/uv.lock", "rb"))
-pins = sorted(f'{p["name"]}=={p["version"]}' for p in lock["package"] if "registry" in p["source"])
-path = Path("apps/bff/pyproject.toml")
-block = "constraint-dependencies = [\n" + "".join(f'    "{pin}",\n' for pin in pins) + "]"
-path.write_text(re.sub(r"constraint-dependencies = \[.*?\]", block, path.read_text(), flags=re.S))
-PY
-(cd apps/bff && uv lock)
-```
-
-Camarero real con tu proyecto Foundry:
-
-```bash
-az login --use-device-code
-export BFF_WAITER=foundry
-export FOUNDRY_PROJECT_ENDPOINT="https://<account>.services.ai.azure.com/api/projects/<project>"
-export AZURE_AI_MODEL_DEPLOYMENT_NAME="gpt-5.6-luna"
+export BFF_WAITER=remote
+export WAITER_AGENT_URL="http://127.0.0.1:8088"
 ./scripts/run-bff.sh
-curl http://127.0.0.1:8000/healthz   # {"status":"ok","waiter":"foundry"}
+curl http://127.0.0.1:8000/healthz   # {"status":"ok","waiter":"remote"}
 ```
 
-Sin Foundry: `BFF_WAITER=scripted ./scripts/run-bff.sh` usa un camarero
-simulado determinista. La vista se conecta con
+Arranca antes el agente con sus variables de Foundry mediante
+`./scripts/run-local.sh`. Sin agente ni Foundry,
+`BFF_WAITER=scripted ./scripts/run-bff.sh` conserva el camarero simulado para
+desarrollo. La vista se conecta con
 `FRONTEND_BFF_CLIENT=http FRONTEND_BFF_URL=http://127.0.0.1:8000 ./scripts/run-frontend.sh`
 ([README del frontend](../frontend/README.md)).
 
@@ -66,8 +45,8 @@ configura con variables de entorno o con un `.env` opcional en `apps/bff`
 
 ## Docker
 
-El contexto de construcción es la raíz del repositorio, porque la imagen copia
-los contratos y el paquete del camarero. Requiere `apps/bff/uv.lock`.
+El contexto de construcción es la raíz porque la imagen copia los contratos
+compartidos. La etapa `runtime` no copia ni instala el paquete del agente.
 
 ```bash
 docker build --file apps/bff/Dockerfile --target test --tag morcillaconf-bff:test .
@@ -87,11 +66,12 @@ La imagen se ejecuta como usuario no root, guarda SQLite en `/data` y expone un
 
 | Variable | Uso | Por defecto |
 |---|---|---|
-| `BFF_WAITER` | `foundry` (real) o `scripted` (simulado, sin modelo) | `foundry` |
-| `FOUNDRY_PROJECT_ENDPOINT` | Endpoint del proyecto Foundry; obligatorio con `foundry` | – |
-| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Deployment del modelo; obligatorio con `foundry` | – |
+| `BFF_WAITER` | `remote` (Responses 2.0) o `scripted` (desarrollo) | `remote` |
+| `WAITER_AGENT_URL` | URL base del agente; obligatorio con `remote` | – |
+| `WAITER_AGENT_TIMEOUT_SECONDS` | Tiempo máximo de una invocación remota | `60` |
 | `BFF_DATABASE_PATH` | SQLite del BFF: sesiones, visitas, eventos y resultados | `data/bff.db` |
 | `MEMORY_DATABASE_PATH` | SQLite de la memoria del camarero | `data/memory.db` |
+| `BFF_SQLITE_JOURNAL_MODE` | `WAL` local o `DELETE` sobre Azure Files | `WAL` |
 | `MEMORY_MAX_ITEMS` | Límite de recuerdos por tipo | `20` |
 | `WAITER_MAX_TURNS` | Mensajes por visita | `20` |
 | `APP_ENVIRONMENT` | `development`, `test` o `production` | `development` |
@@ -104,13 +84,10 @@ La imagen se ejecuta como usuario no root, guarda SQLite en `/data` y expone un
 | `SEATING_MCP_TIMEOUT_SECONDS` | Tiempo máximo de cada llamada al MCP | `5` |
 | `BFF_ROOM_CACHE_SECONDS` | Caché de la sala por visita | `1` |
 
-`gpt-5.6-luna` funciona con la salida estructurada del camarero; `gpt-6-luna`
-la rechaza a través del endpoint del proyecto. La identidad falsa de desarrollo
-del camarero (`ENABLE_DEV_FAKE_IDENTITY`) queda siempre desactivada en el BFF,
-aunque la variable esté exportada. Con `SEATING_MCP_URL` los asientos se
-activan en los dos modos: el camarero de Foundry recibe sus tools de
-disponibilidad y bloqueo, y el simulado bloquea con «somos N», «barra» y
-«mesa». Sin ella el comportamiento es el de la fase 3.
+El BFF envía la identidad resuelta mediante `x-agent-user-id` y un contrato
+tipado en el campo `input` de Responses. El agente rechaza discrepancias entre
+ambas identidades. Con `SEATING_MCP_URL`, el BFF confirma y cancela propuestas;
+el agente remoto usa su propia `SEATING_MCP_URL` para consultar y bloquear.
 
 ## API (`/v1`)
 
