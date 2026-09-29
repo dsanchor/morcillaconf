@@ -128,7 +128,9 @@ def _render_inside(*, opening: bool) -> None:
             text = st.chat_input("Escribe al camarero", key="redactor", max_chars=2_000)
         if state.get("simulated", True):
             st.markdown(simulated_markup(), unsafe_allow_html=True)
-        plan = st.empty()
+        # Drawn before any blocking work (a waiter turn, /new) so it never
+        # disappears while the waiter thinks.
+        _live_plan(opening)
     if opening:
         with st.container(key="puerta"):
             st.markdown(facade_markup("abriendo"), unsafe_allow_html=True)
@@ -138,6 +140,7 @@ def _render_inside(*, opening: bool) -> None:
         reveal = Reveal(greeting, reveal_pace) if reveal_pace and greeting else None
         window.markdown(conversation_markup(visit.view(), reveal=reveal), unsafe_allow_html=True)
 
+    seating_before = _seating_of(visit)
     if text is not None:
         command = parse_slash_command(text)
         if command is None:
@@ -148,8 +151,16 @@ def _render_inside(*, opening: bool) -> None:
             reveal_pace = _apply_slash(visit, command) or reveal_pace
     render()
     _proposal_card(card, visit)
-    with plan.container():
-        _live_plan(opening)
+    if text is not None and _seating_of(visit) != seating_before:
+        # The plan was drawn before the turn: redraw it now with the new place.
+        if reveal_pace:
+            state.reveal = reveal_pace
+        st.rerun()
+
+
+def _seating_of(visit: VisitSession) -> object:
+    snapshot = visit.snapshot
+    return None if snapshot is None else (snapshot.conversation_id, snapshot.seating)
 
 
 def _proposal_card(slot, visit: VisitSession) -> None:
