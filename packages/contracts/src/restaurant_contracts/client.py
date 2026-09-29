@@ -10,6 +10,7 @@ from restaurant_contracts.application import (
     RestaurantSnapshot,
     StreamEvent,
 )
+from restaurant_contracts.seating import RoomView
 
 
 class BffClientError(RuntimeError):
@@ -30,3 +31,7 @@ class BffClient(Protocol):
     def events(
         self, conversation_id: str, *, after_cursor: int
     ) -> AsyncIterator[StreamEvent]: ...
+
+    async def get_room(self, conversation_id: str) -> RoomView:
+        """Anonymous room of the conversation's restaurant, for the plan."""
+        ...

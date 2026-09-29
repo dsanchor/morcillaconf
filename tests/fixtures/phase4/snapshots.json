@@ -1,0 +1,228 @@
+[
+  {
+    "schema_version": 1,
+    "visit_id": "visit_demo",
+    "conversation_id": "conv_demo",
+    "identity": {
+      "actor_id": "customer_demo",
+      "authenticated": true
+    },
+    "cursor": 3,
+    "messages": [
+      {
+        "message_id": "msg_user",
+        "role": "user",
+        "text": "Soy Majo, ponme una morcilla y agua.",
+        "occurred_at": "2026-09-27T08:00:01Z",
+        "command_event_id": "cmd_message"
+      },
+      {
+        "message_id": "msg_assistant",
+        "role": "assistant",
+        "text": "Lo anoto en el borrador, Majo. Aun no he comprobado disponibilidad.",
+        "occurred_at": "2026-09-27T08:00:02Z",
+        "command_event_id": "cmd_message"
+      }
+    ],
+    "customer": {
+      "presented_name": "Majo",
+      "party_size": 3,
+      "preferences": [],
+      "restrictions": []
+    },
+    "order_draft": {
+      "items": [
+        {
+          "name": "morcilla",
+          "quantity": 1,
+          "notes": [],
+          "status": "unverified"
+        },
+        {
+          "name": "agua",
+          "quantity": 1,
+          "notes": [],
+          "status": "unverified"
+        }
+      ]
+    },
+    "pending_fields": [],
+    "memory": {
+      "memories": []
+    },
+    "process_status": "idle",
+    "allowed_actions": [
+      "customer.arrived",
+      "conversation.message_sent",
+      "memory.read_requested",
+      "memory.clear_requested",
+      "table.confirmation_decided"
+    ],
+    "seating": {
+      "status": "proposed",
+      "proposal": {
+        "proposal_id": "prop_demo",
+        "version": 1,
+        "place": {
+          "place_id": "table-03",
+          "kind": "table",
+          "label": "Mesa 3",
+          "capacity": 4,
+          "seats": []
+        },
+        "party_size": 3,
+        "expires_at": "2026-09-29T20:05:00Z"
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "visit_id": "visit_demo",
+    "conversation_id": "conv_demo",
+    "identity": {
+      "actor_id": "customer_demo",
+      "authenticated": true
+    },
+    "cursor": 3,
+    "messages": [
+      {
+        "message_id": "msg_user",
+        "role": "user",
+        "text": "Soy Majo, ponme una morcilla y agua.",
+        "occurred_at": "2026-09-27T08:00:01Z",
+        "command_event_id": "cmd_message"
+      },
+      {
+        "message_id": "msg_assistant",
+        "role": "assistant",
+        "text": "Lo anoto en el borrador, Majo. Aun no he comprobado disponibilidad.",
+        "occurred_at": "2026-09-27T08:00:02Z",
+        "command_event_id": "cmd_message"
+      }
+    ],
+    "customer": {
+      "presented_name": "Majo",
+      "party_size": 2,
+      "preferences": [],
+      "restrictions": []
+    },
+    "order_draft": {
+      "items": [
+        {
+          "name": "morcilla",
+          "quantity": 1,
+          "notes": [],
+          "status": "unverified"
+        },
+        {
+          "name": "agua",
+          "quantity": 1,
+          "notes": [],
+          "status": "unverified"
+        }
+      ]
+    },
+    "pending_fields": [],
+    "memory": {
+      "memories": []
+    },
+    "process_status": "idle",
+    "allowed_actions": [
+      "customer.arrived",
+      "conversation.message_sent",
+      "memory.read_requested",
+      "memory.clear_requested",
+      "table.confirmation_decided"
+    ],
+    "seating": {
+      "status": "proposed",
+      "proposal": {
+        "proposal_id": "prop_bar",
+        "version": 1,
+        "place": {
+          "place_id": "bar",
+          "kind": "bar",
+          "label": "Barra",
+          "capacity": 8,
+          "seats": [
+            1,
+            2
+          ]
+        },
+        "party_size": 2,
+        "expires_at": "2026-09-29T20:05:00Z"
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "visit_id": "visit_demo",
+    "conversation_id": "conv_demo",
+    "identity": {
+      "actor_id": "customer_demo",
+      "authenticated": true
+    },
+    "cursor": 3,
+    "messages": [
+      {
+        "message_id": "msg_user",
+        "role": "user",
+        "text": "Soy Majo, ponme una morcilla y agua.",
+        "occurred_at": "2026-09-27T08:00:01Z",
+        "command_event_id": "cmd_message"
+      },
+      {
+        "message_id": "msg_assistant",
+        "role": "assistant",
+        "text": "Lo anoto en el borrador, Majo. Aun no he comprobado disponibilidad.",
+        "occurred_at": "2026-09-27T08:00:02Z",
+        "command_event_id": "cmd_message"
+      }
+    ],
+    "customer": {
+      "presented_name": "Majo",
+      "party_size": 3,
+      "preferences": [],
+      "restrictions": []
+    },
+    "order_draft": {
+      "items": [
+        {
+          "name": "morcilla",
+          "quantity": 1,
+          "notes": [],
+          "status": "unverified"
+        },
+        {
+          "name": "agua",
+          "quantity": 1,
+          "notes": [],
+          "status": "unverified"
+        }
+      ]
+    },
+    "pending_fields": [],
+    "memory": {
+      "memories": []
+    },
+    "process_status": "idle",
+    "allowed_actions": [
+      "customer.arrived",
+      "conversation.message_sent",
+      "memory.read_requested",
+      "memory.clear_requested"
+    ],
+    "seating": {
+      "status": "seated",
+      "place": {
+        "place_id": "table-03",
+        "kind": "table",
+        "label": "Mesa 3",
+        "capacity": 4,
+        "seats": []
+      },
+      "party_size": 3,
+      "seated_at": "2026-09-29T20:01:00Z"
+    }
+  }
+]

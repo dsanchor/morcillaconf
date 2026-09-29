@@ -1,0 +1,122 @@
+[
+  {
+    "schema_version": 1,
+    "seating_enabled": false,
+    "generated_at": "2026-09-29T20:00:00Z",
+    "places": []
+  },
+  {
+    "schema_version": 1,
+    "seating_enabled": true,
+    "generated_at": "2026-09-29T20:01:00Z",
+    "places": [
+      {
+        "place_id": "table-01",
+        "kind": "table",
+        "label": "Mesa 1",
+        "capacity": 2,
+        "display_order": 10,
+        "state": "occupied",
+        "party_size": 2,
+        "mine": false,
+        "seats": []
+      },
+      {
+        "place_id": "table-02",
+        "kind": "table",
+        "label": "Mesa 2",
+        "capacity": 2,
+        "display_order": 20,
+        "state": "held",
+        "party_size": 1,
+        "mine": false,
+        "seats": []
+      },
+      {
+        "place_id": "table-03",
+        "kind": "table",
+        "label": "Mesa 3",
+        "capacity": 4,
+        "display_order": 30,
+        "state": "occupied",
+        "party_size": 3,
+        "mine": true,
+        "seats": []
+      },
+      {
+        "place_id": "table-04",
+        "kind": "table",
+        "label": "Mesa 4",
+        "capacity": 4,
+        "display_order": 40,
+        "state": "free",
+        "party_size": null,
+        "mine": false,
+        "seats": []
+      },
+      {
+        "place_id": "table-05",
+        "kind": "table",
+        "label": "Mesa 5",
+        "capacity": 6,
+        "display_order": 50,
+        "state": "free",
+        "party_size": null,
+        "mine": false,
+        "seats": []
+      },
+      {
+        "place_id": "bar",
+        "kind": "bar",
+        "label": "Barra",
+        "capacity": 8,
+        "display_order": 100,
+        "state": "free",
+        "party_size": null,
+        "mine": false,
+        "seats": [
+          {
+            "position": 1,
+            "state": "occupied",
+            "mine": false
+          },
+          {
+            "position": 2,
+            "state": "occupied",
+            "mine": false
+          },
+          {
+            "position": 3,
+            "state": "held",
+            "mine": false
+          },
+          {
+            "position": 4,
+            "state": "free",
+            "mine": false
+          },
+          {
+            "position": 5,
+            "state": "free",
+            "mine": false
+          },
+          {
+            "position": 6,
+            "state": "free",
+            "mine": false
+          },
+          {
+            "position": 7,
+            "state": "free",
+            "mine": false
+          },
+          {
+            "position": 8,
+            "state": "free",
+            "mine": false
+          }
+        ]
+      }
+    ]
+  }
+]
