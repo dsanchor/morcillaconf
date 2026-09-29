@@ -356,3 +356,16 @@ async def test_the_cli_asks_the_operator_to_decide(waiter, seating_server, capsy
     assert questions == ["¿Confirmar Mesa 3 para 3? (s/n) "] * 2
     assert "¡Estupendo! Os acompaño a la Mesa 3." in capsys.readouterr().out
     assert ana.report()["status"] == "seated"
+
+
+async def test_no_room_is_an_answer_the_model_can_read(waiter, seating_server) -> None:
+    ana = waiter([hold(9), say("Lo siento, no hay sitio para nueve.", 9)])
+    await ana.say("Somos nueve")
+    tool_results = [
+        item[3]
+        for role, items in ana.model.calls[-1]["messages"]
+        for item in items
+        if item[0] == "function_result"
+    ]
+    assert tool_results and tool_results[-1].startswith("no_seating: no hay ningún sitio libre para 9")
+    assert ana.report()["status"] == "none"

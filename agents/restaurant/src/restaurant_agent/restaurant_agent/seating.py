@@ -701,7 +701,21 @@ class SeatingToolContextMiddleware(FunctionMiddleware):
         arguments["visit_id"] = visit_id
         arguments["idempotency_key"] = idempotency_key
         context.arguments = arguments
-        await call_next()
+        try:
+            await call_next()
+        except Exception as exc:
+            code = error_code(exc)
+            if code not in ("no_seating", "conflict"):
+                raise
+            # A business answer, not a failure: the model must be able to say
+            # there is no room (Agent Framework hides exception details).
+            context.result = (
+                f"no_seating: no hay ningún sitio libre para {party_size} "
+                f"con la preferencia {preference}"
+                if code == "no_seating"
+                else "conflict: el grupo ya tiene sitio en esta visita"
+            )
+            return
         result = result_object(context.result)
         if result is not None and store_proposal(
             state, result, idempotency_key=idempotency_key, fingerprint=fingerprint
