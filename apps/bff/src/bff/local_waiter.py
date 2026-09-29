@@ -1,7 +1,8 @@
 """Development-only in-process waiter adapter.
 
 Production uses the remote adapter in ``bff.waiter``. This module remains for
-deterministic tests and the explicit local scripted mode.
+deterministic tests and the explicit local scripted mode. Its seating is the
+in-memory ``ScriptedSeating``: nothing here talks to the seating MCP.
 """
 
 from __future__ import annotations
@@ -21,18 +22,20 @@ from restaurant_agent.conversation import (
     TurnLimitExceededError,
 )
 from restaurant_agent.memory.store import DurableMemoryRepository
-from restaurant_agent.seating import (
-    bind_visit,
-    clear_proposal,
-    history_source_id,
-    pending_proposal,
-    record_waiter_note,
-    set_seating_context,
-)
+from restaurant_agent.seating import bind_visit
 
+from bff.scripted_seating import (
+    ScriptedNoPendingDecision,
+    ScriptedSeating,
+    ScriptedSeatingUnavailable,
+)
 from bff.waiter import (
+    WaiterError,
     WaiterInvalidResponseError,
     WaiterMode,
+    WaiterNoPendingDecisionError,
+    WaiterSeatingCall,
+    WaiterSeatingResult,
     WaiterSeatingUnavailableError,
     WaiterTurn,
     WaiterTurnLimitError,
@@ -86,12 +89,14 @@ class LocalWaiter:
         max_turns: int,
         memory_store: DurableMemoryRepository,
         codec: SessionCodec | None = None,
+        seating: ScriptedSeating | None = None,
     ) -> None:
         self.mode = mode
         self._agent = agent
         self._max_turns = max_turns
         self._memory_store = memory_store
         self._codec = codec or AgentSessionCodec()
+        self._seating = seating
 
     async def take_turn(self, turn: WaiterTurn) -> WaiterTurnResult:
         session = self._codec.load(turn.session_json)
@@ -99,14 +104,15 @@ class LocalWaiter:
             if session is None:
                 session = self._agent.create_session(session_id=turn.conversation_id)
             bind_visit(session.state, turn.visit_id)
-            set_seating_context(session.state, turn.seating_context)
-            pending = pending_proposal(session.state)
-            if pending is not None and pending["assignment_id"] != turn.pending_assignment_id:
-                # Decided, expired or reset: the next hold needs a fresh key.
-                clear_proposal(session.state)
-            source_id = history_source_id(self._agent)
-            for note in turn.history_notes:
-                record_waiter_note(session.state, note, source_id)
+            if self._seating is not None:
+                try:
+                    withdrawn = self._seating.withdraw(turn.visit_id)
+                except ScriptedSeatingUnavailable as exc:
+                    raise WaiterSeatingUnavailableError(str(exc)) from exc
+                if withdrawn is not None:
+                    # Written instead of pressing a button: the waiter withdraws
+                    # the proposal and holds again, like the real one.
+                    session.state["scripted_withdrawn"] = withdrawn
         manager = ConversationManager(
             self._agent,
             max_turns=self._max_turns,
@@ -145,7 +151,6 @@ class LocalWaiter:
         exported = manager.export_conversation(
             conversation_id=turn.conversation_id, actor_id=turn.actor.actor_id
         )
-        proposal = pending_proposal(exported.agent_session.state)
         return WaiterTurnResult(
             reply=response.reply,
             customer=exported.state.customer,
@@ -153,11 +158,42 @@ class LocalWaiter:
             turn_count=exported.state.turn_count,
             persisted_order_preferences=tuple(exported.persisted_order_preferences),
             session_json=self._codec.dump(exported.agent_session),
-            seating_proposal=dict(proposal) if proposal is not None else None,
+            seating=self._report(turn.visit_id),
         )
 
-    async def aclose(self) -> None:
-        """Close the waiter's MCP tools, connected lazily on its first turn."""
+    async def decide_seating(
+        self, call: WaiterSeatingCall, *, approved: bool, proposal_token: str
+    ) -> WaiterSeatingResult:
+        if self._seating is None:
+            raise WaiterNoPendingDecisionError("Seating is off")
+        try:
+            outcome, reply = self._seating.decide(call.visit_id, proposal_token, approved)
+        except ScriptedNoPendingDecision as exc:
+            raise WaiterNoPendingDecisionError(str(exc)) from exc
+        except ScriptedSeatingUnavailable as exc:
+            raise WaiterSeatingUnavailableError(str(exc)) from exc
+        return WaiterSeatingResult(
+            reply=reply,
+            outcome=outcome,
+            session_json=call.session_json,
+            seating=self._report(call.visit_id),
+        )
 
-        if getattr(self._agent, "mcp_tools", None):
-            await self._agent.__aexit__(None, None, None)
+    async def sync_seating(self, call: WaiterSeatingCall) -> WaiterSeatingResult:
+        return WaiterSeatingResult(
+            reply="",
+            outcome=None,
+            session_json=call.session_json,
+            seating=self._report(call.visit_id),
+        )
+
+    def _report(self, visit_id: str | None):
+        if self._seating is None or visit_id is None:
+            return None
+        try:
+            return self._seating.report(visit_id)
+        except ScriptedSeatingUnavailable as exc:
+            raise WaiterSeatingUnavailableError(str(exc)) from exc
+
+    async def aclose(self) -> None:
+        """Nothing to close: the scripted waiter holds no connections."""

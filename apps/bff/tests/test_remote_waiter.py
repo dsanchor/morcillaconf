@@ -97,3 +97,63 @@ async def test_remote_waiter_maps_typed_agent_failures() -> None:
         pass
     finally:
         await waiter.aclose()
+
+
+def _seating_call():
+    from bff.waiter import WaiterSeatingCall
+
+    return WaiterSeatingCall(
+        conversation_id="conv_1",
+        actor=ActorContext(actor_id="ana", authenticated=True),
+        presented_name="Ana",
+        session_json='{"state": {}}',
+        correlation_id="corr_2",
+        visit_id="visit_1",
+    )
+
+
+async def test_seating_decisions_and_syncs_go_to_the_waiter() -> None:
+    from bff.waiter import WaiterNoPendingDecisionError
+
+    sent = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(json.loads(request.content)["input"])
+        sent.append(payload)
+        if payload["operation"] == "decide_seating" and payload["proposal_token"] == "old":
+            return _response(json.dumps({"status": "failed", "code": "no_pending_decision", "message": "none"}))
+        return _response(
+            json.dumps(
+                {
+                    "status": "completed",
+                    "operation": payload["operation"],
+                    "reply": "¡Estupendo! Os acompaño a la Mesa 3." if payload["operation"] == "decide_seating" else "",
+                    "outcome": "confirmed" if payload["operation"] == "decide_seating" else None,
+                    "session_json": '{"state": {"x": 1}}',
+                    "seating": {"status": "seated", "token": "t1", "party_size": 3,
+                                "place": {"place_id": "table-03", "kind": "table", "label": "Mesa 3", "capacity": 4},
+                                "seated_at": "2026-09-29T20:00:00+00:00", "room": []},
+                }
+            )
+        )
+
+    waiter = RemoteWaiter("http://restaurant-agent:8088")
+    await waiter._client.aclose()
+    waiter._client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    try:
+        decided = await waiter.decide_seating(_seating_call(), approved=True, proposal_token="t1")
+        synced = await waiter.sync_seating(_seating_call())
+        try:
+            await waiter.decide_seating(_seating_call(), approved=False, proposal_token="old")
+            raise AssertionError("Expected WaiterNoPendingDecisionError")
+        except WaiterNoPendingDecisionError:
+            pass
+    finally:
+        await waiter.aclose()
+
+    assert (decided.outcome, decided.seating.status) == ("confirmed", "seated")
+    assert synced.seating.place.label == "Mesa 3"
+    assert [item["operation"] for item in sent] == ["decide_seating", "sync_seating", "decide_seating"]
+    assert sent[0]["decision"] == "confirmed" and sent[2]["decision"] == "rejected"
+    assert all(item["visit_id"] == "visit_1" for item in sent)
+    assert not any(key in json.dumps(sent) for key in ("assignment_id", "seating_context"))

@@ -24,15 +24,24 @@ class BffSettings(BaseSettings):
     bff_event_retention: int = Field(default=500, ge=2, le=100_000)
     bff_sse_heartbeat_seconds: float = Field(default=15, gt=0, le=300)
     bff_scripted_delay_seconds: float = Field(default=0, ge=0, le=30)
-    seating_mcp_url: HttpUrl | None = None
-    seating_mcp_timeout_seconds: int = Field(default=5, ge=1, le=60)
-    bff_room_cache_seconds: float = Field(default=1, ge=0, le=30)
+    bff_scripted_seating: bool = False
+    # Read only to refuse it: the waiter is the only client of the seating MCP.
+    seating_mcp_url: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def the_bff_never_talks_to_the_seating_mcp(self) -> BffSettings:
+        if self.seating_mcp_url:
+            raise ValueError(
+                "SEATING_MCP_URL belongs to the waiter agent, the only client of "
+                "the seating MCP; remove it from the BFF environment"
+            )
+        return self
 
     @model_validator(mode="after")
     def remote_waiter_needs_an_endpoint(self) -> BffSettings:

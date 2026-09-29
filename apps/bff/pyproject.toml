@@ -7,7 +7,6 @@ dependencies = [
     "morcillaconf-contracts",
     "fastapi>=0.115,<1",
     "httpx>=0.28",
-    "mcp>=1.30,<2",
     "uvicorn>=0.30",
     "opentelemetry-api>=1.30",
     "pydantic>=2.12",
