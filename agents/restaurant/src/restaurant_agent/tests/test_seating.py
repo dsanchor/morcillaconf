@@ -20,7 +20,7 @@ async def test_visit_context_is_created_once_per_session() -> None:
     await provider.before_run(
         agent=object(),
         session=session,
-        context=SimpleNamespace(),
+        context=SimpleNamespace(input_messages=[], extend_instructions=lambda *_: None),
         state={},
     )
     first_visit = session.state["visit_context"]["visit_id"]
@@ -28,7 +28,7 @@ async def test_visit_context_is_created_once_per_session() -> None:
     await provider.before_run(
         agent=object(),
         session=session,
-        context=SimpleNamespace(),
+        context=SimpleNamespace(input_messages=[], extend_instructions=lambda *_: None),
         state={},
     )
 
@@ -111,7 +111,7 @@ async def test_same_hold_request_reuses_idempotency_key_while_pending() -> None:
     await SeatingToolContextMiddleware().process(context, call_next)
 
 
-def test_agent_exposes_only_hold_and_availability_mcp_tools() -> None:
+def test_agent_exposes_hold_availability_and_approved_confirm_only() -> None:
     settings = Settings(
         foundry_project_endpoint=(
             "https://example.services.ai.azure.com/api/projects/demo"
@@ -125,7 +125,12 @@ def test_agent_exposes_only_hold_and_availability_mcp_tools() -> None:
     agent = create_waiter_agent(settings)
 
     assert len(agent.mcp_tools) == 1
-    assert agent.mcp_tools[0].allowed_tools == (
+    tool = agent.mcp_tools[0]
+    assert tool.allowed_tools == (
         "get_seating_availability",
         "hold_seating",
+        "confirm_seating",
     )
+    assert tool._determine_approval_mode("confirm_seating", "seating_confirm_seating") == "always_require"
+    assert tool._determine_approval_mode("hold_seating", "seating_hold_seating") == "never_require"
+    assert agent.default_options["allow_multiple_tool_calls"] is False

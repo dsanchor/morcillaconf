@@ -9,6 +9,7 @@ from __future__ import annotations
 import socket
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -23,6 +24,7 @@ class StubSeating:
     keys: dict[str, str] = field(default_factory=dict)
     calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     delay_seconds: float = 0.0
+    fail_confirm: bool = False
 
     def hold(self, visit_id: str, party_size: int, preference: str, idempotency_key: str) -> dict[str, Any]:
         if idempotency_key in self.keys:
@@ -34,7 +36,7 @@ class StubSeating:
                 assignment = {
                     "assignment_id": f"seat_{number}", "visit_id": visit_id, "resource_id": resource_id,
                     "resource_kind": "table", "seat_ids": [], "party_size": party_size, "status": "held",
-                    "expires_at": "2026-09-29T20:05:00+00:00", "version": 1,
+                    "expires_at": (datetime.now(UTC) + timedelta(minutes=5)).isoformat(), "version": 1,
                     "resource_label": f"Mesa {resource_id[-1]}",
                 }
                 self.assignments[assignment["assignment_id"]] = assignment
@@ -43,6 +45,8 @@ class StubSeating:
         raise ValueError("no_seating: no compatible seating is available")
 
     def change(self, assignment_id: str, visit_id: str, version: int, status: str) -> dict[str, Any]:
+        if status == "occupied" and self.fail_confirm:
+            raise RuntimeError("database is locked")
         item = self.assignments.get(assignment_id)
         if item is None or item["visit_id"] != visit_id:
             raise ValueError("not_found: assignment does not exist")
@@ -71,12 +75,12 @@ def build_server(stub: StubSeating, port: int) -> FastMCP:
 
     @server.tool()
     def confirm_seating(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
-        stub.calls.append(("confirm_seating", {"assignment_id": assignment_id}))
+        stub.calls.append(("confirm_seating", {"assignment_id": assignment_id, "visit_id": visit_id, "expected_version": expected_version, "idempotency_key": idempotency_key}))
         return stub.change(assignment_id, visit_id, expected_version, "occupied")
 
     @server.tool()
     def cancel_seating_hold(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
-        stub.calls.append(("cancel_seating_hold", {"assignment_id": assignment_id}))
+        stub.calls.append(("cancel_seating_hold", {"assignment_id": assignment_id, "visit_id": visit_id}))
         return stub.change(assignment_id, visit_id, expected_version, "cancelled")
 
     @server.tool()
@@ -90,7 +94,9 @@ def build_server(stub: StubSeating, port: int) -> FastMCP:
                 "resource_id": resource_id, "kind": "table", "label": f"Mesa {resource_id[-1]}", "capacity": capacity,
                 "display_order": order, "state": active[0]["status"] if active else "free",
                 "party_size": active[0]["party_size"] if active else None,
-                "mine": any(a["visit_id"] == visit_id for a in active), "seats": [],
+                "mine": any(a["visit_id"] == visit_id for a in active),
+                "expires_at": active[0]["expires_at"] if active and active[0]["status"] == "held" else None,
+                "seats": [],
             })
         return {"layout_id": "stub", "resources": resources, "visit": mine[-1] if mine else None}
 

@@ -5,9 +5,13 @@ import json
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+
+from agent_framework import Message
 from uuid import uuid4
 
 from pydantic import ValidationError
+
+from restaurant_agent import seating as seating_state
 
 from restaurant_agent.contracts import (
     SessionState,
@@ -50,6 +54,10 @@ class AgentUnavailableError(ConversationError):
 
 class SeatingUnavailableError(AgentUnavailableError):
     """Raised when the seating MCP cannot be reached for the turn."""
+
+
+class NoPendingSeatingDecisionError(ConversationError):
+    """Raised when a seating decision arrives without a paused confirmation."""
 
 
 class GuestMemoryError(ConversationError):
@@ -143,6 +151,15 @@ class ConversationRecord:
     persisted_order_preferences: set[str] = field(default_factory=set)
     presented_name: str | None = None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
+@dataclass(frozen=True)
+class SeatingDecisionResult:
+    """Outcome of a button decision: the waiter's fixed reply and the seating report."""
+
+    reply: str
+    seating: dict[str, Any] | None
+    awaiting_seating_decision: bool = False
 
 
 @dataclass(frozen=True)
@@ -280,26 +297,48 @@ class ConversationManager:
 
             self._refresh_remembered_memories(record)
             prompt = self._build_prompt(record, normalized_message)
-            try:
-                response = await self._agent.run(
-                    prompt,
-                    session=record.agent_session,
-                    options={"response_format": WaiterModelResult},
+            run_input: Any = prompt
+            pending = seating_state.pending_confirm_request(record.agent_session.state)
+            if pending is not None:
+                # Writing instead of pressing a button supersedes the pending
+                # proposal: the agent cancels the hold before answering, so no
+                # confirmation stays open behind the new message.
+                run_input = [
+                    Message(
+                        role="user",
+                        contents=[pending.to_function_approval_response(approved=False)],
+                    ),
+                    Message(role="user", contents=[prompt]),
+                ]
+            response = await self._run(
+                record, run_input, options={"response_format": WaiterModelResult}
+            )
+            paused = bool(
+                seating_state.confirm_approval_requests(
+                    getattr(response, "user_input_requests", None) or []
                 )
-            except Exception as exc:
-                conversation_error = _as_conversation_error(exc)
-                if conversation_error is None:
-                    raise
-                raise conversation_error from exc
+            )
             try:
                 result = response.value
             except (ValidationError, ValueError) as exc:
-                raise InvalidAgentResponseError(
-                    "The waiter returned a response that does not match the contract"
-                ) from exc
+                if not paused:
+                    raise InvalidAgentResponseError(
+                        "The waiter returned a response that does not match the contract"
+                    ) from exc
+                result = None
             if not isinstance(result, WaiterModelResult):
-                raise InvalidAgentResponseError(
-                    "The waiter did not return the required structured response"
+                if not paused:
+                    raise InvalidAgentResponseError(
+                        "The waiter did not return the required structured response"
+                    )
+                # Paused for the customer's decision without a structured
+                # answer: keep the state and show the proposal.
+                result = WaiterModelResult(
+                    reply=seating_state.card_reply(record.agent_session.state)
+                    or "Confirmad o rechazad la propuesta con los botones.",
+                    customer=record.state.customer,
+                    order_draft=record.state.order_draft,
+                    memory_intent="none",
                 )
 
             customer = result.customer
@@ -348,6 +387,84 @@ class ConversationManager:
                     for memory in record.remembered_memories
                 ],
             )
+
+    def seating_report(self, *, conversation_id: str, actor_id: str) -> dict[str, Any] | None:
+        """The agent's latest seating report, with ``awaiting_decision`` while paused."""
+
+        record = self._get_owned_conversation(conversation_id, actor_id)
+        report = self._report(record)
+        if report is not None:
+            report["awaiting_decision"] = (
+                seating_state.pending_confirm_request(record.agent_session.state) is not None
+            )
+        return report
+
+    async def decide_seating(
+        self,
+        *,
+        conversation_id: str,
+        actor_id: str,
+        approved: bool,
+    ) -> SeatingDecisionResult:
+        """Answer the paused confirmation with the customer's button decision.
+
+        The approval response is built from the request the agent issued,
+        never from chat text; the agent confirms or cancels through its own
+        MCP connection and answers with a fixed reply.
+        """
+
+        record = self._get_owned_conversation(conversation_id, actor_id)
+        async with record.lock:
+            pending = seating_state.pending_confirm_request(record.agent_session.state)
+            if pending is None:
+                raise NoPendingSeatingDecisionError(
+                    "There is no seating confirmation waiting for a decision"
+                )
+            response = await self._run(
+                record,
+                Message(
+                    role="user",
+                    contents=[pending.to_function_approval_response(approved=approved)],
+                ),
+                options={"response_format": None},
+            )
+            state = record.agent_session.state
+            reply = (getattr(response, "text", "") or "").strip() or seating_state.card_reply(state) or ""
+            return SeatingDecisionResult(
+                reply=reply,
+                seating=self._report(record),
+                awaiting_seating_decision=seating_state.pending_confirm_request(state)
+                is not None,
+            )
+
+    async def sync_seating(self, *, conversation_id: str, actor_id: str) -> dict[str, Any] | None:
+        """Read the visit's seating through the agent, without calling the model."""
+
+        record = self._get_owned_conversation(conversation_id, actor_id)
+        async with record.lock:
+            state = record.agent_session.state
+            state[seating_state.CONTROL_KEY] = "sync"
+            try:
+                await self._run(record, None, options={"response_format": None})
+            finally:
+                state.pop(seating_state.CONTROL_KEY, None)
+            return self._report(record)
+
+    async def _run(self, record: ConversationRecord, messages: Any, *, options: dict[str, Any]) -> Any:
+        try:
+            return await self._agent.run(
+                messages, session=record.agent_session, options=options
+            )
+        except Exception as exc:
+            conversation_error = _as_conversation_error(exc)
+            if conversation_error is None:
+                raise
+            raise conversation_error from exc
+
+    @staticmethod
+    def _report(record: ConversationRecord) -> dict[str, Any] | None:
+        report = record.agent_session.state.get(seating_state.REPORT_KEY)
+        return dict(report) if isinstance(report, dict) else None
 
     def memory_snapshot(
         self,

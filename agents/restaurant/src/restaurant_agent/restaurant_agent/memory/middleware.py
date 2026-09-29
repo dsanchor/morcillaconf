@@ -90,7 +90,11 @@ class HabitualOrderMiddleware(AgentMiddleware):
         context: AgentContext,
         response: AgentResponse,
     ) -> None:
-        result = response.value
+        try:
+            result = response.value
+        except (ValueError, TypeError):
+            # Seating decisions answer with fixed text, not the structured result.
+            return
         if not isinstance(result, WaiterModelResult):
             return
         habitual_order_preference = (
