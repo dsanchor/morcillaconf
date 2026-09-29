@@ -45,7 +45,8 @@ def test_demo_layout_is_valid_and_ordered(demo) -> None:
 
 def test_best_fit_by_size(tmp_path, demo) -> None:
     repo = repo_for(tmp_path, demo)
-    assert hold(repo, "v1", 3).resource_id == "table-03"
+    first = hold(repo, "v1", 3)
+    assert (first.resource_id, first.resource_label) == ("table-03", "Mesa 3")
     assert hold(repo, "v2", 2).resource_id == "table-01"
     assert hold(repo, "v3", 5).resource_id == "table-05"
 

@@ -104,6 +104,7 @@ class SeatingAssignment:
     status: str
     expires_at: str | None
     version: int
+    resource_label: str = ""
 
 
 class SQLiteSeatingRepository:
@@ -270,10 +271,10 @@ class SQLiteSeatingRepository:
         return runs
 
     def _assignment(self, db: sqlite3.Connection, assignment_id: str) -> SeatingAssignment:
-        row = db.execute("SELECT * FROM assignments WHERE assignment_id=?", (assignment_id,)).fetchone()
+        row = db.execute("SELECT a.*, COALESCE(r.label, '') AS resource_label FROM assignments a LEFT JOIN resources r ON r.resource_id=a.resource_id WHERE a.assignment_id=?", (assignment_id,)).fetchone()
         if row is None:
             raise SeatingNotFound("assignment does not exist")
-        return SeatingAssignment(row["assignment_id"], row["visit_id"], row["resource_id"], row["resource_kind"], json.loads(row["seat_ids"]), row["party_size"], row["status"], row["expires_at"], row["version"])
+        return SeatingAssignment(row["assignment_id"], row["visit_id"], row["resource_id"], row["resource_kind"], json.loads(row["seat_ids"]), row["party_size"], row["status"], row["expires_at"], row["version"], row["resource_label"])
 
     def confirm(self, *, assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str, now: datetime | None = None) -> SeatingAssignment:
         now = now or datetime.now(UTC)
