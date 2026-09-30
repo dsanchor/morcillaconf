@@ -78,7 +78,7 @@ async def test_solo_customer_selects_and_occupies_available_seating_without_a_ca
     session, conversation_id = await enter(service, commands)
     arrived = service.get_snapshot(session, conversation_id)
     assert arrived.customer.party_size == 1
-    assert "solo o acompañado" in arrived.messages[-1].text
+    assert "sola o acompañada" in arrived.messages[-1].text
 
     await say(service, commands, session, conversation_id, "He venido sola")
     options = service.get_snapshot(session, conversation_id)
@@ -94,6 +94,7 @@ async def test_solo_customer_selects_and_occupies_available_seating_without_a_ca
     assert Action.DECIDE_TABLE not in seated.allowed_actions
     assert seating.decisions == [True]
     assert "te acompaño" in seated.messages[-1].text
+    assert "Qué quieres tomar" in seated.messages[-1].text
 
 
 async def test_default_party_size_does_not_skip_the_initial_question(
@@ -107,7 +108,7 @@ async def test_default_party_size_does_not_skip_the_initial_question(
     assert snapshot.customer.party_size == 1
     assert snapshot.seating.status == "none"
     assert not seating.holds(snapshot.visit_id)
-    assert "solo o acompañado" in snapshot.messages[-1].text
+    assert "sola o acompañada" in snapshot.messages[-1].text
 
 
 async def test_accompanied_customer_must_provide_the_total_before_searching(
@@ -168,7 +169,9 @@ async def test_confirming_goes_to_the_waiter_once(service, commands, seating) ->
     assert (seated.seating.place.label, seated.seating.party_size) == ("Mesa 3", 3)
     assert seated.seating.seated_at is not None
     assert Action.DECIDE_TABLE not in seated.allowed_actions
-    assert seated.messages[-1].text == "¡Estupendo! Os acompaño a la Mesa 3."
+    assert seated.messages[-1].text == (
+        "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?"
+    )
 
     reject = await service.submit(
         session, commands.decide(conversation_id, proposal.proposal_id, decision="rejected")

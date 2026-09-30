@@ -80,7 +80,7 @@ _PROPOSAL_FIELDS = (
 _ERROR_CODE = re.compile(r"\b(no_seating|expired|not_found|conflict|idempotency_conflict): ")
 
 REPLIES = {
-    "confirmed": "¡Estupendo! Os acompaño a {place}.",
+    "confirmed": "¡Estupendo! Os acompaño a {place}. ¿Qué queréis tomar?",
     "rejected": "Sin problema, dejo libre {place}. ¿Preferís otro sitio?",
     "expired": (
         "La reserva de {place} ha caducado y ya está libre. "

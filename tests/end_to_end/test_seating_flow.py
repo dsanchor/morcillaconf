@@ -57,7 +57,9 @@ def test_a_typed_yes_never_confirms_and_the_buttons_do() -> None:
 
     ana.decide_table("confirmed")
     assert ana.snapshot.seating.status == "seated"
-    assert ana.snapshot.messages[-1].text == "¡Estupendo! Os acompaño a la Mesa 3."
+    assert ana.snapshot.messages[-1].text == (
+        "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?"
+    )
     ana.decide_table("confirmed")
     assert sum("Os acompaño" in message.text for message in ana.snapshot.messages) == 1
 

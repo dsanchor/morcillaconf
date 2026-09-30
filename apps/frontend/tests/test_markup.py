@@ -25,7 +25,7 @@ AT = datetime(2026, 9, 27, 20, 0, tzinfo=UTC)
 GREETING = ChatMessage(
     message_id="msg_1",
     role="assistant",
-    text="Hombre, Ana, ¿qué tal, maja? ¿Has venido solo o acompañado?",
+    text="Hombre, Ana, ¿qué tal, maja? ¿Has venido sola o acompañada?",
     occurred_at=AT, command_event_id="cmd_arrive",
 )
 QUESTION = ChatMessage(

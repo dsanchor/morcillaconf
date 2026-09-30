@@ -6,7 +6,7 @@ pytest.importorskip("streamlit")
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
 APP = Path(__file__).resolve().parents[1] / "src" / "frontend" / "app.py"
-GREETING = "Hombre, Ana, ¿qué tal, maja? ¿Has venido solo o acompañado?"
+GREETING = "Hombre, Ana, ¿qué tal, maja? ¿Has venido sola o acompañada?"
 
 
 @pytest.fixture

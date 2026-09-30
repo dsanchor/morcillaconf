@@ -249,7 +249,7 @@ class FakeRoom:
         hold.expires_at = None
         hold.seated_at = self._clock()
         self._decided[proposal_id] = decision
-        return "seated", f"¡Estupendo! Os acompaño a {text}."
+        return "seated", f"¡Estupendo! Os acompaño a {text}. ¿Qué queréis tomar?"
 
     def leave(self, owner: str) -> str | None:
         """/new: refuse while seated, cancel a pending proposal."""

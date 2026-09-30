@@ -187,8 +187,8 @@ Particularidades de Streamlit:
    la conversación), ventana de conversación, «Camarero simulado» y el plano.
    `/exit` vuelve a la puerta cerrada.
 
-El camarero simulado saluda con «Hombre, {nombre}, ¿qué tal, maja/majo? ¿Has
-venido solo o acompañado?», responde frases breves y convierte «prefiero …» y «soy
+El camarero simulado adapta el saludo: «¿Has venido sola o acompañada?» tras
+«maja» y «¿Has venido solo o acompañado?» tras «majo». Responde frases breves y convierte «prefiero …» y «soy
 alérgica a …» en recuerdos visibles. Los recuerdos pertenecen a la identidad:
 sobreviven a `/new` y a salir y volver a entrar con el mismo nombre mientras
 dure la sesión del navegador.

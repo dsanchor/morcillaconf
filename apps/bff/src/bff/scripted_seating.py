@@ -27,7 +27,7 @@ DEMO_LAYOUT = (
     ("bar", "bar", "Barra", 8, 100),
 )
 REPLIES = {
-    "confirmed": "¡Estupendo! Os acompaño a {place}.",
+    "confirmed": "¡Estupendo! Os acompaño a {place}. ¿Qué queréis tomar?",
     "rejected": "Sin problema, dejo libre {place}. ¿Preferís otro sitio?",
     "expired": (
         "La reserva de {place} ha caducado y ya está libre. "
