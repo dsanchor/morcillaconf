@@ -72,6 +72,78 @@ async def test_the_waiters_proposal_becomes_the_card(service, commands, seating)
     assert seating.awaiting(snapshot.visit_id)
 
 
+async def test_solo_customer_selects_and_occupies_available_seating_without_a_card(
+    service, commands, seating
+) -> None:
+    session, conversation_id = await enter(service, commands)
+    arrived = service.get_snapshot(session, conversation_id)
+    assert arrived.customer.party_size == 1
+    assert "solo o acompañado" in arrived.messages[-1].text
+
+    await say(service, commands, session, conversation_id, "He venido sola")
+    options = service.get_snapshot(session, conversation_id)
+    assert options.customer.party_size == 1
+    assert "mesa y barra disponibles" in options.messages[-1].text
+    assert options.seating.status == "none"
+
+    await say(service, commands, session, conversation_id, "Prefiero mesa")
+    seated = service.get_snapshot(session, conversation_id)
+    assert seated.seating.status == "seated"
+    assert seated.seating.party_size == 1
+    assert seated.seating.place.kind == "table"
+    assert Action.DECIDE_TABLE not in seated.allowed_actions
+    assert seating.decisions == [True]
+    assert "te acompaño" in seated.messages[-1].text
+
+
+async def test_default_party_size_does_not_skip_the_initial_question(
+    service, commands, seating
+) -> None:
+    session, conversation_id = await enter(service, commands)
+
+    await say(service, commands, session, conversation_id, "Quiero mesa")
+    snapshot = service.get_snapshot(session, conversation_id)
+
+    assert snapshot.customer.party_size == 1
+    assert snapshot.seating.status == "none"
+    assert not seating.holds(snapshot.visit_id)
+    assert "solo o acompañado" in snapshot.messages[-1].text
+
+
+async def test_accompanied_customer_must_provide_the_total_before_searching(
+    service, commands, seating
+) -> None:
+    session, conversation_id = await enter(service, commands)
+
+    await say(service, commands, session, conversation_id, "No")
+    waiting = service.get_snapshot(session, conversation_id)
+    assert waiting.customer.party_size == 1
+    assert waiting.seating.status == "none"
+    assert "Cuántos sois en total" in waiting.messages[-1].text
+
+    await say(service, commands, session, conversation_id, "Somos tres")
+    proposed = service.get_snapshot(session, conversation_id)
+    assert proposed.customer.party_size == 3
+    assert proposed.seating.status == "proposed"
+
+
+async def test_solo_customer_is_only_offered_currently_available_kinds(
+    service, commands, seating
+) -> None:
+    for number, size in enumerate((2, 2, 4, 4, 6)):
+        held = seating.hold(f"other_{number}", size, "table")
+        seating.decide(f"other_{number}", held.token, True)
+    session, conversation_id = await enter(service, commands)
+
+    await say(service, commands, session, conversation_id, "Estoy solo")
+    snapshot = service.get_snapshot(session, conversation_id)
+
+    assert snapshot.customer.party_size == 1
+    assert "Ahora mismo puedo ofrecerte la barra. ¿Quieres sentarte allí?" in (
+        snapshot.messages[-1].text
+    )
+
+
 async def test_an_arrival_reads_the_room_through_the_waiter(service, commands, seating) -> None:
     session, conversation_id = await enter(service, commands)
     room = service.room(session, conversation_id)

@@ -27,7 +27,7 @@ from restaurant_agent.seating import (
     bind_visit,
     pending_confirm_request,
 )
-from scripted_model import ScriptedModel, confirm, hold, say
+from scripted_model import ScriptedModel, availability, confirm, confirm_solo, hold, say
 from seating_stub import free_port
 
 
@@ -126,6 +126,114 @@ async def test_a_hold_pauses_for_approval_even_if_the_model_forgets_to_ask(waite
     assert "seating_confirm_seating" in ana.model.calls[0]["tools"]
     assert "seating_cancel_seating_hold" not in ana.model.calls[0]["tools"]
     assert "seating_get_seating_map" not in ana.model.calls[0]["tools"]
+
+
+async def test_a_solo_customer_chooses_an_available_option_and_is_seated_immediately(
+    waiter, seating_server
+) -> None:
+    ana = waiter(
+        [
+            say("¿Has venido sola o acompañada?", 1),
+            availability(),
+            say("Hay mesa disponible. ¿Quieres mesa?", 1),
+            hold(1, "table"),
+            confirm_solo(),
+            say("Perfecto, te acompaño a la Mesa 1.", 1),
+        ]
+    )
+
+    greeting = await ana.say("Hola")
+    assert greeting.customer.party_size == 1
+    assert "sola o acompañada" in greeting.reply
+    assert "seating_confirm_solo_seating" in ana.model.calls[0]["tools"]
+
+    options = await ana.say("He venido sola")
+    assert options.customer.party_size == 1
+    assert "mesa disponible" in options.reply
+    assert calls(seating_server, "get_seating_availability")
+
+    seated = await ana.say("Quiero mesa")
+    assert seated.reply == "Perfecto, te acompaño a la Mesa 1."
+    assert calls(seating_server, "hold_seating")[0][1]["preference"] == "table"
+    solo_calls = calls(seating_server, "confirm_solo_seating")
+    assert solo_calls[0][1] == {
+        "assignment_id": "seat_1",
+        "visit_id": "visit_ana",
+        "expected_version": 1,
+        "idempotency_key": "confirm:seat_1:1",
+    }
+    assert not calls(seating_server, "confirm_seating")
+    assert pending_confirm_request(ana.session.state) is None
+    assert ana.report()["status"] == "seated"
+
+
+async def test_solo_hold_requires_a_prior_availability_lookup(waiter, seating_server) -> None:
+    ana = waiter(
+        [
+            hold(1, "table"),
+            say("Primero comprobaré qué opciones están disponibles.", 1),
+        ]
+    )
+
+    result = await ana.say("Quiero mesa")
+
+    assert "comprobaré" in result.reply
+    assert not calls(seating_server, "hold_seating")
+    assert ana.report()["status"] == "none"
+
+
+async def test_solo_hold_rejects_an_unspecified_seating_kind(waiter, seating_server) -> None:
+    ana = waiter(
+        [
+            availability(),
+            say("Tengo mesa disponible. ¿Qué prefieres?", 1),
+            hold(1),
+            say("Necesito que elijas mesa o barra.", 1),
+        ]
+    )
+    await ana.say("He venido sola")
+
+    result = await ana.say("Me da igual")
+
+    assert "mesa o barra" in result.reply
+    assert not calls(seating_server, "hold_seating")
+    assert ana.report()["status"] == "none"
+
+
+async def test_solo_hold_is_directly_confirmed_if_the_model_forgets(waiter, seating_server) -> None:
+    ana = waiter(
+        [
+            availability(),
+            say("Tengo mesa disponible. ¿Quieres mesa?", 1),
+            hold(1, "table"),
+            say("Perfecto, te acompaño a la Mesa 1.", 1),
+            say("Perfecto, te acompaño a la Mesa 1.", 1),
+        ]
+    )
+    await ana.say("He venido sola")
+
+    result = await ana.say("Quiero mesa")
+
+    assert result.reply == "Perfecto, te acompaño a la Mesa 1."
+    assert len(calls(seating_server, "confirm_solo_seating")) == 1
+    assert pending_confirm_request(ana.session.state) is None
+    assert ana.report()["status"] == "seated"
+
+
+async def test_group_cannot_use_direct_solo_confirmation(waiter, seating_server) -> None:
+    ana = waiter(
+        [
+            hold(3),
+            confirm_solo(),
+            say("Necesito vuestra confirmación con los botones.", 3),
+        ]
+    )
+
+    await ana.say("Venimos tres")
+
+    assert not calls(seating_server, "confirm_solo_seating")
+    assert pending_confirm_request(ana.session.state) is not None
+    assert ana.report()["status"] == "proposed"
 
 
 async def test_a_model_confirm_request_gets_the_authoritative_arguments(waiter, seating_server) -> None:

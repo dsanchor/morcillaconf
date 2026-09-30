@@ -55,6 +55,15 @@ _ORDER = re.compile(
 _BAR = re.compile(r"\bbarra\b", re.IGNORECASE)
 _TABLE = re.compile(r"\bmesa\b", re.IGNORECASE)
 _YES = re.compile(r"^\W*(?:s[ií]|vale|ok|de acuerdo|confirm\w*)\b", re.IGNORECASE)
+_NO = re.compile(r"^\W*no\b", re.IGNORECASE)
+_SOLO = re.compile(
+    r"\b(?:(?:he venido|vengo|estoy|voy)\s+sol[oa]|sol[oa])\b",
+    re.IGNORECASE,
+)
+_ACCOMPANIED = re.compile(
+    r"\b(?:acompañad[oa]|con más gente|con mas gente|somos varios)\b",
+    re.IGNORECASE,
+)
 _ARTICLE = re.compile(r"^(?:el|la|los|las|un|una|unos|unas)\s+", re.IGNORECASE)
 _SPLIT_ITEMS = re.compile(r",\s*|\s+y\s+")
 
@@ -119,6 +128,7 @@ class ScriptedWaiterAgent:
             CustomerSnapshot.model_validate(state["customer"]),
             OrderDraft.model_validate(state["order_draft"]),
             fixed_name,
+            session.state,
         )
         note = await self._seat(message, result.customer, session.state)
         if note:
@@ -140,7 +150,11 @@ class ScriptedWaiterAgent:
         party, bar, table = (
             _PARTY.search(message), _BAR.search(message), _TABLE.search(message)
         )
-        if party:
+        solo_answer = customer.party_size == 1 and bool(
+            _SOLO.search(message) or (_YES.search(message) and not (bar or table))
+        )
+        solo = solo_answer or bool(party and customer.party_size == 1)
+        if party or solo_answer:
             state["scripted_party_known"] = True
         try:
             own = self._seating.own(visit_id)
@@ -154,13 +168,40 @@ class ScriptedWaiterAgent:
                     )
                 return None
             if not (party or bar or table):
+                if solo:
+                    options = self._seating.available_kinds(1)
+                    state["scripted_solo_options"] = options
+                    if options == ["bar"]:
+                        return "Ahora mismo puedo ofrecerte la barra. ¿Quieres sentarte allí?"
+                    if options == ["table"]:
+                        return "Ahora mismo puedo ofrecerte mesa. ¿Quieres mesa?"
+                    if options == ["table", "bar"]:
+                        return "Tengo mesa y barra disponibles. ¿Qué prefieres?"
+                    return "Lo siento, ahora mismo no queda sitio."
                 return None
             if own is not None and own.status == "occupied":
                 return f"Ya estáis sentados en {own.place_text()}."
-            if table and not party and not state.get("scripted_party_known"):
-                return "¿Cuántos sois?"
-            size = customer.party_size or 1
+            if not state.get("scripted_party_known"):
+                return None
+            size = customer.party_size
             preference = "bar" if bar else "table" if table else "any"
+            if size == 1:
+                options = state.get("scripted_solo_options")
+                if not isinstance(options, list):
+                    options = self._seating.available_kinds(1)
+                if preference == "any":
+                    state["scripted_solo_options"] = options
+                    return (
+                        "Tengo mesa y barra disponibles. ¿Qué prefieres?"
+                        if len(options) == 2
+                        else "¿Quieres sentarte en la barra?"
+                        if options == ["bar"]
+                        else "¿Quieres mesa?"
+                        if options == ["table"]
+                        else "Lo siento, ahora mismo no queda sitio."
+                    )
+                if preference not in options:
+                    return f"Ahora mismo no tengo {preference} disponible."
             held = self._seating.hold(visit_id, size, preference)
         except ScriptedSeatingUnavailable as exc:
             raise SeatingUnavailableError("The seating service could not be reached") from exc
@@ -168,6 +209,9 @@ class ScriptedWaiterAgent:
             if preference == "table":
                 return f"No queda ninguna mesa libre para {size}. Si queréis, os busco sitio en la barra."
             return f"Lo siento, ahora mismo no hay sitio para {size}."
+        if size == 1:
+            self._seating.decide(visit_id, held.token, True)
+            return f"Perfecto, te acompaño a {held.place_text()}."
         return _describe(held.place_text(), held.kind, size, preference)
 
     def _reply(
@@ -176,15 +220,27 @@ class ScriptedWaiterAgent:
         customer: CustomerSnapshot,
         draft: OrderDraft,
         fixed_name: str | None,
+        state: dict[str, Any],
     ) -> WaiterModelResult:
         updates: dict[str, Any] = {}
         parts: list[str] = []
         party = _PARTY.search(message)
+        accompanied_answer = bool(
+            _ACCOMPANIED.search(message)
+            or (_NO.search(message) and not state.get("scripted_party_known"))
+        )
         if party:
             raw = party["count"].casefold()
             count = min(max(int(raw) if raw.isdigit() else _NUMBERS[raw], 1), 20)
             updates["party_size"] = count
             parts.append(f"Sois {count}, anotado.")
+        elif _SOLO.search(message) or (
+            _YES.search(message) and not state.get("scripted_party_known")
+        ):
+            updates["party_size"] = 1
+            parts.append("Perfecto, has venido solo.")
+        elif not state.get("scripted_party_known") and accompanied_answer:
+            parts.append("¿Cuántos sois en total?")
         name = _NAME.search(message)
         if name:
             # Behaves like a model that obeys the chat; the application keeps
@@ -214,7 +270,18 @@ class ScriptedWaiterAgent:
                 items=[*draft.items, *(OrderItemDraft(name=item) for item in items)][-50:]
             )
             parts.append(f"Apunto {_join(items)} en el borrador, sin confirmar.")
-        if not parts:
+        party_answered = bool(
+            state.get("scripted_party_known")
+            or party
+            or _SOLO.search(message)
+            or (
+                _YES.search(message)
+                and not state.get("scripted_party_known")
+            )
+        )
+        if not party_answered and not accompanied_answer:
+            parts.append("¿Has venido solo o acompañado?")
+        elif not parts:
             addressed = fixed_name or customer.presented_name
             parts.append(f"Tomo nota, {addressed}." if addressed else "Tomo nota.")
         return WaiterModelResult(

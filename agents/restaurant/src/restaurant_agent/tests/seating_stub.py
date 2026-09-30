@@ -79,6 +79,11 @@ def build_server(stub: StubSeating, port: int) -> FastMCP:
         return stub.change(assignment_id, visit_id, expected_version, "occupied")
 
     @server.tool()
+    def confirm_solo_seating(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
+        stub.calls.append(("confirm_solo_seating", {"assignment_id": assignment_id, "visit_id": visit_id, "expected_version": expected_version, "idempotency_key": idempotency_key}))
+        return stub.change(assignment_id, visit_id, expected_version, "occupied")
+
+    @server.tool()
     def cancel_seating_hold(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
         stub.calls.append(("cancel_seating_hold", {"assignment_id": assignment_id, "visit_id": visit_id}))
         return stub.change(assignment_id, visit_id, expected_version, "cancelled")

@@ -50,6 +50,15 @@ def create_server(settings: Settings) -> FastMCP:
         return asdict(repository.confirm(assignment_id=assignment_id, visit_id=visit_id, expected_version=expected_version, idempotency_key=idempotency_key))
 
     @server.tool()
+    def confirm_solo_seating(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
+        """Immediately confirm a one-person hold after the customer chose table or bar.
+
+        The waiter injects every identifier and only exposes this operation for
+        a pending assignment whose party size is exactly one.
+        """
+        return asdict(repository.confirm(assignment_id=assignment_id, visit_id=visit_id, expected_version=expected_version, idempotency_key=idempotency_key))
+
+    @server.tool()
     def cancel_seating_hold(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
         """Cancel a pending hold of the same visit; the place is free at once. Used by the waiter's own hook when the customer rejects."""
         return asdict(repository.cancel(assignment_id=assignment_id, visit_id=visit_id, expected_version=expected_version, idempotency_key=idempotency_key))

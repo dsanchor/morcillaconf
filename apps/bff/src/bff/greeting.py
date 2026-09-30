@@ -47,4 +47,7 @@ def greeting(name: str) -> str:
     """Greeting with which the waiter receives the customer at the door."""
 
     clean = " ".join(name.split())
-    return f"Hombre, {clean}, ¿qué tal, {form_of_address(clean)}?"
+    return (
+        f"Hombre, {clean}, ¿qué tal, {form_of_address(clean)}? "
+        "¿Has venido solo o acompañado?"
+    )

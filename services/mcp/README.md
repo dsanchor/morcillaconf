@@ -17,9 +17,10 @@ contiguos de barra. No contiene prompts ni toma decisiones de conversación.
   `SEATING_HOLD_MINUTES`. Una visita tiene como máximo un sitio activo: un
   bloqueo nuevo con otra clave sustituye en la misma transacción al bloqueo
   pendiente de esa visita (queda `replaced`); si no cabe nada, se conserva el
-  anterior. `confirm_seating` lo convierte en ocupación, `cancel_seating_hold`
-  lo cancela y libera el sitio al momento y, al caducar, queda `expired`. Una
-  ocupación solo se libera con `release_seating`.
+  anterior. `confirm_seating` y `confirm_solo_seating` lo convierten en
+  ocupación, `cancel_seating_hold` lo cancela y libera el sitio al momento y,
+  al caducar, queda `expired`. Una ocupación solo se libera con
+  `release_seating`.
 - **Errores.** Empiezan por un código estable: `no_seating:`, `conflict:`,
   `expired:`, `not_found:` o `idempotency_conflict:`.
 
@@ -34,6 +35,7 @@ ejecución. El BFF y la vista no lo llaman nunca.
 | `get_seating_availability` | Modelo del camarero | Plazas libres y `largest_group` por recurso |
 | `hold_seating` | Modelo del camarero | Bloqueo temporal; `visit_id` e `idempotency_key` los pone el middleware |
 | `confirm_seating` | Modelo del camarero, con aprobación | Solo se ejecuta tras «Confirmar» del cliente (HITL); el middleware pone los identificadores y la versión |
+| `confirm_solo_seating` | Modelo del camarero, sin aprobación | Confirma inmediatamente un bloqueo de una persona después de que el cliente elija un tipo disponible; el middleware valida el tamaño y pone los identificadores |
 | `cancel_seating_hold` | Hook del camarero | Libera el bloqueo al momento cuando el cliente rechaza o la propuesta se sustituye |
 | `get_seating_map` | Hook del camarero | Sala anónima: estado por mesa y por puesto, caducidad de los bloqueos, marcas `mine` y última asignación de la visita |
 | `release_seating` | Nadie todavía | Liberar una ocupación tras el pago (pendiente de fase 4) |

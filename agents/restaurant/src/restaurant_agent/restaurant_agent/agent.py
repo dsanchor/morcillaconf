@@ -16,6 +16,7 @@ from restaurant_agent.memory.options import HabitualOrderQuestion
 from restaurant_agent.memory.store import DurableMemoryRepository
 from restaurant_agent.seating import (
     CONFIRM_NAMES,
+    SOLO_CONFIRM_NAMES,
     SeatingApprovalChatMiddleware,
     SeatingToolContextMiddleware,
     VisitContextProvider,
@@ -33,9 +34,10 @@ def load_instructions() -> str:
 def create_seating_tools(settings: Settings) -> list[MCPStreamableHTTPTool] | None:
     """The waiter's own MCP connection to the seating service.
 
-    The model sees availability, hold and confirm; confirm always requires
-    the customer's approval (HITL). Cancel and the room map are used only by
-    the waiter's own hooks through this same connection.
+    The model sees availability, hold and both confirmation paths. Group
+    confirmation requires the customer's approval; solo confirmation is
+    immediate after an explicit table/bar choice. Cancel and the room map are
+    used only by the waiter's own hooks through this same connection.
     """
 
     if settings.seating_mcp_url is None:
@@ -49,6 +51,7 @@ def create_seating_tools(settings: Settings) -> list[MCPStreamableHTTPTool] | No
                 "get_seating_availability",
                 "hold_seating",
                 "confirm_seating",
+                "confirm_solo_seating",
             ),
             approval_mode={
                 "always_require_approval": list(CONFIRM_NAMES),
@@ -57,6 +60,7 @@ def create_seating_tools(settings: Settings) -> list[MCPStreamableHTTPTool] | No
                     "seating_get_seating_availability",
                     "hold_seating",
                     "seating_hold_seating",
+                    *SOLO_CONFIRM_NAMES,
                 ],
             },
             request_timeout=settings.seating_mcp_timeout_seconds,

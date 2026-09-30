@@ -34,7 +34,9 @@ def test_arrival_projects_the_confirmed_snapshot() -> None:
     assert visit.name == "Luis"
     assert visit.pending is None
     assert visit.greeting_id == visit.snapshot.messages[0].message_id
-    assert [m.text for m in visit.view().messages] == ["Hombre, Luis, ¿qué tal, majo?"]
+    assert [m.text for m in visit.view().messages] == [
+        "Hombre, Luis, ¿qué tal, majo? ¿Has venido solo o acompañado?"
+    ]
     assert visit.cursor == visit.snapshot.cursor
 
 

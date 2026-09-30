@@ -101,3 +101,4 @@ def test_party_size_defaults_to_one() -> None:
     )
 
     assert result.customer.party_size == 1
+    assert result.pending_fields == []

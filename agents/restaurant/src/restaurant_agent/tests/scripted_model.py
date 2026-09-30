@@ -20,7 +20,9 @@ from agent_framework import (
 )
 
 
-def waiter_result(reply: str, party_size: int = 1, name: str | None = "Ana") -> dict[str, Any]:
+def waiter_result(
+    reply: str, party_size: int | None = 1, name: str | None = "Ana"
+) -> dict[str, Any]:
     return {
         "reply": reply,
         "customer": {"presented_name": name, "party_size": party_size},
@@ -39,7 +41,29 @@ def confirm(call_id: str = "call_confirm", **arguments: Any) -> dict[str, Any]:
     return {"calls": [(call_id, "seating_confirm_seating", arguments or {"assignment_id": "forged", "visit_id": "forged", "expected_version": 9, "idempotency_key": "forged"})]}
 
 
-def say(reply: str, party_size: int = 1) -> dict[str, Any]:
+def availability(call_id: str = "call_availability") -> dict[str, Any]:
+    return {"calls": [(call_id, "seating_get_seating_availability", {})]}
+
+
+def confirm_solo(call_id: str = "call_confirm_solo", **arguments: Any) -> dict[str, Any]:
+    return {
+        "calls": [
+            (
+                call_id,
+                "seating_confirm_solo_seating",
+                arguments
+                or {
+                    "assignment_id": "forged",
+                    "visit_id": "forged",
+                    "expected_version": 9,
+                    "idempotency_key": "forged",
+                },
+            )
+        ]
+    }
+
+
+def say(reply: str, party_size: int | None = 1) -> dict[str, Any]:
     return {"result": waiter_result(reply, party_size)}
 
 

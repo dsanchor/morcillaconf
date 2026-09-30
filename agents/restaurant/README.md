@@ -36,14 +36,17 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
 - El borrado total no bloquea el guardado de interacciones futuras.
 - Separa sesión, preferencias, restricciones e historial de pedidos completados.
 
-El camarero es el único cliente del MCP de asientos. Consulta y bloquea
-sitios con `seating_get_seating_availability` y `seating_hold_seating` en
-cuanto sabe cuántos son o le piden mesa o barra, y pide la confirmación con
-`seating_confirm_seating`, una tool que siempre requiere aprobación: la
-ejecución se detiene (HITL) y la petición de aprobación queda en la sesión.
-El cliente decide con los botones «Confirmar» o «Rechazar»; esa decisión
-vuelve al agente como respuesta de aprobación, nunca como texto, y un «sí»
-escrito no confirma.
+El camarero es el único cliente del MCP de asientos. `party_size` conserva `1`
+como valor técnico por defecto, pero el saludo pregunta si el cliente viene
+solo o acompañado y no interpreta ese valor como una confirmación.
+Para una persona consulta `seating_get_seating_availability`, ofrece únicamente
+los tipos disponibles y, después de que el cliente elija mesa o barra, bloquea
+con `seating_hold_seating` y confirma inmediatamente con
+`seating_confirm_solo_seating`, sin tarjeta de aprobación. Para grupos bloquea
+una mesa y usa `seating_confirm_seating`, una tool que siempre requiere
+aprobación: la ejecución se detiene y la petición queda en la sesión. El grupo
+decide con los botones «Confirmar» o «Rechazar»; esa decisión vuelve al agente
+como respuesta de aprobación, nunca como texto, y un «sí» escrito no confirma.
 
 Todo lo demás lo hace el propio agente, de forma determinista y por su misma
 conexión MCP:

@@ -41,11 +41,10 @@ validan las uniones discriminadas y generan JSON Schema mediante
 
 - `customer.py` y `memory.py`: tipos compartidos extraídos del camarero.
   Las importaciones de cliente, borrador y recuerdos siguen disponibles.
-  Se elimina el contrato antiguo de consentimiento. `party_size` vale 1 por
-  defecto, la persona que se ha identificado, y cambia cuando el cliente dice
-  cuántos son; ese valor no acredita una asignación de mesa. Un dato
-  desconocido, como el nombre en la CLI, sigue siendo `None` y figura en
-  `pending_fields`.
+  Se elimina el contrato antiguo de consentimiento. `party_size` vale `1` por
+  defecto por compatibilidad; ese valor no acredita que el cliente haya
+  confirmado venir solo ni una asignación de mesa. La pregunta inicial
+  solo/acompañado es una regla conversacional.
 - `application.py`: comandos, resultados, proyección y eventos públicos.
 - `client.py`: protocolo asíncrono `BffClient` para futuros clientes falso y
   HTTP/SSE; `BffClientError` transporta errores públicos explícitos.

@@ -127,6 +127,6 @@ def test_server_registers_seating_tools(tmp_path, layout, monkeypatch):
     monkeypatch.setenv("SEATING_LAYOUT_ID", "v1")
     monkeypatch.setenv("SEATING_LAYOUT_JSON", layout.model_dump_json())
     server = create_server(Settings())
-    assert {"get_seating_availability", "hold_seating", "confirm_seating", "cancel_seating_hold", "get_seating_map", "release_seating"} <= {
+    assert {"get_seating_availability", "hold_seating", "confirm_seating", "confirm_solo_seating", "cancel_seating_hold", "get_seating_map", "release_seating"} <= {
         tool.name for tool in server._tool_manager.list_tools()
     }

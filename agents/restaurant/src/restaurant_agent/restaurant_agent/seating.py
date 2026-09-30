@@ -1,18 +1,20 @@
 """Seating for the waiter: the agent is the only client of the seating MCP.
 
-The model holds a place with ``seating_hold_seating`` and asks the customer to
-confirm it with ``seating_confirm_seating``, a tool that requires approval: the
-run pauses (HITL) until the customer's explicit decision arrives as a function
-approval response. Everything else happens deterministically inside the
-agent's own runs, through the same ``MCPStreamableHTTPTool`` connection:
+For groups, the model holds a place with ``seating_hold_seating`` and asks the
+customer to confirm it with ``seating_confirm_seating``, a tool that requires
+approval. A customer who confirmed they are alone first chooses an available
+table/bar option; ``seating_confirm_solo_seating`` then confirms that hold
+immediately without buttons. Everything happens through the same
+``MCPStreamableHTTPTool`` connection:
 
 - ``VisitContextProvider`` binds the visit, cancels the hold when the customer
   rejects, reads the anonymised room map before and after every run, derives
   the visit's own seating and shares it with the model as context;
 - ``SeatingToolContextMiddleware`` injects the authoritative ids into hold and
   confirm calls and checks the proposal is still current before confirming;
-- ``SeatingApprovalChatMiddleware`` makes sure a hold always ends in exactly
-  one approval request and answers decisions with fixed replies.
+- ``SeatingApprovalChatMiddleware`` makes sure a group hold ends in exactly
+  one approval request, a solo hold ends in direct confirmation, and answers
+  group decisions with fixed replies.
 
 Session state keys (JSON-serializable, restored with the session):
 
@@ -59,10 +61,14 @@ CONFIRM_CALL_KEY = "seating_confirm_call"
 SUPERSEDED_KEY = "seating_superseded"
 CONTROL_KEY = "seating_control"
 LAST_PLACE_KEY = "seating_last_place"
+SOLO_OPTIONS_KEY = "seating_solo_options"
 
+AVAILABILITY_TOOL = "seating_get_seating_availability"
 HOLD_TOOL = "seating_hold_seating"
 CONFIRM_TOOL = "seating_confirm_seating"
 CONFIRM_NAMES = ("confirm_seating", CONFIRM_TOOL)
+SOLO_CONFIRM_TOOL = "seating_confirm_solo_seating"
+SOLO_CONFIRM_NAMES = ("confirm_solo_seating", SOLO_CONFIRM_TOOL)
 _PROPOSAL_FIELDS = (
     "assignment_id",
     "resource_id",
@@ -151,7 +157,13 @@ def bind_visit(state: State, visit_id: str) -> None:
     # Sessions from phase 3 carry a random visit id: its holds belong to
     # another visit, so neither keys nor places are reused.
     state[VISIT_CONTEXT_KEY] = _new_visit_context(visit_id)
-    for key in (SEATING_PROPOSAL_KEY, SEATED_KEY, LAST_OUTCOME_KEY, REPORT_KEY):
+    for key in (
+        SEATING_PROPOSAL_KEY,
+        SEATED_KEY,
+        LAST_OUTCOME_KEY,
+        REPORT_KEY,
+        SOLO_OPTIONS_KEY,
+    ):
         state.pop(key, None)
 
 
@@ -303,6 +315,39 @@ def result_object(result: object) -> dict[str, Any] | None:
         if isinstance(value, dict):
             return value
     return None
+
+
+def availability_kinds(result: object) -> list[str]:
+    """Available seating kinds returned by the availability tool."""
+
+    seen: set[int] = set()
+
+    def find(value: object) -> set[str]:
+        if id(value) in seen:
+            return set()
+        seen.add(id(value))
+        if isinstance(value, str):
+            try:
+                return find(json.loads(value))
+            except json.JSONDecodeError:
+                return set()
+        if isinstance(value, list):
+            direct = {
+                resource["kind"]
+                for resource in value
+                if isinstance(resource, dict)
+                and resource.get("kind") in ("table", "bar")
+                and isinstance(resource.get("largest_group"), int)
+                and resource["largest_group"] >= 1
+            }
+            return direct or set().union(*(find(item) for item in value))
+        if isinstance(value, dict):
+            return set().union(*(find(item) for item in value.values()))
+        return find(getattr(value, "result", None)) or find(
+            getattr(value, "text", None)
+        )
+
+    return sorted(find(result))
 
 
 def error_code(error: BaseException | str) -> str | None:
@@ -689,12 +734,26 @@ class SeatingToolContextMiddleware(FunctionMiddleware):
         call_next: Callable[[], Awaitable[None]],
     ) -> None:
         name = context.function.name
-        if name == HOLD_TOOL:
+        if name == AVAILABILITY_TOOL:
+            await self._availability(context, call_next)
+        elif name == HOLD_TOOL:
             await self._hold(context, call_next)
         elif name in CONFIRM_NAMES:
-            await self._confirm(context, call_next)
+            await self._confirm(context, call_next, solo=False)
+        elif name in SOLO_CONFIRM_NAMES:
+            await self._confirm(context, call_next, solo=True)
         else:
             await call_next()
+
+    @staticmethod
+    async def _availability(
+        context: FunctionInvocationContext,
+        call_next: Callable[[], Awaitable[None]],
+    ) -> None:
+        if context.session is None:
+            raise RuntimeError("Seating tools require an Agent Framework session")
+        await call_next()
+        context.session.state[SOLO_OPTIONS_KEY] = availability_kinds(context.result)
 
     async def _hold(
         self, context: FunctionInvocationContext, call_next: Callable[[], Awaitable[None]]
@@ -707,6 +766,17 @@ class SeatingToolContextMiddleware(FunctionMiddleware):
         preference = arguments.get("preference")
         if not isinstance(party_size, int) or preference not in ("table", "bar", "any"):
             raise RuntimeError("hold_seating requires valid party_size and preference")
+        if party_size == 1:
+            options = state.get(SOLO_OPTIONS_KEY)
+            if preference == "any" or not isinstance(options, list):
+                context.result = (
+                    "conflict: para una persona consulta primero la disponibilidad "
+                    "y bloquea la opción table o bar que haya elegido"
+                )
+                return
+            if preference not in options:
+                context.result = f"no_seating: la opción {preference} ya no está disponible"
+                return
         if isinstance(state.get(SEATED_KEY), dict):
             context.result = "conflict: el grupo ya está sentado en esta visita"
             return
@@ -737,9 +807,13 @@ class SeatingToolContextMiddleware(FunctionMiddleware):
             state.pop(LAST_OUTCOME_KEY, None)
 
     async def _confirm(
-        self, context: FunctionInvocationContext, call_next: Callable[[], Awaitable[None]]
+        self,
+        context: FunctionInvocationContext,
+        call_next: Callable[[], Awaitable[None]],
+        *,
+        solo: bool,
     ) -> None:
-        """Runs only after the customer's approval; checks the proposal first."""
+        """Confirm a current proposal through the group or solo path."""
 
         if context.session is None:
             raise RuntimeError("Seating tools require an Agent Framework session")
@@ -747,11 +821,19 @@ class SeatingToolContextMiddleware(FunctionMiddleware):
         proposal = pending_proposal(state)
         visit_id = visit_id_of(state)
         requested = dict(context.arguments)
+        if solo and proposal is not None and proposal.get("party_size") != 1:
+            context.result = "conflict: la confirmación directa solo admite una persona"
+            return
         if (
             proposal is None
             or visit_id is None
-            or requested.get("assignment_id") != proposal["assignment_id"]
-            or requested.get("expected_version") != proposal["version"]
+            or (
+                not solo
+                and (
+                    requested.get("assignment_id") != proposal["assignment_id"]
+                    or requested.get("expected_version") != proposal["version"]
+                )
+            )
         ):
             seated = state.get(SEATED_KEY)
             if (
@@ -800,6 +882,8 @@ class SeatingToolContextMiddleware(FunctionMiddleware):
             state[DECISION_KEY] = {"decision": "confirmed", "place": place}
             _seat(state, result | {"resource_label": label}, state.get(ROOM_KEY) or {})
             set_outcome(state, "confirmed", label)
+            state.pop(FRESH_HOLD_KEY, None)
+            state.pop(SOLO_OPTIONS_KEY, None)
             return
         code = error_code(str(context.result))
         decision = "expired" if code == "expired" else "unavailable" if code is None else "stale"
@@ -816,8 +900,8 @@ class SeatingApprovalChatMiddleware(ChatMiddleware):
        first and the confirmation is requested afterwards.
     2. Confirm calls carry the authoritative arguments, and only while a
        fresh hold is pending.
-    3. A hold made in this run always ends in one approval request, even if
-       the model forgot to ask.
+    3. A hold made in this run always ends in the right confirmation: direct
+       for one person, approval request for a group.
     4. After a decision the waiter answers with a fixed reply, without
        calling the model, so the model's history matches the customer's.
     5. Sync runs never call the model.
@@ -898,7 +982,14 @@ class SeatingApprovalChatMiddleware(ChatMiddleware):
         if fresh and not others and proposal is not None and visit_id is not None:
             if not response.messages:
                 response.messages.append(Message(role="assistant", contents=[]))
-            response.messages[-1].contents.append(_confirm_call(state, proposal, visit_id))
+            if proposal["party_size"] == 1:
+                response.messages[-1].contents.append(
+                    _solo_confirm_call(proposal, visit_id)
+                )
+            else:
+                response.messages[-1].contents.append(
+                    _confirm_call(state, proposal, visit_id)
+                )
             state.pop(FRESH_HOLD_KEY, None)
             state.pop(SUPERSEDED_KEY, None)
 
@@ -909,5 +1000,13 @@ def _confirm_call(state: State, proposal: Mapping[str, Any], visit_id: str) -> C
     return Content.from_function_call(
         call_id=call_id,
         name=CONFIRM_TOOL,
+        arguments=confirm_arguments(proposal, visit_id),
+    )
+
+
+def _solo_confirm_call(proposal: Mapping[str, Any], visit_id: str) -> Content:
+    return Content.from_function_call(
+        call_id=f"seating-confirm-solo-{uuid4().hex[:16]}",
+        name=SOLO_CONFIRM_TOOL,
         arguments=confirm_arguments(proposal, visit_id),
     )

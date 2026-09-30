@@ -86,9 +86,14 @@ falten.
 Ejemplos:
 
 - «Hola, soy Majo y venimos dos» permite buscar mesa sin preguntas previas.
-- Si no se indica el tamaño del grupo, se asume una persona.
-- Solo una petición explícita de mesa sin tamaño de grupo requiere preguntar el
-  número de comensales.
+- Si no se indica el tamaño del grupo, `party_size` conserva el valor técnico
+  por defecto `1`, pero el camarero pregunta si el cliente ha venido solo o
+  acompañado. Ese valor por defecto no equivale a una confirmación.
+- Si ha venido solo, el camarero consulta primero la disponibilidad y ofrece
+  únicamente mesa, barra o ambas según la respuesta real. Al elegir una opción,
+  la bloquea y confirma inmediatamente, sin una segunda aprobación.
+- Si viene acompañado, pregunta cuántos son en total, bloquea una mesa
+  compatible y espera la confirmación o rechazo explícitos del grupo.
 - Un recuerdo puede sugerirse o solicitarse para reconfirmación, pero nunca debe
   reemplazar una indicación actual.
 
@@ -647,8 +652,10 @@ un evento o una invocación procedente del frontal:
    recuerdos en instrucciones vigentes.
 3. Si faltan datos obligatorios o una restricción recordada requiere
    reconfirmación, los solicita y pausa el flujo.
-4. El servicio de mesas bloquea atómicamente una mesa compatible y espera la
-   confirmación o rechazo del cliente antes de ocuparla.
+4. Para una persona, el camarero consulta los tipos disponibles y ocupa
+   inmediatamente la opción que el cliente elige; para grupos, el servicio
+   bloquea atómicamente una mesa compatible y espera la confirmación o rechazo
+   antes de ocuparla.
 5. La base compartida de Foundry IQ resuelve las consultas sobre carta, recetas
    e ingredientes y devuelve sus fuentes; la búsqueda web solo actúa como
    fallback identificado.

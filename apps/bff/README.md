@@ -160,6 +160,10 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   MCP no responde: «El servicio de mesas no responde ahora mismo…». Las
   pruebas y el modo `scripted` simulan los asientos en memoria
   (`BFF_SCRIPTED_SEATING`), sin MCP.
+  Para una persona no hay propuesta ni botones: el camarero consulta los tipos
+  disponibles y, cuando el cliente elige mesa o barra, bloquea y confirma el
+  sitio en la misma interacción. Los grupos mantienen la propuesta temporal y
+  la decisión explícita.
 - **Observabilidad.** Spans `bff.command`, `bff.waiter.turn`,
   `bff.seating.decision` y `bff.seating.sync` con tipo,
   correlación, conversación y resultado, sin texto ni nombres. Solo se usa la

@@ -31,7 +31,7 @@
     if (MASCULINE.has(first)) return "majo";
     return FEMININE.has(first) || first.endsWith("a") ? "maja" : "majo";
   };
-  const greeting = (name) => `Hombre, ${name}, ¿qué tal, ${address(name)}?`;
+  const greeting = (name) => `Hombre, ${name}, ¿qué tal, ${address(name)}? ¿Has venido solo o acompañado?`;
   const wait = (ms) => new Promise((done) => setTimeout(done, reduce ? Math.min(ms, 250) : ms));
   const scrollDown = () => { messages.scrollTop = messages.scrollHeight; };
 

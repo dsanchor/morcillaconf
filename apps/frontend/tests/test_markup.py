@@ -23,7 +23,9 @@ from frontend.visit import Card, ConversationView
 
 AT = datetime(2026, 9, 27, 20, 0, tzinfo=UTC)
 GREETING = ChatMessage(
-    message_id="msg_1", role="assistant", text="Hombre, Ana, ¿qué tal, maja?",
+    message_id="msg_1",
+    role="assistant",
+    text="Hombre, Ana, ¿qué tal, maja? ¿Has venido solo o acompañado?",
     occurred_at=AT, command_event_id="cmd_arrive",
 )
 QUESTION = ChatMessage(

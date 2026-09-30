@@ -76,7 +76,9 @@ async def test_arrival_opens_a_visit_greeted_by_name() -> None:
     assert snapshot.customer.presented_name == "Ana"
     assert snapshot.pending_fields == []
     assert snapshot.process_status == "idle"
-    assert [m.text for m in snapshot.messages] == ["Hombre, Ana, ¿qué tal, maja?"]
+    assert [m.text for m in snapshot.messages] == [
+        "Hombre, Ana, ¿qué tal, maja? ¿Has venido solo o acompañado?"
+    ]
     assert snapshot.messages[0].command_event_id == "cmd_arrive"
     assert snapshot.visit_id == result.visit_id
     assert Action.SEND_MESSAGE in snapshot.allowed_actions

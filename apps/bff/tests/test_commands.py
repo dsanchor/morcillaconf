@@ -50,7 +50,10 @@ async def test_arrival_opens_a_visit_with_an_instant_greeting(make_service, comm
     assert snapshot.visit_id == result.visit_id
     assert snapshot.identity.actor_id == "ana"
     assert [(m.role, m.text) for m in snapshot.messages] == [
-        ("assistant", "Hombre, Ana, ¿qué tal, maja?")
+        (
+            "assistant",
+            "Hombre, Ana, ¿qué tal, maja? ¿Has venido solo o acompañado?",
+        )
     ]
     assert snapshot.customer.presented_name == "Ana"
     assert snapshot.customer.party_size == 1

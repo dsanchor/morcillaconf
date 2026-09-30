@@ -98,6 +98,12 @@ MCP, tampoco en pruebas.
   modelo tras una decisión. Si el cliente escribe con la propuesta pendiente,
   el bloqueo se mantiene y el camarero vuelve a pedir la confirmación con los
   botones; solo «Rechazar» y `/new` lo cancelan.
+- **Flujo individual.** `party_size` conserva `1` como valor técnico por
+  defecto, pero el camarero pregunta si el cliente viene solo o acompañado y no
+  busca sitio hasta recibir la respuesta. Para una persona consulta
+  disponibilidad, ofrece únicamente mesa, barra o ambas según el MCP y, tras la
+  elección explícita, usa `confirm_solo_seating` para bloquear y confirmar sin
+  tarjeta de aprobación. Los grupos conservan `confirm_seating` y sus botones.
 - **Contrato.** `WaiterRequest` distingue `take_turn`, `decide_seating` y
   `sync_seating`; las respuestas llevan `SeatingReport`. Se retiran los campos
   que solo servían a la reconciliación del BFF con el MCP.
@@ -246,10 +252,10 @@ Evidencia: `./scripts/test.sh` superado; `./scripts/smoke-test.sh` superado
 camarero pida el nombre sin cerrarse, y con `gpt-6-luna` se muestra el error
 sin cerrar la conversación.
 
-Decisión sobre el número de comensales: se asume un mínimo de una persona,
-porque siempre hay al menos un cliente usando la aplicación. El smoke se
-alinea con esta regla: ante «Queremos cenar» espera una persona y solo el
-nombre pendiente.
+Se conserva la decisión histórica de usar una persona como valor técnico por
+defecto. El flujo individual/grupo de la fase 4 añade una pregunta obligatoria
+al inicio: ese `1` no permite buscar sitio hasta que el cliente confirme que
+viene solo o comunique el total del grupo.
 
 ### Cierre
 

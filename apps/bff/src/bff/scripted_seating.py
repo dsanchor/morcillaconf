@@ -107,6 +107,16 @@ class ScriptedSeating:
         self._check()
         return next((hold for hold in self._live() if hold.visit_id == visit_id), None)
 
+    def available_kinds(self, party_size: int) -> list[str]:
+        """Seating kinds currently able to accept the party."""
+
+        self._check()
+        return [
+            kind
+            for kind in ("table", "bar")
+            if self._choose(party_size, kind, ignore=None) is not None
+        ]
+
     def hold(self, visit_id: str, party_size: int, preference: Preference) -> _Hold | None:
         """Hold a place; a new request replaces the visit's pending hold."""
 

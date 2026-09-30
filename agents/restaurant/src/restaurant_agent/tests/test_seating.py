@@ -111,7 +111,7 @@ async def test_same_hold_request_reuses_idempotency_key_while_pending() -> None:
     await SeatingToolContextMiddleware().process(context, call_next)
 
 
-def test_agent_exposes_hold_availability_and_approved_confirm_only() -> None:
+def test_agent_exposes_group_approval_and_direct_solo_confirmation() -> None:
     settings = Settings(
         foundry_project_endpoint=(
             "https://example.services.ai.azure.com/api/projects/demo"
@@ -130,7 +130,11 @@ def test_agent_exposes_hold_availability_and_approved_confirm_only() -> None:
         "get_seating_availability",
         "hold_seating",
         "confirm_seating",
+        "confirm_solo_seating",
     )
     assert tool._determine_approval_mode("confirm_seating", "seating_confirm_seating") == "always_require"
+    assert tool._determine_approval_mode(
+        "confirm_solo_seating", "seating_confirm_solo_seating"
+    ) == "never_require"
     assert tool._determine_approval_mode("hold_seating", "seating_hold_seating") == "never_require"
     assert agent.default_options["allow_multiple_tool_calls"] is False
