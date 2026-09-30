@@ -111,6 +111,30 @@ validate_match FOUNDRY_PROJECT_RESOURCE_ID '^/subscriptions/[^/]+/resourceGroups
 for name in FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME MCP_APP_NAME; do
   validate_match "$name" '^[a-z][a-z0-9-]{0,30}[a-z0-9]$' "2-32 lowercase letters, numbers, or hyphens, starting with a letter"
 done
+
+# Optional Foundry IQ knowledge base, created by provision-knowledge.sh. All
+# three values or none: without them the waiter is deployed without the carta.
+knowledge_values=0
+for name in AZURE_SEARCH_RESOURCE_ID AZURE_SEARCH_ENDPOINT KNOWLEDGE_BASE_NAME; do
+  [[ -z "$(printenv "$name" || true)" ]] || knowledge_values=$((knowledge_values + 1))
+done
+case "$knowledge_values" in
+  0) KNOWLEDGE_ENABLED=false ;;
+  3) KNOWLEDGE_ENABLED=true ;;
+  *) fail "Set AZURE_SEARCH_RESOURCE_ID, AZURE_SEARCH_ENDPOINT and KNOWLEDGE_BASE_NAME together, or none of them" ;;
+esac
+if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
+  KNOWLEDGE_BASE_TIMEOUT_SECONDS="${KNOWLEDGE_BASE_TIMEOUT_SECONDS:-20}"
+  export KNOWLEDGE_BASE_TIMEOUT_SECONDS
+  require_vars AZURE_SEARCH_RESOURCE_ID AZURE_SEARCH_ENDPOINT KNOWLEDGE_BASE_NAME KNOWLEDGE_BASE_TIMEOUT_SECONDS
+  validate_match AZURE_SEARCH_RESOURCE_ID '^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.Search/searchServices/[^/]+$' "an Azure AI Search service resource ID"
+  validate_match AZURE_SEARCH_ENDPOINT '^https://[a-z0-9][a-z0-9-]{0,58}[a-z0-9]\.search\.windows\.net/?$' "an endpoint such as https://<service>.search.windows.net"
+  search_service="${AZURE_SEARCH_ENDPOINT#https://}"
+  [[ "${search_service%%.*}" == "${AZURE_SEARCH_RESOURCE_ID##*/}" ]] ||
+    fail "AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_RESOURCE_ID point to different search services"
+  validate_match KNOWLEDGE_BASE_NAME '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$' "lowercase letters, numbers, or hyphens"
+  validate_match KNOWLEDGE_BASE_TIMEOUT_SECONDS '^([1-9]|[1-5][0-9]|60)$' "a whole number of seconds from 1 to 60"
+fi
 validate_ghcr_image() {
   local name="$1"
   local image
@@ -170,6 +194,9 @@ ensure_role() {
 }
 
 ensure_role "Foundry User" "$FOUNDRY_PROJECT_RESOURCE_ID"
+if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
+  ensure_role "Search Index Data Reader" "$AZURE_SEARCH_RESOURCE_ID"
+fi
 
 if ! az containerapp env show --name "$CONTAINERAPPS_ENVIRONMENT" --resource-group "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
   az containerapp env create --name "$CONTAINERAPPS_ENVIRONMENT" \
@@ -283,18 +310,28 @@ MCP_FQDN="$(az containerapp show --name "$MCP_APP_NAME" --resource-group "$AZURE
 [[ -n "$MCP_FQDN" ]] || fail "MCP internal FQDN was not assigned"
 
 log "Creating or updating restaurant agent (internal ingress)"
-apply_app "$RESTAURANT_AGENT_APP_NAME" \
-  "$RESTAURANT_AGENT_IMAGE" internal 8088 true \
-  "FOUNDRY_PROJECT_ENDPOINT=$FOUNDRY_PROJECT_ENDPOINT" \
-  "AZURE_AI_MODEL_DEPLOYMENT_NAME=$AZURE_AI_MODEL_DEPLOYMENT_NAME" \
-  "AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID" \
-  "WAITER_MAX_TURNS=$WAITER_MAX_TURNS" \
-  "MEMORY_DATABASE_PATH=/tmp/memory.db" \
-  "MEMORY_MAX_ITEMS=$MEMORY_MAX_ITEMS" \
-  "APP_ENVIRONMENT=production" \
-  "ENABLE_DEV_FAKE_IDENTITY=false" \
-  "SEATING_MCP_URL=https://$MCP_FQDN/mcp" \
+agent_env=(
+  "FOUNDRY_PROJECT_ENDPOINT=$FOUNDRY_PROJECT_ENDPOINT"
+  "AZURE_AI_MODEL_DEPLOYMENT_NAME=$AZURE_AI_MODEL_DEPLOYMENT_NAME"
+  "AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID"
+  "WAITER_MAX_TURNS=$WAITER_MAX_TURNS"
+  "MEMORY_DATABASE_PATH=/tmp/memory.db"
+  "MEMORY_MAX_ITEMS=$MEMORY_MAX_ITEMS"
+  "APP_ENVIRONMENT=production"
+  "ENABLE_DEV_FAKE_IDENTITY=false"
+  "SEATING_MCP_URL=https://$MCP_FQDN/mcp"
   "SEATING_MCP_TIMEOUT_SECONDS=$SEATING_MCP_TIMEOUT_SECONDS"
+)
+if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
+  log "The restaurant agent uses the knowledge base $KNOWLEDGE_BASE_NAME"
+  agent_env+=(
+    "AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT"
+    "KNOWLEDGE_BASE_NAME=$KNOWLEDGE_BASE_NAME"
+    "KNOWLEDGE_BASE_TIMEOUT_SECONDS=$KNOWLEDGE_BASE_TIMEOUT_SECONDS"
+  )
+fi
+apply_app "$RESTAURANT_AGENT_APP_NAME" \
+  "$RESTAURANT_AGENT_IMAGE" internal 8088 true "${agent_env[@]}"
 AGENT_FQDN="$(az containerapp show --name "$RESTAURANT_AGENT_APP_NAME" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --query properties.configuration.ingress.fqdn --output tsv)"
