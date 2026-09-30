@@ -108,12 +108,16 @@ test opt-in contra Foundry.
 
 El script [`scripts/deploy-container-apps.sh`](scripts/deploy-container-apps.sh)
 crea o actualiza en un único grupo de recursos una identidad administrada, un
-entorno de Container Apps, almacenamiento Azure Files para BFF y MCP, y las cuatro
-aplicaciones. Solo el frontend tiene entrada externa; BFF, agente y MCP usan
-entrada interna y se descubren mediante sus FQDN del mismo entorno. Cada
-BFF y MCP montan su propio recurso compartido y cada aplicación queda fijada a
-una réplica. El BFF usa el journal `DELETE` en Azure Files porque SQLite WAL no
-es compatible con sistemas de archivos de red.
+entorno de Container Apps y las cuatro aplicaciones. Solo el frontend tiene
+entrada externa; BFF, agente y MCP usan entrada interna y se descubren mediante
+sus FQDN del mismo entorno. Si el grupo de recursos ya existe, el script no lo
+vuelve a crear y conserva sus etiquetas.
+
+Por ahora BFF y MCP guardan sus bases SQLite en el almacenamiento efímero de su
+propio contenedor (`/data`), sin volúmenes ni cuentas de almacenamiento. Cada
+aplicación queda fijada a una réplica, y las visitas, la memoria y las mesas se
+pierden cada vez que una réplica se reinicia o se despliega una revisión nueva.
+La persistencia duradera en Cosmos DB llega en la fase 9.
 
 Requisitos: Bash, Python 3, Azure CLI con la extensión `containerapp`, una sesión
 iniciada con `az login` y permisos para crear recursos y asignaciones RBAC. Copia
@@ -129,8 +133,7 @@ El fichero usa sintaxis simple `NOMBRE=valor`; el script lo analiza sin
 ejecutarlo como Bash. No necesita secretos ni credenciales de registro: recibe
 cuatro referencias públicas completas de GHCR y las despliega directamente. Usa preferentemente digest
 `sha256` o etiquetas de commit SHA, nunca `latest`. La identidad solo se asigna
-al agente y recibe `Azure AI User` sobre el proyecto Foundry indicado. La clave
-de Azure Files se obtiene durante la ejecución, no se imprime y no se guarda.
+al agente y recibe `Azure AI User` sobre el proyecto Foundry indicado.
 Conviene mantener `scripts/container-apps.env` fuera del control de versiones.
 
 El despliegue es idempotente y no construye ni publica imágenes, pero no realiza

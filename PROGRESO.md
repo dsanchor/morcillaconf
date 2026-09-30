@@ -46,9 +46,11 @@ indicadas en el propio plan.
   de GHCR en cuatro Container Apps independientes dentro del mismo entorno.
   Solo el frontend tiene ingress externo; BFF, agente y MCP usan ingress
   interno. El agente recibe una identidad administrada con `Azure AI User`.
-- Mientras BFF y MCP sigan usando SQLite, cada uno monta su Azure Files
-  separado y todas las aplicaciones quedan limitadas a una réplica. Es una
-  topología inicial de demo, no el diseño de persistencia escalable de fase 9.
+- Mientras BFF y MCP sigan usando SQLite, cada uno lo guarda en el
+  almacenamiento efímero de su propio contenedor (`/data`), sin Azure Files, y
+  todas las aplicaciones quedan limitadas a una réplica. Los datos se pierden al
+  reiniciar la réplica o desplegar una revisión nueva. Es una topología inicial
+  de demo, no el diseño de persistencia duradera de fase 9 (Cosmos DB).
 
 ## Acuerdos del sync del 30/09/2026
 
