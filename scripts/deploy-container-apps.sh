@@ -251,7 +251,8 @@ ensure_app_base() {
       current_environment_id="$(az containerapp show --name "$app_name" \
         --resource-group "$AZURE_RESOURCE_GROUP" --query properties.managedEnvironmentId --output tsv)"
     fi
-    [[ "${current_environment_id,,}" == "${ENVIRONMENT_ID,,}" ]] ||
+    [[ "$(printf '%s' "$current_environment_id" | tr '[:upper:]' '[:lower:]')" == \
+      "$(printf '%s' "$ENVIRONMENT_ID" | tr '[:upper:]' '[:lower:]')" ]] ||
       fail "Container App $app_name already exists in a different Container Apps environment"
   fi
   if [[ "$use_identity" == "true" ]]; then
