@@ -121,7 +121,7 @@ async def get_snapshot(
 
 @router.get("/conversations/{conversation_id}/room")
 async def get_room(conversation_id: str, service: Service, session: Session) -> JSONResponse:
-    room = await service.room(session, conversation_id)
+    room = service.room(session, conversation_id)
     return JSONResponse(content=room.model_dump(mode="json"))
 
 

@@ -174,8 +174,12 @@ class FakeRoom:
 
         own = self._holds.get(owner)
         said_party, bar, table = party_size(text) is not None, _BAR.search(text), _TABLE.search(text)
-        if own is not None and own.status == "held" and not (said_party or bar or table) and _YES.search(text):
-            return "Para confirmar la propuesta usa el botón «Confirmar»; si no os convence, «Rechazar»."
+        if own is not None and own.status == "held" and not (said_party or bar or table):
+            # Writing instead of pressing a button: the hold stays and the
+            # buttons come back, like the real waiter.
+            if _YES.search(text):
+                return f"Para confirmar hay que pulsar «Confirmar»; {own.text()} sigue reservada para vosotros."
+            return None
         if not (said_party or bar or table):
             return None
         if own is not None and own.status == "occupied":

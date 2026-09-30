@@ -240,8 +240,20 @@ class DurableMemoryContextProvider(ContextProvider):
 
         from restaurant_agent.contracts import WaiterModelResult
 
-        result = context.response.value
+        if context.response.user_input_requests:
+            # Paused for a seating decision: nothing to remember yet.
+            return
+        try:
+            result = context.response.value
+        except (ValueError, TypeError):
+            result = None
+        if result is None and not context.response.text.strip():
+            # Seating decision or sync run: no model answer to remember.
+            return
         if not isinstance(result, WaiterModelResult):
+            if not context.response.text.lstrip().startswith("{"):
+                # A fixed seating reply after a button decision.
+                return
             raise RuntimeError(
                 "Development memory requires a structured WaiterModelResult"
             )

@@ -85,7 +85,7 @@ en hilos con `asyncio.to_thread`), así que no cambia `uv.lock`. El nombre de la
 puerta se envía una sola vez para abrir la sesión de demo; después solo viaja
 un token opaco. Si el BFF no responde, la puerta sigue cerrada con un aviso.
 «Camarero simulado» solo aparece con el falso o con el camarero simulado del
-BFF (`BFF_WAITER=scripted`).
+BFF (`BFF_WAITER=scripted`); con el camarero real el BFF informa `remote`.
 
 ## Imagen de contenedor y despliegue en Container Apps
 
@@ -207,7 +207,9 @@ stream hasta que termina.
   propuesta con el lugar y los asientos («Mesa 3 · 3 de 4 asientos» o
   «Barra · Puestos 1 a 3») y dos botones: «Confirmar» y «Rechazar». Envían
   `table.confirmation_decided` con el `proposal_id` y la versión; una frase
-  en el chat nunca confirma. Si la reserva ha caducado, la vista muestra el
+  en el chat nunca confirma: si el cliente escribe con la propuesta pendiente,
+  el sitio sigue reservado y la tarjeta vuelve a aparecer (el falso hace lo
+  mismo). Si la reserva ha caducado, la vista muestra el
   aviso y la tarjeta desaparece.
 - El plano se dibuja desde `RoomView` y se refresca solo cada 3 segundos
   (`st.fragment`), sin tocar la conversación ni el cuadro de texto: otros

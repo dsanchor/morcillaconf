@@ -1,6 +1,6 @@
 # Progreso de implementación
 
-Última actualización: **2026-09-29**
+Última actualización: **2026-09-30**
 
 Este documento ofrece una vista compartida del estado real del repositorio. No
 sustituye a [SPECS.md](SPECS.md) ni a
@@ -36,8 +36,9 @@ indicadas en el propio plan.
   agente mediante `WAITER_AGENT_URL`; `scripted` queda como adaptador local de
   pruebas.
 - El contrato remoto tipado transporta estado confirmado, sesión opaca,
-  contexto de asientos y candidatos de memoria. El BFF sigue siendo la
-  autoridad de identidad, visita, snapshots, SSE, HITL y memoria persistida.
+  informe de asientos y candidatos de memoria. El BFF sigue siendo la
+  autoridad de identidad, visita, snapshots, SSE y memoria persistida, y
+  persiste y presenta los HITL; el camarero los ejecuta en el MCP.
 - El agente valida `x-agent-user-id`, ejecuta `ConversationManager`, llama al
   modelo de Foundry y a las tools MCP, y devuelve el resultado estructurado
   dentro de una respuesta estándar.
@@ -48,6 +49,42 @@ indicadas en el propio plan.
 - Mientras BFF y MCP sigan usando SQLite, cada uno monta su Azure Files
   separado y todas las aplicaciones quedan limitadas a una réplica. Es una
   topología inicial de demo, no el diseño de persistencia escalable de fase 9.
+
+## Fase 4: solo el camarero habla con el MCP (29/09/2026)
+
+Decisión de Jesús y dsanchor del 29/09: el MCP de asientos solo habla con el
+agente. El camarero es quien confirma; ningún otro componente es cliente del
+MCP, tampoco en pruebas.
+
+- **Camarero.** `confirm_seating` es una tool del modelo que siempre requiere
+  aprobación (HITL de Agent Framework): tras bloquear, la ejecución se detiene
+  y la petición de aprobación queda en `session_json`. La decisión de los
+  botones vuelve como respuesta de aprobación, nunca como texto. El propio
+  camarero cancela el bloqueo al rechazar, lee la sala antes y después de cada
+  ejecución y devuelve un informe de asientos (sitio propio, `last_outcome` y
+  sala anónima). Salvaguardas deterministas: una sola petición de
+  confirmación por bloqueo (la añade si el modelo la olvida), argumentos
+  autoritativos, comprobación de vigencia y versión, y respuestas fijas sin
+  modelo tras una decisión. Si el cliente escribe con la propuesta pendiente,
+  el bloqueo se mantiene y el camarero vuelve a pedir la confirmación con los
+  botones; solo «Rechazar» y `/new` lo cancelan.
+- **Contrato.** `WaiterRequest` distingue `take_turn`, `decide_seating` y
+  `sync_seating`; las respuestas llevan `SeatingReport`. Se retiran los campos
+  que solo servían a la reconciliación del BFF con el MCP.
+- **BFF.** Sin cliente MCP ni dependencia `mcp`; rechaza `SEATING_MCP_URL`.
+  Persiste y presenta la propuesta y una sala compartida con la última lectura
+  de cualquier llamada al camarero; envía «Confirmar» y «Rechazar» como
+  `decide_seating` y, tras la llegada, `sync_seating` en segundo plano. `/new`
+  rechaza una propuesta pendiente a través del camarero o se niega si no
+  puede. El modo `scripted` simula los asientos en memoria.
+- **MCP.** `expires_at` en los sitios bloqueados del mapa y documentación del
+  camarero como único cliente.
+- **Vista.** «Camarero simulado» solo con el camarero `scripted`.
+- **Despliegue.** El script deja de pasar `SEATING_MCP_URL` al BFF.
+- **Recorrido sin Foundry.** `./scripts/test-e2e-seating.sh` levanta MCP,
+  camarero independiente con un modelo guionizado y BFF remoto.
+- Evidencia de CI y validación en el Codespace: en el PR correspondiente.
+  Revisión conjunta pendiente; no se marca ninguna casilla.
 
 ## Acuerdos del sync del 28/09/2026
 

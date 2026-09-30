@@ -9,7 +9,9 @@ sin cambios).
 El camarero se ejecuta como un servicio independiente y el BFF lo invoca por
 su endpoint estándar Responses 2.0. Solo el contenedor del agente conoce el
 proyecto Foundry, el deployment del modelo y sus credenciales. El BFF conserva
-sesiones web, visitas, snapshots, SSE y confirmaciones HITL.
+sesiones web, visitas, snapshots y SSE, y persiste y presenta las
+confirmaciones HITL; el camarero las ejecuta en el MCP de asientos, del que es
+el único cliente. El BFF no habla con el MCP.
 
 ## Preparar, probar y arrancar (Codespace)
 
@@ -79,15 +81,13 @@ La imagen se ejecuta como usuario no root, guarda SQLite en `/data` y expone un
 | `BFF_EVENT_RETENTION` | Eventos que se conservan por conversación | `500` |
 | `BFF_SSE_HEARTBEAT_SECONDS` | Intervalo del latido SSE | `15` |
 | `BFF_SCRIPTED_DELAY_SECONDS` | Pausa del camarero simulado | `0` |
+| `BFF_SCRIPTED_SEATING` | Mesas simuladas en memoria para el camarero simulado (sin MCP) | `false` |
 | `BFF_HOST`, `BFF_PORT` | Dirección de `run-bff.sh` (`BFF_PORT` también en la imagen) | `0.0.0.0`, `8000` |
-| `SEATING_MCP_URL` | MCP de asientos (`http://127.0.0.1:8080/mcp` con `./scripts/run-mcp.sh`); sin ella no hay mesas | vacío |
-| `SEATING_MCP_TIMEOUT_SECONDS` | Tiempo máximo de cada llamada al MCP | `5` |
-| `BFF_ROOM_CACHE_SECONDS` | Caché de la sala por visita | `1` |
 
 El BFF envía la identidad resuelta mediante `x-agent-user-id` y un contrato
 tipado en el campo `input` de Responses. El agente rechaza discrepancias entre
-ambas identidades. Con `SEATING_MCP_URL`, el BFF confirma y cancela propuestas;
-el agente remoto usa su propia `SEATING_MCP_URL` para consultar y bloquear.
+ambas identidades. `SEATING_MCP_URL` pertenece solo al agente: si llega al BFF,
+el arranque falla con un aviso claro.
 
 ## API (`/v1`)
 
@@ -141,24 +141,27 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   Framework en JSON), eventos y resultados viven en SQLite y sobreviven a un
   reinicio. Un turno interrumpido por un reinicio se marca como fallido al
   arrancar.
-- **Mesas y barra.** El MCP es la fuente de verdad. Antes de cada turno el
-  BFF siembra su id de visita en la sesión del camarero (también en sesiones
-  de la fase 3 con un id aleatorio) y le pasa el estado de asiento de la
-  visita. Si el turno bloquea un sitio, el BFF guarda la propuesta pendiente
-  con un `proposal_id` público. `table.confirmation_decided` la confirma
-  (ocupada, con `seated_at`) o la rechaza (libre al momento) mediante el
-  gateway, comprobando pertenencia, versión y caducidad; un doble clic o un
-  reintento no confirma dos veces. El camarero responde con un mensaje fijo,
-  sin modelo. Una confirmación tardía recibe «La reserva de … ha caducado».
-  Lo que se decide fuera de un turno (confirmar, rechazar, caducar, `/new` o
-  un reinicio del MCP) llega al camarero en el turno siguiente: el estado de
-  asiento lleva `last_outcome` y los mensajes fijos se añaden a su historial.
-  `/new` cancela una propuesta pendiente y se rechaza mientras el grupo está
-  sentado. La consulta de la sala y cada turno reconcilian con el MCP: tras
-  `./scripts/run-mcp.sh --reset` los sitios propios desaparecen. Si el MCP no
-  responde: «El servicio de mesas no responde ahora mismo…».
-- **Observabilidad.** Spans `bff.command`, `bff.waiter.turn` y
-  `bff.seating.decision` con tipo,
+- **Mesas y barra.** El camarero es el único cliente del MCP de asientos y
+  devuelve en cada llamada un informe de asientos: el sitio propio (ninguno,
+  propuesto o sentado), si espera la decisión del cliente, `last_outcome` y la
+  sala anónima. El BFF guarda la propuesta pendiente con un `proposal_id`
+  público y el token opaco del camarero, y guarda la última sala informada por
+  cualquier llamada, que sirve a todos los clientes con `mine` calculado para
+  cada uno y los bloqueos caducados ocultos. `table.confirmation_decided`
+  comprueba pertenencia, propuesta, versión y bloqueo por conversación, y es
+  idempotente por evento y por propuesta y decisión; después envía la decisión
+  al camarero (`decide_seating`), que confirma o cancela en el MCP y responde
+  con un mensaje fijo. Una confirmación tardía recibe «La reserva de … ha
+  caducado». Tras la llegada, el BFF pide al camarero en segundo plano que lea
+  la sala (`sync_seating`); el saludo sigue siendo inmediato. `/new` con una
+  propuesta pendiente la rechaza a través del camarero y, si no puede, se
+  niega: «Antes de empezar otra visita, confirma o rechaza la propuesta de …».
+  Con el grupo sentado se niega tras pedir al camarero que lea la sala. Si el
+  MCP no responde: «El servicio de mesas no responde ahora mismo…». Las
+  pruebas y el modo `scripted` simulan los asientos en memoria
+  (`BFF_SCRIPTED_SEATING`), sin MCP.
+- **Observabilidad.** Spans `bff.command`, `bff.waiter.turn`,
+  `bff.seating.decision` y `bff.seating.sync` con tipo,
   correlación, conversación y resultado, sin texto ni nombres. Solo se usa la
   API de OpenTelemetry: falta configurar un exportador (Application Insights,
   fase 9).

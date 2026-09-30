@@ -120,7 +120,7 @@ class Handler(BaseHTTPRequestHandler):
                 "identity": identity.model_dump(mode="json"),
                 "presented_name": name,
                 "active_visit_id": self.server.restaurant.active_visit_id(identity),
-                "waiter": "foundry" if name == "Real" else "scripted",
+                "waiter": "remote" if name == "Real" else "scripted",
                 "expires_at": "2026-09-29T00:00:00+00:00",
             },
         )
@@ -199,6 +199,7 @@ def test_the_name_is_sent_once_and_then_only_a_bearer_token(bff) -> None:
     for _, _, headers, body in bff.requests[1:]:
         assert headers["Authorization"].startswith("Bearer ")
         assert b"Ana" not in body
+    # The BFF reports "remote" for the real waiter: only "scripted" is simulated.
     assert HttpBffClient.open(bff.url, "Real").simulated is False
 
 

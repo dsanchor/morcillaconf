@@ -58,9 +58,18 @@ el puerto 8088; el BFF escucha en el 8000. Usa `./scripts/setup-bff.sh`,
 
 Las mesas y la barra (fase 4) salen del MCP de asientos
 ([`services/mcp`](services/mcp)): `./scripts/run-mcp.sh` (puerto 8080;
-`--reset` vacía la sala) y el BFF con
-`SEATING_MCP_URL=http://127.0.0.1:8080/mcp`. `./scripts/test-e2e-seating.sh`
-prueba el recorrido de asientos sin Foundry.
+`--reset` vacía la sala) y el agente con
+`SEATING_MCP_URL=http://127.0.0.1:8080/mcp`. El camarero es el único cliente
+del MCP: el BFF no lo usa. `./scripts/test-e2e-seating.sh` prueba el
+recorrido de asientos sin Foundry.
+
+```mermaid
+flowchart LR
+    F[Frontend Streamlit] -->|HTTP y SSE| B[BFF FastAPI]
+    B -->|Responses 2.0| A[Agente camarero]
+    A --> FO[Microsoft Foundry]
+    A -->|Tools y aprobación| M[MCP de asientos]
+```
 
 Para crear una configuración local reutilizable:
 

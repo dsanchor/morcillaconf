@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import shlex
+from collections.abc import Callable
 
 from restaurant_agent.agent import create_waiter_agent
 from restaurant_agent.config import Settings
@@ -55,6 +56,44 @@ def handle_memory_command(
             "Uso: /memory list|correct <id> <texto>|delete <id>|clear"
         )
     print_memory(snapshot)
+
+
+def _seating_question(report: dict) -> str:
+    place = report.get("place") or {}
+    seats = place.get("seats") or []
+    where = (
+        f"la barra (puestos {seats[0]} a {seats[-1]})"
+        if place.get("kind") == "bar" and seats
+        else place.get("label", "la propuesta")
+    )
+    return f"¿Confirmar {where} para {report.get('party_size')}? (s/n) "
+
+
+async def ask_seating_decision(
+    manager: ConversationManager,
+    *,
+    conversation_id: str,
+    actor_id: str,
+    read: Callable[[str], str] = input,
+) -> None:
+    """The CLI's «Confirmar»/«Rechazar»: the operator answers the paused approval."""
+
+    report = manager.seating_report(conversation_id=conversation_id, actor_id=actor_id)
+    while report is not None and report.get("awaiting_decision"):
+        answer = read(_seating_question(report)).strip().casefold()
+        if answer not in ("s", "si", "sí", "n", "no"):
+            continue
+        try:
+            decision = await manager.decide_seating(
+                conversation_id=conversation_id,
+                actor_id=actor_id,
+                approved=answer.startswith("s"),
+            )
+        except ConversationError as exc:
+            print(f"Error: {exc}")
+            return
+        print(f"Camarero> {decision.reply}")
+        report = manager.seating_report(conversation_id=conversation_id, actor_id=actor_id)
 
 
 async def run_cli(actor_id: str, *, authenticated: bool) -> None:
@@ -117,6 +156,9 @@ async def run_cli(actor_id: str, *, authenticated: bool) -> None:
                 ensure_ascii=False,
                 indent=2,
             )
+        )
+        await ask_seating_decision(
+            manager, conversation_id=conversation_id, actor_id=actor_id
         )
 
 

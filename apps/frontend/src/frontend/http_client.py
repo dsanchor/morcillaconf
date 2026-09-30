@@ -89,7 +89,7 @@ class HttpBffClient:
                 identity=ActorContext.model_validate(body["identity"]),
                 presented_name=body["presented_name"],
                 active_visit_id=body.get("active_visit_id"),
-                simulated=body.get("waiter") != "foundry",
+                simulated=body.get("waiter") == "scripted",
             )
         except (KeyError, TypeError, ValidationError):
             raise _error(ErrorCode.INTERNAL_ERROR, UNEXPECTED) from None

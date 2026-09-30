@@ -184,8 +184,9 @@ def test_map_is_anonymous_and_flags_the_callers_places(tmp_path, demo) -> None:
     places = {item["resource_id"]: item for item in room["resources"]}
     assert places["table-03"] | {"seats": []} == {
         "resource_id": "table-03", "kind": "table", "label": "Mesa 3", "capacity": 4, "display_order": 30,
-        "state": "held", "party_size": 3, "mine": True, "seats": [],
+        "state": "held", "party_size": 3, "mine": True, "expires_at": mine.expires_at, "seats": [],
     }
+    assert places["table-01"]["expires_at"] is None
     assert places["table-01"]["state"] == "free" and places["table-01"]["party_size"] is None
     bar = places["bar"]
     assert [seat["state"] for seat in bar["seats"]] == ["occupied", "occupied", *["free"] * 6]
@@ -239,3 +240,17 @@ def test_tools_report_stable_error_codes(tmp_path, demo, monkeypatch) -> None:
     assert "table-01" in json.dumps(held, default=str)
     assert '"mine": true' in json.dumps(room, default=str).replace('\\"', '"')
     assert error is not None and "no_seating: " in str(error)
+
+
+def test_map_reports_hold_expiry_for_tables_and_stools(tmp_path, demo) -> None:
+    repo = repo_for(tmp_path, demo)
+    table = hold(repo, "v1", 2, "table")
+    stools = hold(repo, "v2", 2, "bar")
+    seated = hold(repo, "v3", 1, "bar")
+    repo.confirm(assignment_id=seated.assignment_id, visit_id="v3", expected_version=1, idempotency_key="c", now=MOMENT)
+    room = repo.seating_map(now=MOMENT)
+    places = {item["resource_id"]: item for item in room["resources"]}
+    assert places[table.resource_id]["expires_at"] == table.expires_at
+    bar = places["bar"]["seats"]
+    assert [seat["expires_at"] for seat in bar[:3]] == [stools.expires_at, stools.expires_at, None]
+    assert bar[2]["state"] == "occupied"

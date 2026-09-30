@@ -57,20 +57,12 @@ def test_the_remote_waiter_is_built_without_constructing_an_agent(tmp_path) -> N
     assert waiter.mode == "remote"
 
 
-def test_seating_is_off_without_the_mcp_url(tmp_path) -> None:
-    from bff.adapters import create_seating
+def test_scripted_seating_is_in_memory_and_off_by_default(monkeypatch) -> None:
+    from bff.adapters import create_waiter
+    from bff.scripted_seating import ScriptedSeating
 
     settings = BffSettings(_env_file=None, bff_waiter="scripted")
-    assert settings.seating_mcp_url is None
-    assert create_seating(settings) is None
-
-
-def test_seating_is_on_with_the_mcp_url(monkeypatch) -> None:
-    from bff.seating import McpSeatingGateway
-
-    from bff.adapters import create_seating
-
-    monkeypatch.setenv("SEATING_MCP_URL", "http://127.0.0.1:8080/mcp")
-    monkeypatch.setenv("SEATING_MCP_TIMEOUT_SECONDS", "3")
-    settings = BffSettings(_env_file=None, bff_waiter="scripted")
-    assert isinstance(create_seating(settings), McpSeatingGateway)
+    assert settings.bff_scripted_seating is False
+    monkeypatch.setenv("BFF_SCRIPTED_SEATING", "true")
+    waiter = create_waiter(BffSettings(_env_file=None, bff_waiter="scripted"), object())
+    assert isinstance(waiter._seating, ScriptedSeating)

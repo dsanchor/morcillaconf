@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Awaitable
-from contextlib import AbstractContextManager, suppress
+from collections.abc import AsyncIterator, Awaitable
+from contextlib import AbstractContextManager, asynccontextmanager, suppress
 from contextvars import ContextVar, Token
 from datetime import UTC, datetime
-from typing import Callable, TypeVar
+from typing import Any, Callable, TypeVar
 from uuid import uuid4
 
 from agent_framework import AgentSession
@@ -27,6 +27,12 @@ from restaurant_contracts.memory import (
     MemorySnapshot,
 )
 from restaurant_contracts.waiter import (
+    WAITER_REQUEST_ADAPTER,
+    SeatingReport,
+    WaiterSeatingDecisionRequest,
+    WaiterSeatingRequest,
+    WaiterSeatingSuccess,
+    WaiterSeatingSyncRequest,
     WaiterTurnFailure,
     WaiterTurnRequest,
     WaiterTurnSuccess,
@@ -39,19 +45,13 @@ from restaurant_agent.conversation import (
     ConversationError,
     ConversationManager,
     InvalidAgentResponseError,
+    NoPendingSeatingDecisionError,
     SeatingUnavailableError,
     SessionState,
     TurnLimitExceededError,
 )
 from restaurant_agent.memory.store import MemoryNotFoundError
-from restaurant_agent.seating import (
-    bind_visit,
-    clear_proposal,
-    history_source_id,
-    pending_proposal,
-    record_waiter_note,
-    set_seating_context,
-)
+from restaurant_agent.seating import bind_visit
 
 logger = logging.getLogger(__name__)
 _T = TypeVar("_T")
@@ -219,88 +219,149 @@ class RemoteWaiterService:
         self, request: WaiterTurnRequest
     ) -> WaiterTurnSuccess | WaiterTurnFailure:
         with self._memory.bind(request.memories) as memory:
-            agent = self._agent_factory(
-                self._settings, memory_store=self._memory
-            )
-            entered = False
             try:
-                if hasattr(agent, "__aenter__"):
-                    await agent.__aenter__()
-                    entered = True
-                session = _session_from_json(request.session_json)
-                if request.visit_id is not None:
-                    if session is None:
-                        session = agent.create_session(
-                            session_id=request.conversation_id
-                        )
-                    bind_visit(session.state, request.visit_id)
-                    set_seating_context(session.state, request.seating_context)
-                    pending = pending_proposal(session.state)
-                    if (
-                        pending is not None
-                        and pending["assignment_id"]
-                        != request.pending_assignment_id
-                    ):
-                        clear_proposal(session.state)
-                    source_id = history_source_id(agent)
-                    for note in request.history_notes:
-                        record_waiter_note(session.state, note, source_id)
-                manager = ConversationManager(
-                    agent,
-                    max_turns=self._settings.waiter_max_turns,
-                    memory_store=self._memory,
-                )
-                manager.restore_conversation(
-                    conversation_id=request.conversation_id,
-                    actor_id=request.actor.actor_id,
-                    authenticated=request.actor.authenticated,
-                    presented_name=request.presented_name,
-                    agent_session=session,
+                async with self._conversation(
+                    request,
                     state=SessionState(
                         customer=request.customer,
                         order_draft=request.order_draft,
                         turn_count=request.turn_count,
                     ),
                     persisted_order_preferences=request.persisted_order_preferences,
-                )
-                response = await manager.send_message(
-                    conversation_id=request.conversation_id,
-                    actor_id=request.actor.actor_id,
-                    message=request.message,
-                    correlation_id=request.correlation_id,
-                )
-                exported = manager.export_conversation(
-                    conversation_id=request.conversation_id,
-                    actor_id=request.actor.actor_id,
-                )
-                proposal = pending_proposal(exported.agent_session.state)
-                return WaiterTurnSuccess(
-                    reply=response.reply,
-                    customer=exported.state.customer,
-                    order_draft=exported.state.order_draft,
-                    turn_count=exported.state.turn_count,
-                    persisted_order_preferences=exported.persisted_order_preferences,
-                    session_json=_session_to_json(exported.agent_session),
-                    seating_proposal=(
-                        dict(proposal) if proposal is not None else None
-                    ),
-                    memory_candidates=memory.candidates,
-                )
-            except TurnLimitExceededError as exc:
-                return WaiterTurnFailure(code="turn_limit", message=str(exc))
-            except SeatingUnavailableError as exc:
-                return WaiterTurnFailure(
-                    code="seating_unavailable", message=str(exc)
-                )
-            except AgentUnavailableError as exc:
-                return WaiterTurnFailure(code="unavailable", message=str(exc))
-            except InvalidAgentResponseError as exc:
-                return WaiterTurnFailure(code="invalid_response", message=str(exc))
+                ) as manager:
+                    response = await manager.send_message(
+                        conversation_id=request.conversation_id,
+                        actor_id=request.actor.actor_id,
+                        message=request.message,
+                        correlation_id=request.correlation_id,
+                    )
+                    exported = manager.export_conversation(
+                        conversation_id=request.conversation_id,
+                        actor_id=request.actor.actor_id,
+                    )
+                    return WaiterTurnSuccess(
+                        reply=response.reply,
+                        customer=exported.state.customer,
+                        order_draft=exported.state.order_draft,
+                        turn_count=exported.state.turn_count,
+                        persisted_order_preferences=exported.persisted_order_preferences,
+                        session_json=_session_to_json(exported.agent_session),
+                        seating=_report(manager, request),
+                        memory_candidates=memory.candidates,
+                    )
             except ConversationError as exc:
-                return WaiterTurnFailure(code="internal_error", message=str(exc))
-            finally:
-                if entered:
-                    await agent.__aexit__(None, None, None)
+                return _failure(exc)
+
+    async def decide_seating(
+        self, request: WaiterSeatingDecisionRequest
+    ) -> WaiterSeatingSuccess | WaiterTurnFailure:
+        """Resume the paused confirmation with the customer's button decision."""
+
+        with self._memory.bind([]):
+            try:
+                async with self._conversation(request) as manager:
+                    decided = await manager.decide_seating(
+                        conversation_id=request.conversation_id,
+                        actor_id=request.actor.actor_id,
+                        approved=request.decision == "confirmed",
+                        proposal_token=request.proposal_token,
+                    )
+                    exported = manager.export_conversation(
+                        conversation_id=request.conversation_id,
+                        actor_id=request.actor.actor_id,
+                    )
+                    return WaiterSeatingSuccess(
+                        operation="decide_seating",
+                        reply=decided.reply,
+                        outcome=decided.outcome,
+                        session_json=_session_to_json(exported.agent_session),
+                        seating=_report(manager, request),
+                    )
+            except ConversationError as exc:
+                return _failure(exc)
+
+    async def sync_seating(
+        self, request: WaiterSeatingSyncRequest
+    ) -> WaiterSeatingSuccess | WaiterTurnFailure:
+        """Read the visit's seating and the room from the MCP, without the model."""
+
+        with self._memory.bind([]):
+            try:
+                async with self._conversation(request) as manager:
+                    await manager.sync_seating(
+                        conversation_id=request.conversation_id,
+                        actor_id=request.actor.actor_id,
+                    )
+                    exported = manager.export_conversation(
+                        conversation_id=request.conversation_id,
+                        actor_id=request.actor.actor_id,
+                    )
+                    return WaiterSeatingSuccess(
+                        operation="sync_seating",
+                        session_json=_session_to_json(exported.agent_session),
+                        seating=_report(manager, request),
+                    )
+            except ConversationError as exc:
+                return _failure(exc)
+
+    @asynccontextmanager
+    async def _conversation(
+        self,
+        request: WaiterTurnRequest | WaiterSeatingRequest,
+        *,
+        state: SessionState | None = None,
+        persisted_order_preferences: list[str] | None = None,
+    ) -> AsyncIterator[ConversationManager]:
+        agent = self._agent_factory(self._settings, memory_store=self._memory)
+        entered = False
+        try:
+            if hasattr(agent, "__aenter__"):
+                await agent.__aenter__()
+                entered = True
+            session = _session_from_json(request.session_json)
+            if request.visit_id is not None:
+                if session is None:
+                    session = agent.create_session(session_id=request.conversation_id)
+                bind_visit(session.state, request.visit_id)
+            manager = ConversationManager(
+                agent,
+                max_turns=self._settings.waiter_max_turns,
+                memory_store=self._memory,
+            )
+            manager.restore_conversation(
+                conversation_id=request.conversation_id,
+                actor_id=request.actor.actor_id,
+                authenticated=request.actor.authenticated,
+                presented_name=request.presented_name,
+                agent_session=session,
+                state=state,
+                persisted_order_preferences=persisted_order_preferences or (),
+            )
+            yield manager
+        finally:
+            if entered:
+                await agent.__aexit__(None, None, None)
+
+
+def _report(
+    manager: ConversationManager, request: WaiterTurnRequest | WaiterSeatingRequest
+) -> SeatingReport | None:
+    report = manager.seating_report(
+        conversation_id=request.conversation_id, actor_id=request.actor.actor_id
+    )
+    return SeatingReport.model_validate(report) if report is not None else None
+
+
+def _failure(exc: ConversationError) -> WaiterTurnFailure:
+    codes: tuple[tuple[type[ConversationError], Any], ...] = (
+        (TurnLimitExceededError, "turn_limit"),
+        (SeatingUnavailableError, "seating_unavailable"),
+        (NoPendingSeatingDecisionError, "no_pending_decision"),
+        (AgentUnavailableError, "unavailable"),
+        (InvalidAgentResponseError, "invalid_response"),
+    )
+    code = next((code for kind, code in codes if isinstance(exc, kind)), "internal_error")
+    return WaiterTurnFailure(code=code, message=str(exc)[:500] or code)
 
 
 def create_server(
@@ -319,13 +380,17 @@ def create_server(
             payload = request.get("input")
             if not isinstance(payload, str):
                 raise ValueError("The waiter expects a JSON string input")
-            turn = WaiterTurnRequest.model_validate_json(payload)
+            turn = WAITER_REQUEST_ADAPTER.validate_json(payload)
             user_id = get_request_context().user_id
             if user_id is None or user_id != turn.actor.actor_id:
                 raise ValueError("The request identity does not match the waiter turn")
-            result = await _cancel_when_signalled(
-                selected_service.take_turn(turn), cancellation_signal
-            )
+            if isinstance(turn, WaiterSeatingDecisionRequest):
+                operation = selected_service.decide_seating(turn)
+            elif isinstance(turn, WaiterSeatingSyncRequest):
+                operation = selected_service.sync_seating(turn)
+            else:
+                operation = selected_service.take_turn(turn)
+            result = await _cancel_when_signalled(operation, cancellation_signal)
         except Exception as exc:
             logger.error("Remote waiter request failed: %s", type(exc).__name__)
             result = WaiterTurnFailure(

@@ -36,26 +36,47 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
 - El borrado total no bloquea el guardado de interacciones futuras.
 - Separa sesión, preferencias, restricciones e historial de pedidos completados.
 
-El camarero consulta y crea propuestas temporales de asiento mediante las tools
-directas del MCP de asientos (`seating_get_seating_availability` y
-`seating_hold_seating`) en cuanto sabe cuántos son o le piden mesa o barra.
-La propuesta no confirma una ocupación: el cliente la confirma o la rechaza
-con los botones de la vista y el modelo nunca puede confirmar, cancelar ni
-liberar. Cada turno, `VisitContextProvider` le indica el estado de asiento de
-la visita (sin sitio, propuesta pendiente o sentado) como contexto de la
-aplicación, y el middleware sustituye `visit_id` e `idempotency_key`: reutiliza
-la clave solo mientras la propuesta pendiente responde a la misma petición.
-Si el MCP no responde, el turno falla con `SeatingUnavailableError`.
+El camarero es el único cliente del MCP de asientos. Consulta y bloquea
+sitios con `seating_get_seating_availability` y `seating_hold_seating` en
+cuanto sabe cuántos son o le piden mesa o barra, y pide la confirmación con
+`seating_confirm_seating`, una tool que siempre requiere aprobación: la
+ejecución se detiene (HITL) y la petición de aprobación queda en la sesión.
+El cliente decide con los botones «Confirmar» o «Rechazar»; esa decisión
+vuelve al agente como respuesta de aprobación, nunca como texto, y un «sí»
+escrito no confirma.
+
+Todo lo demás lo hace el propio agente, de forma determinista y por su misma
+conexión MCP:
+
+- `VisitContextProvider` fija la visita del BFF, cancela el bloqueo al
+  momento cuando el cliente rechaza, lo mantiene cuando escribe en lugar de
+  pulsar un botón (la confirmación se vuelve a pedir al final de la
+  ejecución), lee la sala anónima antes y después de cada ejecución, deriva el sitio
+  propio (ninguno, propuesto o sentado) y `last_outcome`, se lo indica al
+  modelo como contexto y publica un informe de asientos para la aplicación.
+- `SeatingToolContextMiddleware` pone `visit_id`, la clave de idempotencia y,
+  al confirmar, la asignación y la versión; antes comprueba que la propuesta
+  sigue vigente.
+- `SeatingApprovalChatMiddleware` garantiza una sola petición de confirmación
+  por bloqueo (la añade si el modelo la olvida y la separa de otras llamadas)
+  y responde a las decisiones con mensajes fijos sin llamar al modelo.
+
+Si el MCP no responde, la operación falla con `SeatingUnavailableError`.
 
 El agente se sirve como proceso independiente mediante Responses 2.0. El BFF
 envía un contrato tipado dentro de `input`, fija la conversación con
 `conversation.id` y aporta `x-agent-user-id`; el servidor exige que la
-identidad del contrato y la cabecera coincidan. El agente devuelve el estado
-estructurado del turno como texto JSON de la respuesta estándar.
+identidad del contrato y la cabecera coincidan. La operación puede ser
+`take_turn` (un mensaje), `decide_seating` (la decisión de los botones sobre
+la confirmación pendiente) o `sync_seating` (leer el sitio y la sala sin
+llamar al modelo). El agente devuelve el resultado estructurado, con el
+informe de asientos, como texto JSON de la respuesta estándar. La aprobación
+pendiente viaja en `session_json`, que el BFF conserva, así que sobrevive a
+un reinicio. El BFF no habla con el MCP. Todavía no existen herramientas de
+carta, inventario, cocina, cuenta o pago.
 
-El BFF posee su propio gateway de aplicación para confirmar, cancelar y leer la
-sala. El agente solo recibe las tools MCP de disponibilidad y bloqueo. Todavía
-no existen herramientas de carta, inventario, cocina, cuenta o pago.
+En la CLI (`./scripts/run-waiter-cli.sh`), una propuesta pendiente se decide
+respondiendo `s` o `n`.
 
 Los tipos públicos de cliente y borrador se comparten con
 [`packages/contracts`](../../packages/contracts); las importaciones anteriores

@@ -1,10 +1,9 @@
 """Microsoft Agent Framework configuration for the waiter."""
 
 from pathlib import Path
+from typing import Any
 
 from agent_framework import Agent, MCPStreamableHTTPTool
-from agent_framework.foundry import FoundryChatClient
-from azure.identity import DefaultAzureCredential
 
 from restaurant_agent.config import Settings
 from restaurant_agent.contracts import WaiterModelResult
@@ -16,6 +15,8 @@ from restaurant_agent.memory.middleware import (
 from restaurant_agent.memory.options import HabitualOrderQuestion
 from restaurant_agent.memory.store import DurableMemoryRepository
 from restaurant_agent.seating import (
+    CONFIRM_NAMES,
+    SeatingApprovalChatMiddleware,
     SeatingToolContextMiddleware,
     VisitContextProvider,
 )
@@ -30,7 +31,12 @@ def load_instructions() -> str:
 
 
 def create_seating_tools(settings: Settings) -> list[MCPStreamableHTTPTool] | None:
-    """Direct MCP seating tools for the model: availability and hold only."""
+    """The waiter's own MCP connection to the seating service.
+
+    The model sees availability, hold and confirm; confirm always requires
+    the customer's approval (HITL). Cancel and the room map are used only by
+    the waiter's own hooks through this same connection.
+    """
 
     if settings.seating_mcp_url is None:
         return None
@@ -42,9 +48,19 @@ def create_seating_tools(settings: Settings) -> list[MCPStreamableHTTPTool] | No
             allowed_tools=(
                 "get_seating_availability",
                 "hold_seating",
+                "confirm_seating",
             ),
+            approval_mode={
+                "always_require_approval": list(CONFIRM_NAMES),
+                "never_require_approval": [
+                    "get_seating_availability",
+                    "seating_get_seating_availability",
+                    "hold_seating",
+                    "seating_hold_seating",
+                ],
+            },
             request_timeout=settings.seating_mcp_timeout_seconds,
-            description="Disponibilidad y bloqueos temporales de asientos.",
+            description="Disponibilidad, bloqueos temporales y confirmación de asientos.",
         )
     ]
 
@@ -53,14 +69,23 @@ def create_waiter_agent(
     settings: Settings,
     *,
     memory_store: DurableMemoryRepository | None = None,
+    client: Any | None = None,
 ) -> Agent:
-    """Build the waiter using the configured Microsoft Foundry deployment."""
+    """Build the waiter; by default with the configured Microsoft Foundry deployment.
 
-    client = FoundryChatClient(
-        project_endpoint=str(settings.foundry_project_endpoint),
-        model=settings.azure_ai_model_deployment_name,
-        credential=DefaultAzureCredential(),
-    )
+    ``client`` replaces the model (the BFF's scripted waiter), keeping the
+    same tools, middleware and context providers.
+    """
+
+    if client is None:
+        from agent_framework.foundry import FoundryChatClient
+        from azure.identity import DefaultAzureCredential
+
+        client = FoundryChatClient(
+            project_endpoint=str(settings.foundry_project_endpoint),
+            model=settings.azure_ai_model_deployment_name,
+            credential=DefaultAzureCredential(),
+        )
     intent_classifier = Agent(
         id="memory-intent-classifier",
         name="Clasificador de intención de memoria",
@@ -95,7 +120,8 @@ def create_waiter_agent(
             "response_format": HabitualOrderQuestion,
         },
     )
-    context_providers = [VisitContextProvider()]
+    tools = create_seating_tools(settings)
+    context_providers = [VisitContextProvider(tools[0] if tools else None)]
     if memory_store:
         context_providers.append(
             DurableMemoryContextProvider(
@@ -110,8 +136,10 @@ def create_waiter_agent(
                 option_merger=option_merger,
             )
         )
-    tools = create_seating_tools(settings)
-    default_options = {"store": False}
+    default_options: dict[str, Any] = {"store": False}
+    if tools:
+        # One call per model response: a hold must run before its confirmation.
+        default_options["allow_multiple_tool_calls"] = False
     if settings.enable_dev_fake_identity:
         default_options["response_format"] = WaiterModelResult
     return Agent(
@@ -125,6 +153,7 @@ def create_waiter_agent(
         middleware=[
             HabitualOrderMiddleware(intent_classifier),
             SeatingToolContextMiddleware(),
+            SeatingApprovalChatMiddleware(),
         ],
         default_options=default_options,
     )

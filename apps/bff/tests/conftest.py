@@ -15,7 +15,7 @@ from bff.scripted import ScriptedWaiterAgent
 from bff.service import RestaurantService
 from bff.storage import Database
 from bff.local_waiter import LocalWaiter
-from seating_stub import RunningServer, StubSeating
+from bff.scripted_seating import ScriptedSeating
 
 
 class Clock:
@@ -120,16 +120,6 @@ def clock() -> Clock:
 
 
 @pytest.fixture
-def seating_server():
-    server = RunningServer(StubSeating())
-    server.start()
-    try:
-        yield server
-    finally:
-        server.stop()
-
-
-@pytest.fixture
 def settings(tmp_path: Path) -> BffSettings:
     return BffSettings(
         _env_file=None,
@@ -150,7 +140,7 @@ def make_service(settings: BffSettings, clock: Clock) -> ServiceFactory:
         *,
         max_turns: int = 20,
         retention: int = 500,
-        seating=None,
+        seating: ScriptedSeating | None = None,
     ) -> RestaurantService:
         memory_store = SQLiteMemoryStore(settings.memory_database_path)
         waiter = LocalWaiter(
@@ -158,6 +148,7 @@ def make_service(settings: BffSettings, clock: Clock) -> ServiceFactory:
             mode="scripted",
             max_turns=max_turns,
             memory_store=memory_store,
+            seating=seating,
         )
         return RestaurantService(
             database=Database(settings.bff_database_path, event_retention=retention),
@@ -166,8 +157,6 @@ def make_service(settings: BffSettings, clock: Clock) -> ServiceFactory:
             max_turns=max_turns,
             heartbeat_seconds=0.2,
             clock=clock,
-            seating=seating,
-            room_cache_seconds=0,
         )
 
     return build

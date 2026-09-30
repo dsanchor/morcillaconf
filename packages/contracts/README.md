@@ -49,6 +49,15 @@ validan las uniones discriminadas y generan JSON Schema mediante
 - `application.py`: comandos, resultados, proyección y eventos públicos.
 - `client.py`: protocolo asíncrono `BffClient` para futuros clientes falso y
   HTTP/SSE; `BffClientError` transporta errores públicos explícitos.
+- `waiter.py`: contrato JSON entre el BFF y el camarero independiente. La
+  petición se distingue por `operation`: `take_turn` (un mensaje),
+  `decide_seating` (la respuesta del cliente con los botones a la
+  confirmación pendiente, con el `proposal_token` que conoce el BFF) y
+  `sync_seating` (leer el sitio y la sala sin llamar al modelo). Las
+  respuestas correctas llevan un `SeatingReport`: el sitio propio (ninguno,
+  propuesto o sentado), `awaiting_decision`, `last_outcome` y la sala anónima,
+  sin visitas, asignaciones ni nombres. Solo el camarero habla con el MCP de
+  asientos.
 - `WaiterModelResult`, `WaiterResponse`, `SessionState`, clasificación semántica
   y repositorio de memoria siguen dentro del agente.
 
