@@ -76,7 +76,53 @@ llamar al modelo). El agente devuelve el resultado estructurado, con el
 informe de asientos, como texto JSON de la respuesta estándar. La aprobación
 pendiente viaja en `session_json`, que el BFF conserva, así que sobrevive a
 un reinicio. El BFF no habla con el MCP. Todavía no existen herramientas de
-carta, inventario, cocina, cuenta o pago.
+inventario, cocina, cuenta o pago.
+
+## Carta y base de conocimiento (Foundry IQ)
+
+El camarero responde sobre la carta, las recetas, los ingredientes y los
+alérgenos con la base de conocimiento de Foundry IQ del restaurante (Azure AI
+Search, recuperación agéntica). La base tiene tres fuentes: la carta, el
+recetario en PDF con su ficha de ingredientes y la búsqueda web como respaldo.
+Se crea con `./scripts/provision-knowledge.sh`; el contenido está en
+[`data/knowledge`](../../data/knowledge) y el aprovisionamiento se describe en
+el [README principal](../../README.md#base-de-conocimiento-foundry-iq).
+
+- El camarero se conecta al **endpoint MCP propio de la base**
+  (`{AZURE_SEARCH_ENDPOINT}/knowledgebases/{KNOWLEDGE_BASE_NAME}/mcp`, versión
+  `2026-08-01-preview`) con un segundo `MCPStreamableHTTPTool`, junto al de
+  asientos. Su única tool, `knowledge_base_retrieve`, es de solo lectura y no
+  pide aprobación. No hay un servidor MCP propio intermedio ni se añade nada al
+  MCP de asientos.
+- Autenticación Entra ID con audiencia `https://search.azure.com`: en Azure,
+  la identidad administrada asignada por el usuario (`AZURE_CLIENT_ID`, con
+  `APP_ENVIRONMENT=production`); en local, `DefaultAzureCredential` (por
+  ejemplo, `az login`). La identidad necesita **Search Index Data Reader**
+  sobre el servicio de búsqueda. El token se guarda en caché y solo se envía al
+  host del servicio de búsqueda.
+- Cada resultado llega al modelo una sola vez y con su origen: «documento de la
+  casa» (carta, recetario o ingredientes, con versión) o «fuente externa
+  (web)». Las instrucciones exigen citar la fuente, declarar solo los
+  alérgenos escritos, admitir la información que falte, usar la web solo como
+  respaldo identificado y nunca para precios, existencias o disponibilidad.
+- Tiempos acotados: 5 s como máximo para abrir la conexión y para cada paso
+  del saludo MCP, y `KNOWLEDGE_BASE_TIMEOUT_SECONDS` por consulta; la base
+  limita además cada consulta a 15 s. Sin reintentos automáticos de la
+  consulta.
+- Una caída nunca bloquea el turno ni los asientos: si la base no responde, la
+  tool contesta `knowledge_unavailable` y el camarero lo dice sin inventar la
+  carta. El proceso no vuelve a intentar conectarse hasta pasados 30 s, aunque
+  cada petición construya un camarero nuevo, así que una caída cuesta como
+  mucho una espera corta cada 30 s. `decide_seating` y `sync_seating` no se
+  conectan a la base.
+- Sin `AZURE_SEARCH_ENDPOINT` ni `KNOWLEDGE_BASE_NAME`, el camarero funciona
+  como antes y dice que no puede consultar la carta.
+- El borrador del pedido sigue sin verificar: estar en la carta no acredita
+  existencias.
+
+El chef de la fase 6 reutilizará la misma base y el mismo endpoint MCP para
+validar platos, recetas e ingredientes. La despensa seguirá siendo un MCP
+operacional aparte: cambiar el stock no obliga a reindexar la base.
 
 En la CLI (`./scripts/run-waiter-cli.sh`), una propuesta pendiente se decide
 respondiendo `s` o `n`.
@@ -119,7 +165,14 @@ MEMORY_DATABASE_PATH="./data/memory.db"
 MEMORY_MAX_ITEMS="20"
 SEATING_MCP_URL="http://morcillaconf-mcp:8080/mcp"
 SEATING_MCP_TIMEOUT_SECONDS="5"
+AZURE_SEARCH_ENDPOINT="https://<servicio>.search.windows.net"
+KNOWLEDGE_BASE_NAME="conocimiento-restaurante"
+KNOWLEDGE_BASE_TIMEOUT_SECONDS="20"
 ```
+
+Las tres últimas variables son opcionales: conectan la base de conocimiento.
+Tu usuario necesita el rol Search Index Data Reader sobre el servicio de
+búsqueda (`./scripts/provision-knowledge.sh` se lo asigna a quien lo ejecuta).
 
 La configuración local debe coincidir con el entorno de `azd`, porque
 `azd ai agent run` da prioridad a sus propias variables.
@@ -239,6 +292,8 @@ Para ejecutar el contenedor, se requieren siempre:
 | `ENABLE_DEV_FAKE_IDENTITY` y `DEV_FAKE_ACTOR_ID` | Ambos necesarios para la identidad local de desarrollo |
 | `SEATING_MCP_URL` | Endpoint Streamable HTTP del MCP de asientos; si se omite, el agente no declara tools de asientos |
 | `SEATING_MCP_TIMEOUT_SECONDS` | Tiempo máximo de cada llamada MCP, entre 1 y 60 segundos |
+| `AZURE_SEARCH_ENDPOINT` y `KNOWLEDGE_BASE_NAME` | Opcionales y juntos: servicio de Azure AI Search y base de conocimiento de Foundry IQ; si se omiten, el agente no declara la tool de carta |
+| `KNOWLEDGE_BASE_TIMEOUT_SECONDS` | Tiempo máximo de cada consulta a la base, entre 1 y 60 segundos (20 por defecto) |
 
 El contenedor también necesita una credencial válida para Azure. En desarrollo
 puede recibir `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` y `AZURE_CLIENT_SECRET`

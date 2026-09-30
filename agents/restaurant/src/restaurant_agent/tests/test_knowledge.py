@@ -563,3 +563,15 @@ def test_an_unexpected_result_format_is_kept_as_is() -> None:
     assert summarize_retrieval(result("La carta no está disponible.")) == "La carta no está disponible."
     odd = result(json.dumps([{"ref_id": 0, "content": "x"}]), json.dumps({"kind": "reference", "ref_id": 0, "sourceData": 7}))
     assert summarize_retrieval(odd).startswith("[0] Origen: fuente externa (web)")
+
+
+def test_the_instructions_keep_the_carta_rules() -> None:
+    from restaurant_agent.agent import load_instructions
+
+    instructions = load_instructions()
+    for rule in (
+        KNOWLEDGE_TOOL, "No respondas de memoria", "Cita siempre la fuente",
+        "pendiente de\n  verificar", "fuente externa (web)", "Nunca la uses para precios",
+        "knowledge_unavailable", "nunca inventes platos",
+    ):
+        assert rule in instructions, rule
