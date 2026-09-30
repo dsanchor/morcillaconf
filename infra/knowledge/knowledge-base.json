@@ -1,0 +1,27 @@
+{
+  "name": "${KNOWLEDGE_BASE_NAME}",
+  "description": "Conocimiento del mesón: carta oficial (platos, precios, alérgenos y advertencias), recetario de cocina tradicional de Burgos con su ficha de ingredientes, y búsqueda web solo como respaldo externo identificado.",
+  "retrievalInstructions": "Usa carta-de-la-casa para cualquier pregunta sobre lo que ofrece el mesón: platos, bebidas, precios, partidas, alérgenos, advertencias o platos típicos. Usa recetario-de-la-casa para saber cómo se elabora un plato, qué ingredientes lleva o qué alérgenos tiene cada ingrediente; consulta las dos fuentes si la pregunta mezcla carta y cocina. Usa web-bing solo para información pública general que no esté en la carta ni en el recetario, como la historia de un producto o su denominación de origen. No uses nunca web-bing para precios, existencias, disponibilidad ni para describir la carta del mesón.",
+  "outputMode": "extractiveData",
+  "knowledgeSources": [
+    { "name": "carta-de-la-casa" },
+    { "name": "recetario-de-la-casa" },
+    { "name": "web-bing" }
+  ],
+  "models": [
+    {
+      "kind": "azureOpenAI",
+      "azureOpenAIParameters": {
+        "resourceUri": "${FOUNDRY_OPENAI_ENDPOINT}",
+        "deploymentId": "${KNOWLEDGE_BASE_MODEL_DEPLOYMENT}",
+        "modelName": "${KNOWLEDGE_BASE_MODEL_NAME}"
+      }
+    }
+  ],
+  "retrievalReasoningEffort": { "kind": "low" },
+  "retrieveDefaults": {
+    "maxRuntimeInSeconds": 15,
+    "maxOutputDocuments": 6,
+    "maxOutputSizeInTokens": 5000
+  }
+}

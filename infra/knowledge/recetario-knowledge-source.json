@@ -1,0 +1,19 @@
+{
+  "name": "recetario-de-la-casa",
+  "kind": "searchIndex",
+  "description": "Recetario de cocina de la casa (PDF) y ficha de ingredientes: cómo se elabora cada plato, qué ingredientes lleva, sus alérgenos y qué platos usan cada ingrediente.",
+  "searchIndexParameters": {
+    "searchIndexName": "recetario-index",
+    "semanticConfigurationName": "recetario-semantic",
+    "sourceDataFields": [
+      { "name": "title" },
+      { "name": "doc_type" },
+      { "name": "version" },
+      { "name": "source_file" }
+    ],
+    "searchFields": [
+      { "name": "content" },
+      { "name": "title" }
+    ]
+  }
+}
