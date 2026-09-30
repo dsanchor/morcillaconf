@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, HttpUrl, model_validator
+from pydantic import Field, HttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,12 +20,24 @@ class Settings(BaseSettings):
     dev_fake_actor_id: str | None = None
     seating_mcp_url: HttpUrl | None = None
     seating_mcp_timeout_seconds: int = Field(default=5, ge=1, le=60)
+    # Foundry IQ knowledge base (Azure AI Search). Both or neither: without
+    # them the waiter has no carta tool.
+    azure_search_endpoint: HttpUrl | None = None
+    knowledge_base_name: str | None = Field(
+        default=None, pattern=r"^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$"
+    )
+    knowledge_base_timeout_seconds: int = Field(default=20, ge=1, le=60)
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("azure_search_endpoint", "knowledge_base_name", mode="before")
+    @classmethod
+    def empty_is_unset(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
     @model_validator(mode="after")
     def validate_foundry_configuration(self) -> "Settings":
@@ -48,4 +60,8 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "DEV_FAKE_ACTOR_ID is required when fake identity is enabled"
                 )
+        if (self.azure_search_endpoint is None) != (self.knowledge_base_name is None):
+            raise ValueError(
+                "AZURE_SEARCH_ENDPOINT and KNOWLEDGE_BASE_NAME must be set together"
+            )
         return self

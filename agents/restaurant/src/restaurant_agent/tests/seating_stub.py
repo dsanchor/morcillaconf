@@ -117,9 +117,10 @@ def free_port() -> int:
 class RunningServer:
     """Runs the stub in a thread; stop() and start() emulate an MCP restart."""
 
-    def __init__(self, stub: StubSeating, port: int | None = None) -> None:
+    def __init__(self, stub: Any, port: int | None = None, builder: Any = None) -> None:
         self.stub = stub
         self.port = port or free_port()
+        self._builder = builder or build_server
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
 
@@ -128,7 +129,7 @@ class RunningServer:
         return f"http://127.0.0.1:{self.port}/mcp"
 
     def start(self) -> None:
-        app = build_server(self.stub, self.port).streamable_http_app()
+        app = self._builder(self.stub, self.port).streamable_http_app()
         config = uvicorn.Config(app, host="127.0.0.1", port=self.port, log_level="warning", lifespan="on")
         self._server = uvicorn.Server(config)
         self._thread = threading.Thread(target=self._server.run, daemon=True)
