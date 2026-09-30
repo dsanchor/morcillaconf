@@ -89,10 +89,6 @@ class SeatingLayout(BaseModel):
     def canonical_json(self) -> str:
         return json.dumps(self.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
 
-    def fingerprint(self) -> str:
-        return hashlib.sha256(self.canonical_json().encode()).hexdigest()
-
-
 @dataclass(frozen=True)
 class SeatingAssignment:
     assignment_id: str
@@ -110,14 +106,12 @@ class SeatingAssignment:
 class SQLiteSeatingRepository:
     """Owns atomic table/bar allocation and layout lifecycle in a separate SQLite DB."""
 
-    def __init__(self, database_path: Path, *, layout_id: str, layout: SeatingLayout, expected_hash: str, hold_minutes: int = 5) -> None:
+    def __init__(self, database_path: Path, *, layout_id: str, layout: SeatingLayout, hold_minutes: int = 5) -> None:
         if hold_minutes < 1:
             raise ValueError("hold_minutes must be at least 1")
-        if layout.fingerprint() != expected_hash:
-            raise ValueError("SEATING_LAYOUT_SHA256 does not match SEATING_LAYOUT_JSON")
         self._path = database_path.expanduser().resolve()
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._layout_id, self._layout, self._hash = layout_id.strip(), layout, expected_hash
+        self._layout_id, self._layout = layout_id.strip(), layout
         if not self._layout_id:
             raise ValueError("SEATING_LAYOUT_ID cannot be empty")
         self._hold = timedelta(minutes=hold_minutes)
@@ -136,7 +130,7 @@ class SQLiteSeatingRepository:
         with self._connect() as db:
             db.executescript(
                 """
-                CREATE TABLE IF NOT EXISTS layout_metadata (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), layout_id TEXT NOT NULL, layout_hash TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS layout_metadata (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), layout_id TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS resources (resource_id TEXT PRIMARY KEY, kind TEXT NOT NULL, label TEXT NOT NULL, capacity INTEGER NOT NULL, display_order INTEGER NOT NULL, enabled INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS bar_seats (seat_id TEXT PRIMARY KEY, bar_id TEXT NOT NULL, position INTEGER NOT NULL, UNIQUE(bar_id, position));
                 CREATE TABLE IF NOT EXISTS assignments (assignment_id TEXT PRIMARY KEY, visit_id TEXT NOT NULL, resource_id TEXT NOT NULL, resource_kind TEXT NOT NULL, seat_ids TEXT NOT NULL, party_size INTEGER NOT NULL, status TEXT NOT NULL, expires_at TEXT, version INTEGER NOT NULL);
@@ -145,9 +139,10 @@ class SQLiteSeatingRepository:
                 """
             )
             db.execute("BEGIN IMMEDIATE")
+            self._remove_legacy_layout_hash(db)
             self._backfill_assignment_seats(db)
-            current = db.execute("SELECT layout_id, layout_hash FROM layout_metadata WHERE singleton = 1").fetchone()
-            if current is None or current["layout_id"] != self._layout_id or current["layout_hash"] != self._hash:
+            current = db.execute("SELECT layout_id FROM layout_metadata WHERE singleton = 1").fetchone()
+            if current is None or current["layout_id"] != self._layout_id:
                 db.execute("DELETE FROM idempotency")
                 db.execute("DELETE FROM assignment_seats")
                 db.execute("DELETE FROM assignments")
@@ -159,8 +154,24 @@ class SQLiteSeatingRepository:
                     if resource.kind == "bar":
                         for position in range(1, resource.capacity + 1):
                             db.execute("INSERT INTO bar_seats VALUES (?, ?, ?)", (f"{resource.seat_prefix}-{position:02d}", resource.resource_id, position))
-                db.execute("INSERT INTO layout_metadata VALUES (1, ?, ?)", (self._layout_id, self._hash))
+                db.execute("INSERT INTO layout_metadata VALUES (1, ?)", (self._layout_id,))
             db.commit()
+
+    @staticmethod
+    def _remove_legacy_layout_hash(db: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(layout_metadata)")}
+        if "layout_hash" not in columns:
+            return
+        db.execute(
+            "CREATE TABLE layout_metadata_without_hash "
+            "(singleton INTEGER PRIMARY KEY CHECK(singleton = 1), layout_id TEXT NOT NULL)"
+        )
+        db.execute(
+            "INSERT INTO layout_metadata_without_hash (singleton, layout_id) "
+            "SELECT singleton, layout_id FROM layout_metadata"
+        )
+        db.execute("DROP TABLE layout_metadata")
+        db.execute("ALTER TABLE layout_metadata_without_hash RENAME TO layout_metadata")
 
     @staticmethod
     def _backfill_assignment_seats(db: sqlite3.Connection) -> None:

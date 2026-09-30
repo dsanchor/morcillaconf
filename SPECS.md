@@ -188,10 +188,10 @@ El servicio trata mesas y puestos de barra como recursos de asiento. La barra
 asigna puestos individuales contiguos al grupo y elige la propuesta que deja el
 menor hueco posible y, a igualdad, la posición más baja: en una barra vacía los
 grupos se sientan en orden, sin dejar huecos. El cliente también puede pedir
-sentarse en la barra directamente. Su distribución llega mediante configuración de entorno
-como JSON, ID y hash canónico; no obliga a reconstruir la imagen. Al arrancar,
-la aplicación valida primero esa huella y, si difiere de la almacenada,
-invalida y reinicializa exclusivamente sus datos de asientos.
+sentarse en la barra directamente. Su distribución llega mediante configuración
+de entorno como JSON e ID; no obliga a reconstruir la imagen. Al arrancar, la
+aplicación reinicializa exclusivamente sus datos de asientos cuando cambia el
+ID. Cambiar el JSON manteniendo el ID conserva la distribución persistida.
 
 La vista técnica puede mostrarse durante la explicación posterior y presentar:
 

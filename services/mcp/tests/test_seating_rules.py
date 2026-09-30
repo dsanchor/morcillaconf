@@ -30,7 +30,7 @@ def demo() -> SeatingLayout:
 
 def repo_for(tmp_path, layout: SeatingLayout, hold_minutes: int = 5) -> SQLiteSeatingRepository:
     return SQLiteSeatingRepository(
-        tmp_path / "seating.db", layout_id="demo", layout=layout, expected_hash=layout.fingerprint(), hold_minutes=hold_minutes
+        tmp_path / "seating.db", layout_id="demo", layout=layout, hold_minutes=hold_minutes
     )
 
 
@@ -213,9 +213,7 @@ def test_availability_is_coherent_with_exclusive_tables(tmp_path, demo) -> None:
     assert rows["bar"]["available_seats"] == 5 and rows["bar"]["largest_group"] == 5
 
 
-def test_layout_cli_prints_the_service_fingerprint(demo, capsys) -> None:
-    layout_cli.main([str(DEMO_LAYOUT), "--sha256"])
-    assert capsys.readouterr().out.strip() == demo.fingerprint()
+def test_layout_cli_prints_canonical_json(demo, capsys) -> None:
     layout_cli.main([str(DEMO_LAYOUT), "--json"])
     assert capsys.readouterr().out.strip() == demo.canonical_json()
 
@@ -224,7 +222,6 @@ def test_tools_report_stable_error_codes(tmp_path, demo, monkeypatch) -> None:
     monkeypatch.setenv("SEATING_DATABASE_PATH", str(tmp_path / "seating.db"))
     monkeypatch.setenv("SEATING_LAYOUT_ID", "demo")
     monkeypatch.setenv("SEATING_LAYOUT_JSON", demo.canonical_json())
-    monkeypatch.setenv("SEATING_LAYOUT_SHA256", demo.fingerprint())
     server = create_server(Settings(_env_file=None))
 
     async def scenario() -> tuple[object, object, object]:

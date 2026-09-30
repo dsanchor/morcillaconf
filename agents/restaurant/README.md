@@ -261,7 +261,6 @@ docker run --rm --name morcillaconf-mcp \
   --volume morcillaconf-mcp-data:/data \
   --env SEATING_LAYOUT_ID \
   --env SEATING_LAYOUT_JSON \
-  --env SEATING_LAYOUT_SHA256 \
   --env SEATING_HOLD_MINUTES=5 \
   --env SEATING_DATABASE_PATH=/data/seating.db \
   morcillaconf-mcp:local
@@ -292,7 +291,6 @@ docker run --rm --name morcillaconf-mcp \
   --volume morcillaconf-mcp-data:/data \
   --env SEATING_LAYOUT_ID \
   --env SEATING_LAYOUT_JSON \
-  --env SEATING_LAYOUT_SHA256 \
   --env SEATING_HOLD_MINUTES=5 \
   --env SEATING_DATABASE_PATH=/data/seating.db \
   morcillaconf-mcp:local

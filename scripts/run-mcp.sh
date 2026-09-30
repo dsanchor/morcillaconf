@@ -35,10 +35,8 @@ layout_file="$(cd "$(dirname "$layout_file")" && pwd)/$(basename "$layout_file")
 database_path="${SEATING_DATABASE_PATH:-$mcp_dir/data/seating.db}"
 
 cd "$mcp_dir"
-# The hash comes from the service's own canonical JSON.
 SEATING_LAYOUT_JSON="$(uv run --frozen python -m restaurant_mcp.layout "$layout_file" --json)"
-SEATING_LAYOUT_SHA256="$(uv run --frozen python -m restaurant_mcp.layout "$layout_file" --sha256)"
-export SEATING_LAYOUT_JSON SEATING_LAYOUT_SHA256
+export SEATING_LAYOUT_JSON
 export SEATING_LAYOUT_ID="${SEATING_LAYOUT_ID:-$(basename "$layout_file" .json)}"
 export SEATING_DATABASE_PATH="$database_path"
 export SEATING_HOLD_MINUTES="${SEATING_HOLD_MINUTES:-5}"

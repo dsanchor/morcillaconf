@@ -365,9 +365,9 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   demostración; no se duplican reglas entre BFF y servicio.
 - [ ] Modelar mesas y puestos de barra como recursos de asiento. La barra
   asigna puestos contiguos y minimiza huecos (a igualdad, la posición más
-  baja); el layout llega por JSON, ID y
-  hash en variables de entorno. Al cambiar la huella, el arranque invalida y
-  recrea solamente la persistencia del servicio de asientos.
+  baja); el layout llega por JSON e ID en variables de entorno. Al cambiar el
+  ID, el arranque invalida y recrea solamente la persistencia del servicio de
+  asientos. Un JSON nuevo debe usar un ID nuevo.
 - [x] Conectar directamente el camarero/workflow al MCP de asientos mediante
   `MCPStreamableHTTPTool`, limitado a disponibilidad y bloqueo. El middleware
   asocia autoritativamente `visit_id` e `idempotency_key` con la sesión y
@@ -556,7 +556,7 @@ reinicios, mientras los servicios se siguen con trazas distribuidas.
   decisiones, eventos y checkpoints. Elegir particiones, operaciones condicionales
   y limites transaccionales para conservar las invariantes locales.
 - [ ] Sustituir la persistencia SQLite del MCP de asientos por su adaptador
-  Cosmos DB, manteniendo layout por ID/hash, idempotencia, concurrencia y
+  Cosmos DB, manteniendo layout por ID, idempotencia, concurrencia y
   semántica de invalidación al arrancar.
 - [ ] Validar compatibilidad de checkpoints con versiones de grafo y definir
   politica de workflows pendientes durante actualizaciones y rollback.

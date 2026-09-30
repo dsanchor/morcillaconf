@@ -75,8 +75,8 @@ registran como pendientes y no como evidencia implementada:
 - Mantener la capa de repositorio para sustituir SQLite por Cosmos DB en la fase
   de integración duradera.
 - El JSON del layout es configuración fija; ocupación y disponibilidad son
-  estado dinámico. ID, JSON canónico y SHA deben corresponder exactamente.
-  Cambiar la huella reinicializa solo los datos de asientos.
+  estado dinámico. Solo cambiar el ID reinicializa los datos de asientos; un
+  JSON distinto debe publicarse con un ID nuevo.
 - Foundry y el grupo de recursos se consideran prerrequisitos del script actual;
   no se provisiona Foundry automáticamente.
 
@@ -146,8 +146,8 @@ de implementación ni asignan responsables:
   tiempo; no bloquea el recorrido ni reemplaza al BFF.
 - El MCP de asientos se inicia con SQLite y tendrá adaptador Cosmos DB al final
   de esta implementación. Gestionará mesas y puestos contiguos de barra desde
-  un layout JSON configurado por entorno, identificado por ID y hash; un cambio
-  de huella invalida y reinicializa sus propios datos al arrancar.
+  un layout JSON configurado por entorno e identificado por ID; un cambio de ID
+  invalida y reinicializa sus propios datos al arrancar.
 - Iniciado el MCP de asientos en `services/mcp/`: servidor oficial `mcp` con
   FastMCP y Streamable HTTP, repositorio SQLite transaccional, bloqueos y
   confirmaciones idempotentes, barra contigua que minimiza huecos, Dockerfile y

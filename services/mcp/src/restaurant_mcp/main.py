@@ -13,7 +13,6 @@ def create_server(settings: Settings) -> FastMCP:
         settings.seating_database_path,
         layout_id=settings.seating_layout_id,
         layout=settings.layout(),
-        expected_hash=settings.seating_layout_sha256,
         hold_minutes=settings.seating_hold_minutes,
     )
     server = FastMCP(

@@ -52,8 +52,7 @@ Usa el layout versionado
 [`layouts/morcillaconf-demo-v1.json`](layouts/morcillaconf-demo-v1.json):
 Mesa 1 y Mesa 2 de 2, Mesa 3 y Mesa 4 de 4, Mesa 5 de 6 y una barra de 8
 puestos. El hash se calcula con el propio servicio
-(`python -m restaurant_mcp.layout FICHERO --sha256`). Variables opcionales:
-`SEATING_LAYOUT_FILE`, `SEATING_DATABASE_PATH` (por defecto
+Variables opcionales: `SEATING_LAYOUT_FILE`, `SEATING_DATABASE_PATH` (por defecto
 `services/mcp/data/seating.db`), `SEATING_HOLD_MINUTES`, `MCP_HOST` y
 `MCP_PORT` (8080). Para probar caducidades: `SEATING_HOLD_MINUTES=1`.
 
@@ -63,16 +62,15 @@ El layout llega por configuración, no se incorpora a la imagen:
 
 - `SEATING_LAYOUT_ID`: identificador legible de la distribución.
 - `SEATING_LAYOUT_JSON`: JSON con mesas y barras.
-- `SEATING_LAYOUT_SHA256`: SHA-256 del JSON canónico (claves ordenadas y
-  separadores compactos).
 - `SEATING_DATABASE_PATH`: SQLite local durante este incremento.
 - `SEATING_HOLD_MINUTES`: duración del bloqueo; cinco minutos por defecto.
 
-Al arrancar, la aplicación valida el JSON y su hash antes de abrir la base. Si
-la combinación ID/hash difiere de la persistida, elimina exclusivamente los
-recursos, asignaciones y resultados idempotentes de este servicio y crea el
-layout nuevo en una transacción. Un JSON inválido o hash incorrecto no modifica
-la base existente.
+Al arrancar, la aplicación valida el JSON antes de abrir la base. Si el ID
+difiere del persistido, elimina exclusivamente los recursos, asignaciones y
+resultados idempotentes de este servicio y crea el layout nuevo en una
+transacción. Cambiar el JSON conservando el mismo ID no modifica el layout
+persistido; cualquier cambio de distribución debe usar un ID nuevo. Un JSON
+inválido no modifica la base existente.
 
 ## Pruebas locales con Docker
 
@@ -96,19 +94,11 @@ Construir la imagen de ejecución:
 docker build --target runtime --tag morcillaconf-mcp:local .
 ```
 
-Definir el layout y calcular su hash **dentro de la imagen**, sin utilizar
-Python del anfitrión:
+Definir el layout:
 
 ```bash
 export SEATING_LAYOUT_ID="morcillaconf-demo-v1"
 export SEATING_LAYOUT_JSON="$(cat layouts/morcillaconf-demo-v1.json)"
-export SEATING_LAYOUT_SHA256="$(
-  docker run --rm \
-    --env SEATING_LAYOUT_JSON \
-    --entrypoint /app/.venv/bin/python \
-    morcillaconf-mcp:local \
-    -c 'import json, os; from restaurant_mcp.seating import SeatingLayout; print(SeatingLayout.model_validate(json.loads(os.environ["SEATING_LAYOUT_JSON"])).fingerprint())'
-)"
 ```
 
 Crear un volumen dedicado y ejecutar el servicio:
@@ -121,7 +111,6 @@ docker run --rm --name morcillaconf-mcp \
   --volume morcillaconf-mcp-data:/data \
   --env SEATING_LAYOUT_ID \
   --env SEATING_LAYOUT_JSON \
-  --env SEATING_LAYOUT_SHA256 \
   --env SEATING_HOLD_MINUTES=5 \
   --env SEATING_DATABASE_PATH=/data/seating.db \
   morcillaconf-mcp:local
@@ -131,8 +120,8 @@ El servidor expone MCP Streamable HTTP en `http://localhost:8080/mcp`. El
 navegador nunca lo invoca directamente; el workflow del camarero es su
 consumidor. `visit_id` e `idempotency_key` de `hold_seating` los inyecta el
 estado de sesión del camarero, no el modelo ni el navegador. Para detenerlo,
-usar `Ctrl+C`; el volumen conserva SQLite entre arranques mientras el ID y hash
-de layout no cambien.
+usar `Ctrl+C`; el volumen conserva SQLite entre arranques mientras el ID de
+layout no cambie.
 
 ## Imagen y CI
 
