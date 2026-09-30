@@ -147,7 +147,9 @@ if [[ "$SEATING_LAYOUT_FILE" != /* ]]; then
   SEATING_LAYOUT_FILE="$REPO_ROOT/$SEATING_LAYOUT_FILE"
 fi
 [[ -f "$SEATING_LAYOUT_FILE" ]] || fail "SEATING_LAYOUT_FILE does not exist: $SEATING_LAYOUT_FILE"
-SEATING_LAYOUT_JSON="$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1], encoding="utf-8")), separators=(",", ":"), sort_keys=True))' "$SEATING_LAYOUT_FILE")"
+# Same canonical JSON as `python -m restaurant_mcp.layout --json`: the MCP
+# fingerprints the layout after pydantic fills in the resource defaults.
+SEATING_LAYOUT_JSON="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1], encoding="utf-8")); d["resources"]=[{"enabled": True, "seat_prefix": None, **r} for r in d["resources"]]; print(json.dumps(d, separators=(",", ":"), sort_keys=True))' "$SEATING_LAYOUT_FILE")"
 SEATING_LAYOUT_SHA256="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())' "$SEATING_LAYOUT_JSON")"
 
 export AZURE_CORE_OUTPUT=none
