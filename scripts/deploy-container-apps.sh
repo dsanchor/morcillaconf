@@ -144,14 +144,13 @@ az account show >/dev/null 2>&1 || fail "Azure CLI is not authenticated; run az 
 az extension show --name containerapp >/dev/null 2>&1 ||
   fail "Azure CLI extension 'containerapp' is required; install it with: az extension add --name containerapp --upgrade"
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+# The resource group is a prerequisite, like the Foundry project: the script
+# never creates or updates it, so whatever was set on it by hand is kept.
+[[ "$(az group exists --name "$AZURE_RESOURCE_GROUP" --output tsv)" == "true" ]] ||
+  fail "Resource group $AZURE_RESOURCE_GROUP does not exist; create it before running this script"
 mkdir -p -- "$WORK_DIR"
 
-log "Creating or updating the resource group and shared infrastructure"
-# Create the group only when it is missing: `az group create` on an existing
-# group drops any tags added to it by hand.
-if [[ "$(az group exists --name "$AZURE_RESOURCE_GROUP" --output tsv)" != "true" ]]; then
-  az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION"
-fi
+log "Creating or updating the shared infrastructure"
 
 if ! az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
   az identity create --name "$MANAGED_IDENTITY_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
