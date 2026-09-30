@@ -734,15 +734,13 @@ botones y el plano muestra la sala.
 
 ## Próximo trabajo previsto
 
-1. Integrar y validar el cambio de despliegue provisional a SQLite efímero,
-   incluyendo la correspondencia entre layout JSON, ID y SHA.
-2. Implementar la fase 5: carta estática inicial, recetas e ingredientes en una
+1. Implementar la fase 5: carta estática inicial, recetas e ingredientes en una
    base compartida de Foundry IQ accesible mediante MCP.
-3. Documentar y construir el scaffolding del chef y sus especialistas usando
+2. Documentar y construir el scaffolding del chef y sus especialistas usando
    esa misma base; el chef contrasta ingredientes con inventario.
-4. Definir el contrato y la superficie mínima del HITL de caja antes de
+3. Definir el contrato y la superficie mínima del HITL de caja antes de
    implementar cuenta y pago.
-5. Validar el Hosted Agent después de que carta y orquestación formen un flujo
+4. Validar el Hosted Agent después de que carta y orquestación formen un flujo
    representativo.
 
 ## Ejecución y validación

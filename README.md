@@ -107,11 +107,12 @@ test opt-in contra Foundry.
 ## Despliegue en Azure Container Apps
 
 El script [`scripts/deploy-container-apps.sh`](scripts/deploy-container-apps.sh)
-crea o actualiza en un único grupo de recursos una identidad administrada, un
-entorno de Container Apps y las cuatro aplicaciones. Solo el frontend tiene
-entrada externa; BFF, agente y MCP usan entrada interna y se descubren mediante
-sus FQDN del mismo entorno. Si el grupo de recursos ya existe, el script no lo
-vuelve a crear y conserva sus etiquetas.
+crea o actualiza, dentro de un grupo de recursos que ya existe, una identidad
+administrada, un entorno de Container Apps y las cuatro aplicaciones. Solo el
+frontend tiene entrada externa; BFF, agente y MCP usan entrada interna y se
+descubren mediante sus FQDN del mismo entorno. El grupo de recursos y el
+proyecto de Foundry son prerrequisitos: el script no los crea, y tampoco
+modifica el grupo.
 
 Por ahora BFF y MCP guardan sus bases SQLite en el almacenamiento efímero de su
 propio contenedor (`/data`), sin volúmenes ni cuentas de almacenamiento. Cada
@@ -120,8 +121,10 @@ pierden cada vez que una réplica se reinicia o se despliega una revisión nueva
 La persistencia duradera en Cosmos DB llega en la fase 9.
 
 Requisitos: Bash, Python 3, Azure CLI con la extensión `containerapp`, una sesión
-iniciada con `az login` y permisos para crear recursos y asignaciones RBAC. Copia
-el ejemplo versionado y completa todos sus marcadores:
+iniciada con `az login`, permisos para crear recursos y asignaciones RBAC, el
+grupo de recursos ya creado (por ejemplo con `az group create`) y el proyecto de
+Foundry con su modelo desplegado. Copia el ejemplo versionado y completa todos
+sus marcadores:
 
 ```bash
 cp scripts/container-apps.env.example scripts/container-apps.env
@@ -143,9 +146,3 @@ validar solo la sintaxis sin crear recursos:
 ```bash
 bash -n scripts/deploy-container-apps.sh
 ```
-
-> Estado transitorio (30/09/2026): el script versionado todavía monta Azure
-> Files, que es el comportamiento descrito arriba. Se ha acordado sustituir
-> esos montajes por SQLite efímero dentro de BFF y MCP para el despliegue de
-> demostración. Hasta que ese cambio se integre, no debe atribuirse al script
-> actual ni presentarse esta topología como persistencia duradera.
