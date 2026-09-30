@@ -296,6 +296,45 @@ def card_reply(state: Mapping[str, Any]) -> str | None:
 # Parsing tool output
 
 
+def _json_stream(text: str) -> list[object]:
+    """Decode one or more whitespace-separated JSON values from MCP text."""
+
+    decoder = json.JSONDecoder()
+    values: list[object] = []
+    position = 0
+    while position < len(text):
+        while position < len(text) and text[position].isspace():
+            position += 1
+        if position == len(text):
+            break
+        try:
+            value, position = decoder.raw_decode(text, position)
+        except json.JSONDecodeError:
+            return []
+        values.append(value)
+    return values
+
+
+def _tool_result_values(result: object) -> list[object]:
+    if isinstance(result, str):
+        return _json_stream(result)
+    if isinstance(result, list):
+        return [
+            value
+            for item in result
+            for value in _tool_result_values(item)
+        ]
+    if isinstance(result, dict):
+        return [result]
+    nested = getattr(result, "result", None)
+    if nested is not None:
+        values = _tool_result_values(nested)
+        if values:
+            return values
+    text = getattr(result, "text", None)
+    return _tool_result_values(text) if isinstance(text, str) else []
+
+
 def result_object(result: object) -> dict[str, Any] | None:
     """First JSON object in a tool result.
 
@@ -303,15 +342,7 @@ def result_object(result: object) -> dict[str, Any] | None:
     structured content); both carry the same object.
     """
 
-    items = result if isinstance(result, list) else [result]
-    for item in items:
-        text = item if isinstance(item, str) else getattr(item, "text", None)
-        if not isinstance(text, str):
-            continue
-        try:
-            value = json.loads(text)
-        except json.JSONDecodeError:
-            continue
+    for value in _tool_result_values(result):
         if isinstance(value, dict):
             return value
     return None
@@ -320,17 +351,7 @@ def result_object(result: object) -> dict[str, Any] | None:
 def availability_kinds(result: object) -> list[str]:
     """Available seating kinds returned by the availability tool."""
 
-    seen: set[int] = set()
-
     def find(value: object) -> set[str]:
-        if id(value) in seen:
-            return set()
-        seen.add(id(value))
-        if isinstance(value, str):
-            try:
-                return find(json.loads(value))
-            except json.JSONDecodeError:
-                return set()
         if isinstance(value, list):
             direct = {
                 resource["kind"]
@@ -342,12 +363,18 @@ def availability_kinds(result: object) -> list[str]:
             }
             return direct or set().union(*(find(item) for item in value))
         if isinstance(value, dict):
+            if (
+                value.get("kind") in ("table", "bar")
+                and isinstance(value.get("largest_group"), int)
+                and value["largest_group"] >= 1
+            ):
+                return {value["kind"]}
             return set().union(*(find(item) for item in value.values()))
-        return find(getattr(value, "result", None)) or find(
-            getattr(value, "text", None)
-        )
+        return set()
 
-    return sorted(find(result))
+    return sorted(
+        set().union(*(find(value) for value in _tool_result_values(result)))
+    )
 
 
 def error_code(error: BaseException | str) -> str | None:

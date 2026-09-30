@@ -8,6 +8,7 @@ from restaurant_agent.seating import (
     ROOM_KEY,
     SEATED_KEY,
     apply_room,
+    availability_kinds,
     bind_visit,
     build_report,
     card_reply,
@@ -188,3 +189,27 @@ def test_helpers_parse_tool_output_and_errors() -> None:
     assert error_code("nothing") is None
     assert place_text("bar", "Barra", [5]) == "la barra, puesto 5"
     assert place_text("table", "Mesa 2", []) == "la Mesa 2"
+
+
+def test_tool_output_parses_the_concatenated_json_returned_in_container_apps() -> None:
+    table = {
+        "resource_id": "table-01",
+        "kind": "table",
+        "largest_group": 2,
+    }
+    bar = {
+        "resource_id": "bar",
+        "kind": "bar",
+        "largest_group": 8,
+    }
+    availability = "\n".join(
+        (
+            json.dumps(table, indent=2),
+            json.dumps(bar, indent=2),
+            json.dumps({"result": [table, bar]}),
+        )
+    )
+    hold = "\n".join((json.dumps(HELD, indent=2), json.dumps({"result": HELD})))
+
+    assert availability_kinds(Content.from_text(availability)) == ["bar", "table"]
+    assert result_object(Content.from_text(hold)) == HELD
