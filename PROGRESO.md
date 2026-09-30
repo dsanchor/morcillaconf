@@ -46,9 +46,11 @@ indicadas en el propio plan.
   de GHCR en cuatro Container Apps independientes dentro del mismo entorno.
   Solo el frontend tiene ingress externo; BFF, agente y MCP usan ingress
   interno. El agente recibe una identidad administrada con `Azure AI User`.
-- Mientras BFF y MCP sigan usando SQLite, cada uno monta su Azure Files
-  separado y todas las aplicaciones quedan limitadas a una réplica. Es una
-  topología inicial de demo, no el diseño de persistencia escalable de fase 9.
+- Mientras BFF y MCP sigan usando SQLite, cada uno lo guarda en el
+  almacenamiento efímero de su propio contenedor (`/data`), sin Azure Files, y
+  todas las aplicaciones quedan limitadas a una réplica. Los datos se pierden al
+  reiniciar la réplica o desplegar una revisión nueva. Es una topología inicial
+  de demo, no el diseño de persistencia duradera de fase 9 (Cosmos DB).
 
 ## Acuerdos del sync del 30/09/2026
 
@@ -732,15 +734,13 @@ botones y el plano muestra la sala.
 
 ## Próximo trabajo previsto
 
-1. Integrar y validar el cambio de despliegue provisional a SQLite efímero,
-   incluyendo la correspondencia entre layout JSON, ID y SHA.
-2. Implementar la fase 5: carta estática inicial, recetas e ingredientes en una
+1. Implementar la fase 5: carta estática inicial, recetas e ingredientes en una
    base compartida de Foundry IQ accesible mediante MCP.
-3. Documentar y construir el scaffolding del chef y sus especialistas usando
+2. Documentar y construir el scaffolding del chef y sus especialistas usando
    esa misma base; el chef contrasta ingredientes con inventario.
-4. Definir el contrato y la superficie mínima del HITL de caja antes de
+3. Definir el contrato y la superficie mínima del HITL de caja antes de
    implementar cuenta y pago.
-5. Validar el Hosted Agent después de que carta y orquestación formen un flujo
+4. Validar el Hosted Agent después de que carta y orquestación formen un flujo
    representativo.
 
 ## Ejecución y validación

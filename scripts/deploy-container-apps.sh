@@ -84,10 +84,8 @@ PY
 
 require_vars \
   AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_RESOURCE_GROUP \
-  MANAGED_IDENTITY_NAME CONTAINERAPPS_ENVIRONMENT STORAGE_ACCOUNT_NAME \
+  MANAGED_IDENTITY_NAME CONTAINERAPPS_ENVIRONMENT \
   FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME MCP_APP_NAME \
-  BFF_STORAGE_NAME MCP_STORAGE_NAME \
-  BFF_FILE_SHARE_NAME MCP_FILE_SHARE_NAME AZURE_FILES_QUOTA_GB \
   FRONTEND_IMAGE BFF_IMAGE RESTAURANT_AGENT_IMAGE MCP_IMAGE \
   FOUNDRY_PROJECT_RESOURCE_ID FOUNDRY_PROJECT_ENDPOINT AZURE_AI_MODEL_DEPLOYMENT_NAME \
   MEMORY_MAX_ITEMS WAITER_MAX_TURNS WAITER_AGENT_TIMEOUT_SECONDS \
@@ -99,14 +97,10 @@ validate_match AZURE_SUBSCRIPTION_ID '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]
 validate_match AZURE_LOCATION '^[a-z0-9]+$' "an Azure location name such as spaincentral"
 validate_match AZURE_RESOURCE_GROUP '^[[:alnum:]_.()_-]{1,90}$' "1-90 letters, numbers, underscores, periods, parentheses, or hyphens"
 [[ "$AZURE_RESOURCE_GROUP" != *. ]] || fail "AZURE_RESOURCE_GROUP cannot end with a period"
-validate_match STORAGE_ACCOUNT_NAME '^[a-z0-9]{3,24}$' "3-24 lowercase letters or numbers"
 validate_match MANAGED_IDENTITY_NAME '^[[:alnum:]][[:alnum:]_-]{2,127}$' "3-128 letters, numbers, underscores, or hyphens, starting with a letter or number"
 validate_match CONTAINERAPPS_ENVIRONMENT '^[a-z][a-z0-9-]{0,58}[a-z0-9]$' "2-60 lowercase letters, numbers, or hyphens, starting with a letter"
 validate_match FOUNDRY_PROJECT_ENDPOINT '^https://[^[:space:]]+/api/projects/[^/[:space:]]+/?$' "an HTTPS Foundry project endpoint"
 validate_match FOUNDRY_PROJECT_RESOURCE_ID '^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.CognitiveServices/accounts/[^/]+/projects/[^/]+$' "a Foundry project Azure resource ID"
-validate_match AZURE_FILES_QUOTA_GB '^[0-9]+$' "an integer from 1 to 5120"
-((AZURE_FILES_QUOTA_GB >= 1 && AZURE_FILES_QUOTA_GB <= 5120)) ||
-  fail "AZURE_FILES_QUOTA_GB must be from 1 to 5120"
 [[ "$AZURE_SUBSCRIPTION_ID" != "00000000-0000-0000-0000-000000000000" ]] ||
   fail "Replace the AZURE_SUBSCRIPTION_ID placeholder"
 [[ "$AZURE_AI_MODEL_DEPLOYMENT_NAME" != replace-* ]] ||
@@ -114,13 +108,8 @@ validate_match AZURE_FILES_QUOTA_GB '^[0-9]+$' "an integer from 1 to 5120"
 [[ "$FOUNDRY_PROJECT_RESOURCE_ID" != *"/subscriptions/00000000-0000-0000-0000-000000000000/"* ]] ||
   fail "Replace the FOUNDRY_PROJECT_RESOURCE_ID placeholder"
 
-for name in FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME MCP_APP_NAME \
-  BFF_STORAGE_NAME MCP_STORAGE_NAME; do
+for name in FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME MCP_APP_NAME; do
   validate_match "$name" '^[a-z][a-z0-9-]{0,30}[a-z0-9]$' "2-32 lowercase letters, numbers, or hyphens, starting with a letter"
-done
-for name in BFF_FILE_SHARE_NAME MCP_FILE_SHARE_NAME; do
-  validate_match "$name" '^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$' "3-63 lowercase letters, numbers, or nonconsecutive hyphens"
-  [[ "$(printenv "$name")" != *--* ]] || fail "$name cannot contain consecutive hyphens"
 done
 validate_ghcr_image() {
   local name="$1"
@@ -138,16 +127,14 @@ done
 app_names=("$FRONTEND_APP_NAME" "$BFF_APP_NAME" "$RESTAURANT_AGENT_APP_NAME" "$MCP_APP_NAME")
 [[ "$(printf '%s\n' "${app_names[@]}" | sort -u | wc -l)" -eq 4 ]] ||
   fail "All four Container App names must be distinct"
-[[ "$BFF_STORAGE_NAME" != "$MCP_STORAGE_NAME" ]] ||
-  fail "BFF and MCP environment storage names must be distinct"
-[[ "$BFF_FILE_SHARE_NAME" != "$MCP_FILE_SHARE_NAME" ]] ||
-  fail "BFF and MCP Azure file share names must be distinct"
 
 if [[ "$SEATING_LAYOUT_FILE" != /* ]]; then
   SEATING_LAYOUT_FILE="$REPO_ROOT/$SEATING_LAYOUT_FILE"
 fi
 [[ -f "$SEATING_LAYOUT_FILE" ]] || fail "SEATING_LAYOUT_FILE does not exist: $SEATING_LAYOUT_FILE"
-SEATING_LAYOUT_JSON="$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1], encoding="utf-8")), separators=(",", ":"), sort_keys=True))' "$SEATING_LAYOUT_FILE")"
+# Same canonical JSON as `python -m restaurant_mcp.layout --json`: the MCP
+# fingerprints the layout after pydantic fills in the resource defaults.
+SEATING_LAYOUT_JSON="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1], encoding="utf-8")); d["resources"]=[{"enabled": True, "seat_prefix": None, **r} for r in d["resources"]]; print(json.dumps(d, separators=(",", ":"), sort_keys=True))' "$SEATING_LAYOUT_FILE")"
 SEATING_LAYOUT_SHA256="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())' "$SEATING_LAYOUT_JSON")"
 
 export AZURE_CORE_OUTPUT=none
@@ -157,10 +144,13 @@ az account show >/dev/null 2>&1 || fail "Azure CLI is not authenticated; run az 
 az extension show --name containerapp >/dev/null 2>&1 ||
   fail "Azure CLI extension 'containerapp' is required; install it with: az extension add --name containerapp --upgrade"
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+# The resource group is a prerequisite, like the Foundry project: the script
+# never creates or updates it, so whatever was set on it by hand is kept.
+[[ "$(az group exists --name "$AZURE_RESOURCE_GROUP" --output tsv)" == "true" ]] ||
+  fail "Resource group $AZURE_RESOURCE_GROUP does not exist; create it before running this script"
 mkdir -p -- "$WORK_DIR"
 
-log "Creating or updating the resource group and shared infrastructure"
-az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION"
+log "Creating or updating the shared infrastructure"
 
 if ! az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
   az identity create --name "$MANAGED_IDENTITY_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -191,36 +181,6 @@ fi
 ENVIRONMENT_ID="$(az containerapp env show --name "$CONTAINERAPPS_ENVIRONMENT" \
   --resource-group "$AZURE_RESOURCE_GROUP" --query id --output tsv)"
 
-if ! az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
-  az storage account create --name "$STORAGE_ACCOUNT_NAME" \
-    --resource-group "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION" \
-    --sku Standard_LRS --kind StorageV2 --https-only true \
-    --min-tls-version TLS1_2 --allow-blob-public-access false
-fi
-az storage account update --name "$STORAGE_ACCOUNT_NAME" \
-  --resource-group "$AZURE_RESOURCE_GROUP" --https-only true \
-  --min-tls-version TLS1_2 --allow-blob-public-access false
-STORAGE_KEY="$(az storage account keys list --account-name "$STORAGE_ACCOUNT_NAME" \
-  --resource-group "$AZURE_RESOURCE_GROUP" --query '[0].value' --output tsv)"
-[[ -n "$STORAGE_KEY" ]] || fail "Could not obtain the storage account key"
-
-configure_storage() {
-  local storage_name="$1"
-  local share_name="$2"
-  az storage share-rm create --resource-group "$AZURE_RESOURCE_GROUP" \
-    --storage-account "$STORAGE_ACCOUNT_NAME" --name "$share_name" \
-    --quota "$AZURE_FILES_QUOTA_GB" --enabled-protocols SMB
-  az containerapp env storage set --name "$CONTAINERAPPS_ENVIRONMENT" \
-    --resource-group "$AZURE_RESOURCE_GROUP" --storage-name "$storage_name" \
-    --azure-file-account-name "$STORAGE_ACCOUNT_NAME" \
-    --azure-file-account-key "$STORAGE_KEY" --azure-file-share-name "$share_name" \
-    --access-mode ReadWrite
-}
-
-configure_storage "$BFF_STORAGE_NAME" "$BFF_FILE_SHARE_NAME"
-configure_storage "$MCP_STORAGE_NAME" "$MCP_FILE_SHARE_NAME"
-unset STORAGE_KEY
-
 ensure_app_base() {
   local app_name="$1"
   local image="$2"
@@ -249,7 +209,8 @@ ensure_app_base() {
       current_environment_id="$(az containerapp show --name "$app_name" \
         --resource-group "$AZURE_RESOURCE_GROUP" --query properties.managedEnvironmentId --output tsv)"
     fi
-    [[ "${current_environment_id,,}" == "${ENVIRONMENT_ID,,}" ]] ||
+    [[ "$(printf '%s' "$current_environment_id" | tr '[:upper:]' '[:lower:]')" == \
+      "$(printf '%s' "$ENVIRONMENT_ID" | tr '[:upper:]' '[:lower:]')" ]] ||
       fail "Container App $app_name already exists in a different Container Apps environment"
   fi
   if [[ "$use_identity" == "true" ]]; then
@@ -275,21 +236,19 @@ apply_app() {
   local image="$2"
   local ingress="$3"
   local port="$4"
-  local storage_name="$5"
-  local mount_path="$6"
-  local use_identity="$7"
-  shift 7
+  local use_identity="$5"
+  shift 5
   local env_vars=("$@")
   local spec_file="$WORK_DIR/$app_name.json"
 
   ensure_app_base "$app_name" "$image" "$ingress" "$port" "$use_identity" "${env_vars[@]}"
   az containerapp show --name "$app_name" --resource-group "$AZURE_RESOURCE_GROUP" \
     --output json >"$spec_file"
-  python3 - "$spec_file" "$image" "$storage_name" "$mount_path" "${env_vars[@]}" <<'PY'
+  python3 - "$spec_file" "$image" "${env_vars[@]}" <<'PY'
 import json
 import sys
 
-path, image, storage_name, mount_path, *pairs = sys.argv[1:]
+path, image, *pairs = sys.argv[1:]
 with open(path, encoding="utf-8") as stream:
     spec = json.load(stream)
 spec["properties"]["configuration"]["registries"] = []
@@ -300,14 +259,11 @@ container["env"] = [
     {"name": name, "value": value}
     for name, value in (pair.split("=", 1) for pair in pairs)
 ]
-if storage_name:
-    container["volumeMounts"] = [{"volumeName": "data", "mountPath": mount_path}]
-    template["volumes"] = [
-        {"name": "data", "storageName": storage_name, "storageType": "AzureFile"}
-    ]
-else:
-    container.pop("volumeMounts", None)
-    template["volumes"] = []
+# No volumes: BFF and MCP keep SQLite in the container's ephemeral /data, so it
+# is lost when the replica restarts or a new revision starts. This also drops
+# the Azure Files mounts of deployments made with earlier versions.
+container.pop("volumeMounts", None)
+template["volumes"] = []
 template["scale"]["minReplicas"] = 1
 template["scale"]["maxReplicas"] = 1
 with open(path, "w", encoding="utf-8") as stream:
@@ -318,8 +274,7 @@ PY
 }
 
 log "Creating or updating MCP (internal ingress)"
-apply_app "$MCP_APP_NAME" "$MCP_IMAGE" internal 8080 \
-  "$MCP_STORAGE_NAME" /data false \
+apply_app "$MCP_APP_NAME" "$MCP_IMAGE" internal 8080 false \
   "SEATING_DATABASE_PATH=/data/seating.db" \
   "SEATING_LAYOUT_ID=$SEATING_LAYOUT_ID" \
   "SEATING_LAYOUT_JSON=$SEATING_LAYOUT_JSON" \
@@ -333,8 +288,7 @@ MCP_FQDN="$(az containerapp show --name "$MCP_APP_NAME" --resource-group "$AZURE
 
 log "Creating or updating restaurant agent (internal ingress)"
 apply_app "$RESTAURANT_AGENT_APP_NAME" \
-  "$RESTAURANT_AGENT_IMAGE" internal 8088 \
-  "" "" true \
+  "$RESTAURANT_AGENT_IMAGE" internal 8088 true \
   "FOUNDRY_PROJECT_ENDPOINT=$FOUNDRY_PROJECT_ENDPOINT" \
   "AZURE_AI_MODEL_DEPLOYMENT_NAME=$AZURE_AI_MODEL_DEPLOYMENT_NAME" \
   "AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID" \
@@ -351,14 +305,12 @@ AGENT_FQDN="$(az containerapp show --name "$RESTAURANT_AGENT_APP_NAME" \
 [[ -n "$AGENT_FQDN" ]] || fail "Restaurant agent internal FQDN was not assigned"
 
 log "Creating or updating BFF (internal ingress)"
-apply_app "$BFF_APP_NAME" "$BFF_IMAGE" internal 8000 \
-  "$BFF_STORAGE_NAME" /data false \
+apply_app "$BFF_APP_NAME" "$BFF_IMAGE" internal 8000 false \
   "BFF_WAITER=remote" \
   "WAITER_AGENT_URL=https://$AGENT_FQDN" \
   "WAITER_AGENT_TIMEOUT_SECONDS=$WAITER_AGENT_TIMEOUT_SECONDS" \
   "BFF_DATABASE_PATH=/data/bff.db" \
   "MEMORY_DATABASE_PATH=/data/memory.db" \
-  "BFF_SQLITE_JOURNAL_MODE=DELETE" \
   "MEMORY_MAX_ITEMS=$MEMORY_MAX_ITEMS" \
   "WAITER_MAX_TURNS=$WAITER_MAX_TURNS" \
   "APP_ENVIRONMENT=production" \
@@ -371,8 +323,7 @@ BFF_FQDN="$(az containerapp show --name "$BFF_APP_NAME" --resource-group "$AZURE
 [[ -n "$BFF_FQDN" ]] || fail "BFF internal FQDN was not assigned"
 
 log "Creating or updating frontend (external ingress)"
-apply_app "$FRONTEND_APP_NAME" "$FRONTEND_IMAGE" external 8501 \
-  "" "" false \
+apply_app "$FRONTEND_APP_NAME" "$FRONTEND_IMAGE" external 8501 false \
   "FRONTEND_BFF_CLIENT=http" \
   "FRONTEND_BFF_URL=https://$BFF_FQDN" \
   "FRONTEND_BFF_TIMEOUT_SECONDS=30" \
