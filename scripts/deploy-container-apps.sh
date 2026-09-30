@@ -162,7 +162,11 @@ az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 mkdir -p -- "$WORK_DIR"
 
 log "Creating or updating the resource group and shared infrastructure"
-az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION"
+# Create the group only when it is missing: `az group create` on an existing
+# group drops any tags added to it by hand.
+if [[ "$(az group exists --name "$AZURE_RESOURCE_GROUP" --output tsv)" != "true" ]]; then
+  az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION"
+fi
 
 if ! az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
   az identity create --name "$MANAGED_IDENTITY_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
