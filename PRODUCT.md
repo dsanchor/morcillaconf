@@ -20,7 +20,8 @@ Demostrar una arquitectura multiagente contándola como la visita a un
 restaurante de Burgos. Un camarero orquestador atiende al cliente, recuerda sus
 preferencias y coordina mesa, cocina, cuenta y pago con agentes y herramientas
 especialistas. El éxito es que el público entienda quién decide qué, cómo viaja
-el contexto y dónde interviene la persona.
+el contexto y dónde interviene la persona, especialmente en la revisión de caja
+antes del pago.
 
 ## Positioning
 
@@ -34,8 +35,8 @@ cambia cuando el sistema confirma un hecho.
 - Se proyecta durante la charla y después se usa en portátiles y móviles.
 - Una única vista de cliente (SPECS §3), hecha con Streamlit y conectada a un
   BFF con FastAPI (PLAN §2).
-- Hasta que exista el BFF (fase 3C), la vista funciona contra un cliente falso
-  (`FakeBffClient`) y sus respuestas se identifican como simuladas.
+- La vista puede usar un camarero `scripted` para pruebas locales; el modo se
+  identifica como simulado.
 
 ## Capabilities and Constraints
 
@@ -50,8 +51,12 @@ cambia cuando el sistema confirma un hecho.
   sillas vacías por defecto y una barra con taburetes para fases posteriores.
 - El frontal solo habla con el contrato del BFF (`packages/contracts`); nunca
   invoca agentes, MCP ni Foundry, ni deduce transiciones de negocio del texto.
-- Sin decidir: nombre comercial del restaurante; cómo se representan las mesas
-  ocupadas, el pedido y la cuenta (fase 4).
+- Camarero y chef reutilizan una única base de conocimiento de Foundry IQ,
+  accesible mediante MCP, para carta, recetas e ingredientes.
+- La confirmación de mesa y pedido es explícita; el HITL diferenciado se sitúa
+  en la revisión humana del ticket y el importe antes del pago.
+- Sin decidir: nombre comercial del restaurante y superficie final del control
+  de caja.
 
 ## Brand Commitments
 

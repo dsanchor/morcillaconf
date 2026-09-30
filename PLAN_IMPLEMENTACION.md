@@ -7,11 +7,12 @@ El restaurante es el hilo narrativo para mostrar capacidades empresariales:
 identidad, memoria gobernada, conocimiento con fuentes, herramientas con permisos,
 orquestacion, interoperabilidad, control humano, transacciones y observabilidad.
 
-El recorrido se completa en una sola vista y con un unico actor, el cliente:
+El recorrido del cliente se completa en una sola vista. La unica intervencion
+adicional es la revision humana de caja, fuera de la conversacion del cliente:
 
-`identificarse -> entrar -> solicitar mesa -> pedir -> consultar cocina ->
-confirmar pedido (HITL 1) -> recibir -> solicitar cuenta ->
-autorizar pago (HITL 2) -> pagar -> solicitar liberacion de mesa`
+`identificarse -> entrar -> solicitar mesa -> consultar carta -> pedir ->
+consultar cocina -> confirmar pedido -> recibir -> solicitar cuenta ->
+revision humana de caja (HITL) -> pagar -> solicitar liberacion de mesa`
 
 El camarero habla exclusivamente con el chef lider para resolver cocina.
 El chef valida disponibilidad, consulta a los especialistas y devuelve una
@@ -29,8 +30,12 @@ ya realizados. Esto no implica borrar los archivos o recursos actuales.
 
 - Se conserva el stack tecnologico; cambia la experiencia y el orden de entrega.
 - La web aparece al principio, no al final: una vista Streamlit de cliente.
-- No hay operador, paneles por rol ni recogida/limpieza de mesas.
-- Los dos HITL pertenecen al cliente: pedido y pago, gestionados por el camarero.
+- No hay un panel operativo completo; el unico control humano diferenciado es
+  la revision de caja, cuya superficie minima se define con el incremento.
+- Confirmar mesa y pedido son decisiones explicitas del cliente, pero no se
+  presentan como el patron HITL principal de la demo.
+- El HITL de caja revisa peticion original, ticket, consumos y cargos
+  adicionales antes de aprobar o rechazar el importe.
 - La liberacion la solicita el cliente despues de un pago confirmado.
 - A2A conecta al chef con un proveedor independiente, no con fritura.
 - La reposicion no tiene HITL; no se anade una tercera aprobacion.
@@ -47,7 +52,7 @@ ya realizados. Esto no implica borrar los archivos o recursos actuales.
 | Hosting final del workflow | Hosted Agent en Microsoft Foundry, incluyendo camarero, chef y los tres especialistas |
 | Interfaz | Streamlit en Python, una unica vista de cliente |
 | API/BFF | FastAPI; comandos HTTP, eventos SSE y consulta de snapshot |
-| Conocimiento | Azure AI Search; carta diaria versionada, recuperacion con fuentes y busqueda vectorial/hibrida |
+| Conocimiento | Base compartida de Foundry IQ, accesible mediante MCP, con carta, recetas e ingredientes; busqueda web como fallback identificado |
 | Datos locales | SQLite para desarrollo; adaptadores separados de memoria, negocio, eventos y checkpoints |
 | Datos compartidos en Azure | Cosmos DB; persistencia separada por responsabilidad y adaptador de checkpoints validado expresamente |
 | Herramientas | Servidor MCP propio con servicios de negocio deterministas |
@@ -118,12 +123,13 @@ flowchart LR
         CHEF --> S[Brasa, fritos y pinchos frios]
         S -->|Aceptacion y estimaciones| CHEF
         CHEF -->|Disponibilidad y espera| W
-        W --> H1[HITL 1: pedido]
-        W --> H2[HITL 2: pago]
+        W --> D[Decision explicita: pedido]
+        W --> H[HITL: revision de caja]
     end
     HOST -->|Solicitudes y resultados| BFF
     W --> MEM[Memoria]
-    W --> RAG[Azure AI Search]
+    W --> KB[Foundry IQ mediante MCP]
+    CHEF --> KB
     W -->|Mesas, pedidos, cuenta y pago| MCP[Servidor MCP]
     CHEF -->|Despensa| MCP
     CHEF --> A2A[Proveedor A2A independiente]
@@ -137,10 +143,11 @@ flowchart LR
 
 | Componente | Autoridad | No debe hacer |
 |---|---|---|
-| Cliente | Confirmar su pedido, autorizar su pago y solicitar liberar su mesa | Operar recursos ajenos |
+| Cliente | Confirmar mesa y pedido y solicitar cuenta/liberacion | Operar recursos ajenos o aprobar el control de caja |
+| Persona revisora de caja | Aprobar o rechazar el ticket y el importe presentados | Modificar consumos, inventar cargos o actuar sobre otra version |
 | Streamlit | Mostrar estado y recoger decisiones | Ser fuente de verdad ni inferir exito desde texto |
 | FastAPI | Autenticar, comprobar pertenencia, adaptar transporte y reanudar | Confiar en `actor_id` enviado ni duplicar el grafo |
-| Camarero/workflow | Conversacion y coordinacion del recorrido, incluidos ambos HITL | Consultar directamente a especialistas/proveedor o inventar viabilidad y espera |
+| Camarero/workflow | Conversacion, coordinacion y pausa para la revision de caja | Consultar directamente a especialistas/proveedor o inventar viabilidad y espera |
 | Chef lider | Validar despensa, consultar especialistas/proveedor y consolidar | Hablar al cliente o preparar sin confirmacion del pedido |
 | Especialistas | Evaluar su categoria y devolver estimaciones; preparar tras autorizacion | Aprobar pedidos, cobrar o gestionar mesas |
 | MCP/servicios | Validaciones, concurrencia, importes y efectos idempotentes | Aceptar permisos concedidos por un prompt |
@@ -162,17 +169,18 @@ despues de la validacion y aprobacion de ambas partes. No se asignan responsable
 | 1 | Proyecto y primer camarero conectado a Foundry | Ninguna | Contratos y aislamiento de conversacion |
 | 2 | Memoria persistente automatica | 1 | Personalizacion, aislamiento y control de recuerdos |
 | 3 | Vista unica, BFF y recuperacion | 1-2 | Identidad, comandos, eventos y continuidad |
-| 4 | Recorrido local completo y dos HITL | 3A; integración progresiva con 3C/3D | Control humano y efectos transaccionales |
-| 5 | Validacion temprana de Hosted Agent | 4 | Portabilidad, identidad de servicio y reanudacion remota |
-| 6 | Carta diaria con RAG y negocio mediante MCP | 4-5 | Fuentes verificables y autoridad operacional |
-| 7 | Chef y especialistas reales | 6 | Delegacion, concurrencia y consolidacion |
+| 4 | Mesas y recorrido local con control de caja | 3A; integración progresiva con 3C/3D | Decisiones explicitas, HITL de pago y efectos transaccionales |
+| 5 | Conocimiento compartido con Foundry IQ y MCP | 4 | Carta, recetas e ingredientes con fuentes |
+| 6 | Chef y especialistas reales | 5 | Delegacion, concurrencia y consolidacion |
+| 7 | Validacion del destino Hosted Agent | 5-6 | Portabilidad, identidad de servicio y reanudacion remota |
 | 8 | Proveedor remoto A2A | 7 | Interoperabilidad y resiliencia |
 | 9 | Integracion duradera en Azure y acceso publico controlado | 5-8 | Seguridad, persistencia y operacion distribuida |
 | 10 | Evaluacion y ensayo final | 9 | Calidad demostrable y control de coste/latencia |
 
 Correspondencia con los incrementos de SPECS: el primero abarca fases 1-3;
-el segundo, fase 4; el tercero, fase 6; el cuarto, fase 7; el quinto, fase 8;
-el sexto se consolida en fases 9-10. La fase 5 reduce riesgo de plataforma.
+el segundo, fase 4; el tercero, fase 5; el cuarto, fase 6; el quinto, fase 8;
+el sexto se consolida en fases 9-10. La fase 7 valida el destino remoto una vez
+que carta y orquestacion aportan un recorrido representativo.
 
 ### Fase 1. Proyecto y primer camarero conectado a Foundry
 
@@ -297,7 +305,7 @@ comprobaciones de 3D; revisión conjunta pendiente. Ver
 recorrido completo sin integrar la fase 3.
 
 - [ ] Crear Streamlit y FastAPI con contratos independientes del transporte del
-  agente. Adaptador local explicito al principio, remoto en fase 5.
+  agente. Adaptador local explicito al principio, remoto en fase 7.
 - [ ] Unificar la identidad local: el nombre de entrada es el único dato de
   identidad de la demo; el BFF lo normaliza, conserva en sesión y deriva el
   actor de sesión sin aceptarlo dentro de comandos. No se incorpora Entra ID ni
@@ -343,7 +351,7 @@ recorrido completo sin integrar la fase 3.
 - Texto parcial del modelo puede mostrarse como provisional, pero no cambia
   mesas, pedidos o pagos hasta recibir un evento de negocio confirmado.
 
-### Fase 4. Recorrido completo local con dos HITL
+### Fase 4. Mesas y recorrido local con control humano en caja
 
 **Demostracion:** primera version ensayable de 3-5 minutos, con cocina y pago
 simulados, identificados como tales. Los efectos y las pausas ya son reales.
@@ -371,17 +379,19 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
 - [ ] Proponer una mesa bloqueada al cliente y persistir la decisión pendiente;
   confirmar la ocupa y rechazarla o caducar el bloqueo la libera. Guardar
   visita, versión y `seated_at` solo al ocupar; preguntar comensales solo si
-  faltan. La confirmación es un HITL del camarero: `confirm_seating` requiere
-  aprobación, el BFF persiste y presenta la decisión pendiente y la devuelve
+  faltan. `confirm_seating` utiliza la aprobación técnica de Agent Framework;
+  el BFF persiste y presenta la decisión pendiente y la devuelve
   al camarero, que la ejecuta en el MCP. El camarero es el único cliente del
-  MCP de asientos.
+  MCP de asientos. Aunque se implemente con una pausa de Agent Framework, en la
+  narrativa es una confirmacion explicita de negocio, no el HITL principal.
 - [ ] Si no hay mesa, comunicarlo sin inventar disponibilidad. No bloquear el
   primer recorrido con una lista de espera avanzada. Una vista de cola de
   llegadas es opcional y no participa en la decisión de concurrencia.
 - [ ] Modelar borrador, propuesta de cocina, comanda, cuenta y pago por separado.
   Un adaptador de cocina simulado devuelve disponibilidad y espera con origen.
-- [ ] Persistir HITL 1 antes de publicar la propuesta final: confirmar, modificar
-  o cancelar. Incluir productos, cantidades, sustituciones, precios y espera.
+- [ ] Persistir la decision explicita del cliente sobre la propuesta final:
+  confirmar, modificar o cancelar. Incluir productos, cantidades,
+  sustituciones, precios y espera.
 - [ ] Al confirmar, comprobar version, vigencia, pertenencia, precios y stock;
   reservar/descontar atomica e idempotentemente y crear una sola comanda.
 - [ ] Modificar invalida la propuesta anterior; cancelar no prepara ni sirve.
@@ -390,7 +400,9 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   generadas por el modelo. Bebidas siguen la misma confirmacion del pedido.
 - [ ] Generar cuenta inmutable/versionada desde lineas confirmadas y entregadas,
   con importes en centimos o Decimal y moneda; no usar aritmetica del LLM.
-- [ ] Persistir HITL 2 sobre esa cuenta: autorizar o cancelar antes del cobro.
+- [ ] Persistir el HITL de caja sobre esa cuenta: reunir peticion original,
+  ticket, consumos y cargos adicionales; una persona aprueba o rechaza el
+  importe antes del cobro.
 - [ ] Implementar pago simulado aprobado, rechazado y resultado incierto;
   referencia persistida y consulta por clave antes de repetir una escritura.
 - [ ] Liberar mesa solo por solicitud del cliente propietario y con cuenta
@@ -405,73 +417,56 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   plazas; rechazar o caducar una propuesta libera el bloqueo. Dos pedidos no
   consumen la ultima unidad.
 - Doble clic y reanudacion no duplican comanda, bebida, cobro ni liberacion.
-- Reiniciar durante cualquiera de los dos HITL recupera la misma decision
-  pendiente; una decision antigua o de otro cliente no ejecuta efectos.
+- Reiniciar durante la confirmacion del pedido o el HITL de caja recupera la
+  misma decision pendiente; una decision antigua o de otra version no ejecuta
+  efectos.
 - Cancelar pago conserva la deuda; rechazarlo permite otro intento explicito.
   Un timeout no se convierte en exito ni justifica un segundo cobro a ciegas.
 - El importe cobrado coincide con la version de cuenta aceptada.
 - La mesa permanece ocupada despues de pagar hasta `table.release_requested`.
 
-### Fase 5. Probar pronto el destino Hosted Agent
+### Fase 5. Conocimiento compartido del restaurante con Foundry IQ y MCP
 
-**Demostracion:** la misma UI invoca el workflow en Foundry y reanuda un HITL remoto.
+**Demostracion:** una pregunta sobre la carta cita su fuente; una pregunta sobre
+ingredientes consulta la receta; si falta informacion, la busqueda web aparece
+como fuente externa. El stock sigue procediendo exclusivamente de despensa.
 
-- [ ] Verificar versiones instaladas, region, protocolo y adaptador de hosting.
-  Partir del proyecto construido en fases 1-4; probar Responses y necesidades
-  de entrada externa antes de adoptar otro protocolo.
-- [ ] Empaquetar y desplegar una version de desarrollo con identidad de servicio.
-- [ ] Conectar el adaptador remoto del BFF sin mover el workflow a FastAPI.
-- [ ] Probar ida/vuelta de contratos, eventos y ambos tipos de decisiones HITL.
-- [ ] Validar almacenamiento de checkpoints y reanudacion tras reinicio del
-  proceso. No equiparar almacenamiento de sesion Foundry con estado global.
-- [ ] Usar persistencia remota para cualquier demostracion de memoria/negocio
-  compartidos. No presentar SQLite efimero del contenedor como durabilidad.
-- [ ] Documentar imagen, version, recursos de prueba, coste y parada controlada.
+- [ ] Preparar una carta sintetica inicial y estatica con IDs estables, precios,
+  alergenos, advertencias y fuentes. No depender de la fecha actual en la
+  primera version.
+- [ ] Mantener documentos separados para carta, recetas e ingredientes dentro
+  de una unica base de conocimiento de dominio en Foundry IQ.
+- [ ] Exponer la consulta mediante MCP para que camarero y chef reutilicen la
+  misma base sin incorporar el contenido a sus instrucciones.
+- [ ] Conectar el camarero al servicio de carta y devolver siempre fuente,
+  version y tipo de documento utilizado.
+- [ ] Permitir busqueda web solo como fallback cuando la base no tenga respuesta;
+  identificarla expresamente y no usarla para afirmar precio, stock o
+  disponibilidad del restaurante.
+- [ ] Reconocer informacion ausente, incluida evidencia insuficiente sobre
+  alergenos, en vez de inferirla.
+- [ ] Mantener la despensa y el inventario como estado operacional separado por
+  MCP. Cambiar stock no requiere reindexar la base de conocimiento.
+- [ ] Acotar timeouts, reintentos y errores; Foundry IQ, MCP o web search caidos
+  producen errores visibles, nunca una carta inventada.
 
-**Aceptacion:** endpoint remoto verificable, dos sesiones aisladas, traza de
-invocacion y decision reanudada sin depender de RAM del BFF. Si la plataforma
-no soporta un requisito, registrar el bloqueo antes de continuar; no cambiar de
-hosting o simular una reanudacion remota silenciosamente.
+**Aceptacion:** camarero y chef consultan la misma base; las respuestas distinguen
+carta, receta, ingrediente y fuente web; una fuente externa no altera la carta
+oficial. Un plato puede existir en carta y no estar disponible en inventario.
 
-### Fase 6. Carta con fuentes y herramientas MCP
-
-**Demostracion:** un plato existe en la carta de hoy pero no en despensa.
-Cambiar stock altera disponibilidad sin reindexar documentos.
-
-- [ ] Preparar carta sintetica por fecha, IDs estables, ingredientes, alergenos,
-  advertencias y fuentes/versiones. La fecha activa tiene zona horaria definida.
-- [ ] Indexar Azure AI Search con busqueda vectorial/hibrida e ingestion Bash
-  repetible; seleccionar embeddings compatibles sin sustituir el modelo de chat.
-- [ ] Recuperar documentos como datos, no instrucciones. Devolver fuentes y
-  reconocer informacion ausente, incluida evidencia insuficiente sobre alergenos.
-- [ ] Exponer los servicios de fase 4 mediante MCP, preservando contratos y tests.
-- [ ] Separar permisos: camarero para mesas, comanda, cuenta y pago autorizado;
-  chef para despensa y cocina. La autoridad del stock no pasa al camarero.
-- [ ] Exponer lecturas de mesas/catalogo/stock/estado e invocaciones de
-  `seat_party`, `create_order`, `generate_bill`, `process_payment` y
-  `release_table`, con validaciones del lado del servicio.
-- [ ] Verificar decisiones persistidas al ejecutar escrituras protegidas; un ID
-  escrito por el modelo no constituye permiso.
-- [ ] Acotar timeouts, reintentos y errores; eliminar el adaptador local directo
-  del camino integrado, manteniendolo solo como modo de pruebas explicito.
-
-**Aceptacion:** recomendaciones con fuentes de la fecha activa; ausencia de
-evidencia no equivale a ausencia de alergenos. Search/MCP caidos producen errores
-visibles, nunca carta o stock inventados. Las invariantes de fase 4 siguen pasando
-a traves de herramientas reales y aparecen en la traza.
-
-### Fase 7. Chef lider y especialistas de cocina
+### Fase 6. Chef lider y especialistas de cocina
 
 **Demostracion:** el camarero consulta al chef; este verifica despensa, consulta
 brasa, fritos y pinchos frios y devuelve disponibilidad y espera al camarero.
-Solo entonces el cliente recibe HITL 1.
+Solo entonces el cliente recibe la propuesta que debe confirmar explicitamente.
 
 - [ ] Sustituir el adaptador de cocina simulado por agentes Agent Framework.
   Solo el chef recibe el borrador del camarero y accede a su dominio operativo.
 - [ ] Enviar tareas tipadas a cada especialidad, con productos/restricciones
   relevantes; no compartir todo el perfil o historial del cliente.
 - [ ] Ejecutar consultas independientes con fan-out/fan-in y consolidacion del
-  chef. Esta fase previa al HITL evalua viabilidad y tiempos, no cocina platos.
+  chef. Esta fase previa a la confirmacion evalua viabilidad y tiempos, no
+  cocina platos.
 - [ ] Cada especialista devuelve estado excluyente, `estimated_minutes`, motivo
   y sustitucion. Si se conservan `accepted/rejected` de SPECS, validar que nunca
   sean contradictorios; estados de timeout no se convierten en aceptacion.
@@ -481,14 +476,38 @@ Solo entonces el cliente recibe HITL 1.
   paralelas, colas y dependencias; no sumar automaticamente tiempos paralelos
   ni inventar estimaciones cuando una rama no responde.
 - [ ] El camarero comunica la propuesta del chef sin alterar su viabilidad,
-  cantidades o espera. Una modificacion vuelve al chef y requiere nuevo HITL.
+  cantidades o espera. Una modificacion vuelve al chef y requiere una nueva
+  confirmacion explicita.
 - [ ] Tras confirmar, iniciar preparacion simulada de la comanda comprometida.
   Mantener limites por rama, plazo total y consolidacion de fallos parciales.
 
 **Aceptacion:** spans prueban consultas concurrentes, estimaciones individuales
 y consolidacion. Un fallo de fritos produce rechazo/alternativa explicita, no
 falso exito. Se distingue confirmacion tecnica del chef de aprobacion humana.
-No hay llamadas camarero -> especialista/proveedor ni preparacion antes de HITL.
+No hay llamadas camarero -> especialista/proveedor ni preparacion antes de la
+confirmacion del pedido.
+
+### Fase 7. Validar el destino Hosted Agent con carta y orquestacion
+
+**Demostracion:** la misma UI invoca en Foundry el workflow con conocimiento y
+chef, y reanuda el HITL remoto de caja.
+
+- [ ] Verificar versiones instaladas, region, protocolo y adaptador de hosting.
+  Partir del proyecto construido en fases 1-6; probar Responses y necesidades
+  de entrada externa antes de adoptar otro protocolo.
+- [ ] Empaquetar y desplegar una version de desarrollo con identidad de servicio.
+- [ ] Conectar el adaptador remoto del BFF sin mover el workflow a FastAPI.
+- [ ] Probar contratos de carta, delegacion y revision humana de caja.
+- [ ] Validar almacenamiento de checkpoints y reanudacion tras reinicio del
+  proceso. No equiparar almacenamiento de sesion Foundry con estado global.
+- [ ] Usar persistencia remota para cualquier demostracion de memoria/negocio
+  compartidos. No presentar SQLite efimero del contenedor como durabilidad.
+- [ ] Documentar imagen, version, recursos de prueba, coste y parada controlada.
+
+**Aceptacion:** endpoint remoto verificable, dos sesiones aisladas, fuentes de
+conocimiento visibles y decision de caja reanudada sin depender de RAM del BFF.
+Si la plataforma no soporta un requisito, registrar el bloqueo antes de
+continuar; no cambiar de hosting ni simular una reanudacion remota.
 
 ### Fase 8. Proveedor independiente mediante A2A
 
@@ -506,7 +525,7 @@ La respuesta altera viabilidad o espera en la propuesta presentada al cliente.
   registrar entrega antes de incrementar stock mediante MCP, con referencia
   unica e idempotencia. La oferta por si sola no aumenta existencias.
 - [ ] Incorporar suministro/plazo a la propuesta del chef. No crear HITL de
-  reposicion: las unicas decisiones humanas siguen siendo pedido y pago.
+  reposicion: el unico HITL diferenciado sigue siendo la revision de caja.
 - [ ] Mantener la ruta sin proveedor y un modo local de ensayo explicitamente
   marcado; un fallo remoto nunca activa una respuesta ficticia silenciosa.
 
@@ -545,7 +564,7 @@ reinicios, mientras los servicios se siguen con trazas distribuidas.
   recursos simulados de asistentes. No se incorpora Entra ID ni un proveedor
   externo de identidad.
 - [ ] Configurar identidades de servicio, minimo privilegio y conectividad hacia
-  Foundry, Search, Cosmos DB, MCP y A2A; nunca claves en codigo o imagenes.
+  Foundry, Foundry IQ, Cosmos DB, MCP y A2A; nunca claves en codigo o imagenes.
 - [ ] Persistir cambios y eventos con una estrategia recuperable, por ejemplo
   outbox, para evitar estado confirmado sin evento tras un reinicio.
 - [ ] Completar OpenTelemetry/Application Insights, correlacion entre servicios,
@@ -566,7 +585,7 @@ El proveedor de pago sigue siendo simulado y se identifica como tal.
 - [ ] Consolidar pruebas dirigidas de fases anteriores y dataset sintetico
   versionado; separar casos de ajuste de casos de validacion.
 - [ ] Evaluar routing/herramientas, fuentes, campos pendientes, privacidad,
-  prevalencia del contexto, estimacion del chef y respeto de ambos HITL.
+  prevalencia del contexto, estimacion del chef y respeto del HITL de caja.
 - [ ] Usar aserciones deterministas para importes, autorizacion y concurrencia;
   evaluacion humana/LLM para calidad textual, nunca como sustituto de invariantes.
 - [ ] Medir latencias, errores, tokens y coste por tramo; separar tiempo de espera
@@ -575,19 +594,20 @@ El proveedor de pago sigue siendo simulado y se identifica como tal.
   capturas de trazas y alternativa grabada o local claramente identificada.
 - [ ] Probar acceso concurrente de asistentes y reconexion de Streamlit/SSE sin
   filtrar datos ni degradar el recorrido guiado.
-- [ ] Documentar que es real (Foundry, RAG, MCP, A2A, HITL, persistencia) y que es
+- [ ] Documentar que es real (Foundry IQ, MCP, A2A, HITL, persistencia) y que es
   simulado (preparacion fisica, suministro y cobros).
 
 **Criterios de salida**
 
 - Tres recorridos consecutivos completos en 3-5 minutos cada uno, incluida
-  recuperacion de contexto, ambos HITL y liberacion; sin exigir texto identico.
+  recuperacion de contexto, revision humana de caja y liberacion; sin exigir
+  texto identico.
 - El 100% de los casos deterministas de aislamiento, importes, idempotencia,
   concurrencia y confirmaciones pasa. Cualquier fallo bloquea el acceso publico.
 - Pedido cancelado no se prepara; pago cancelado no cobra; resultado incierto
   se consulta; mesa no pagada no se libera.
-- Evidencia real de RAG, MCP, especialistas y proveedor A2A, incluidos errores.
-- Umbrales de latencia/coste acordados sobre mediciones de fase 7 y comprobados
+- Evidencia real de Foundry IQ, MCP, especialistas y proveedor A2A, incluidos errores.
+- Umbrales de latencia/coste acordados sobre mediciones de fases 6-7 y comprobados
   de nuevo en Azure. No declarar un SLA no medido.
 - Una traza o evidencia recuperable por escena, sin depender de navegar en vivo
   por Application Insights.
@@ -607,11 +627,12 @@ no del `actor` declarado por el navegador o por el modelo.
 | Evento/snapshot | Secuencia, cursor, recursos autorizados, estado confirmado y acciones permitidas | 3 |
 | Mesa/asignacion | Capacidad, estado, visita, version, `seated_at` y retencion si se usa | 4 |
 | Borrador/propuesta | Productos, cantidades, restricciones, precios, version y campos pendientes | 4 |
-| Decision HITL | Tipo pedido/pago, ID, cliente, recurso/version, decision, caducidad y resultado | 4 |
+| Decision explicita de pedido | ID, cliente, propuesta/version, decision, caducidad y resultado | 4 |
+| Decision HITL de caja | ID, persona revisora, cuenta/version, decision, caducidad y resultado | 4 |
 | Cuenta/pago | Lineas, centimos/Decimal, moneda, version, confirmacion y referencia de cobro | 4 |
-| Resultado documental | Producto, fecha activa, fuente, version y evidencia | 6 |
-| Tarea de especialista | Categoria, lineas, estado, estimacion, motivo y sustitucion | 7 |
-| Propuesta del chef | Campos de SPECS, estimaciones de origen, version y vigencia | 7 |
+| Resultado de conocimiento | Producto, tipo de documento, fuente, version y evidencia | 5 |
+| Tarea de especialista | Categoria, lineas, estado, estimacion, motivo y sustitucion | 6 |
+| Propuesta del chef | Campos de SPECS, estimaciones de origen, version y vigencia | 6 |
 | Suministro A2A | Solicitud/tarea, producto, cantidad, disponibilidad, plazo y referencia | 8 |
 
 ### Comandos de la unica vista
@@ -627,8 +648,8 @@ no del `actor` declarado por el navegador o por el modelo.
 | `table.confirmation_decided` | Confirmar (ocupar) o rechazar (liberar) la propuesta de mesa o barra con su version |
 | `order.submitted` | Validar borrador con cocina, todavia sin preparar |
 | `order.confirmation_decided` | Confirmar/modificar/cancelar la version presentada |
-| `bill.requested` | Generar cuenta y abrir HITL de pago; no cobrar |
-| `payment.confirmation_decided` | Autorizar/cancelar el cobro concreto |
+| `bill.requested` | Generar cuenta y abrir la revision humana de caja; no cobrar |
+| `payment.review_decided` | Caja aprueba o rechaza el ticket y el importe concretos |
 | `table.release_requested` | Liberar la asignacion propia tras verificar pago |
 
 El alcance publico de 3A incluye solo llegada, mensaje y los cuatro comandos
@@ -639,7 +660,7 @@ por servidor, nunca de un campo o permiso declarado en el mensaje.
 
 Las confirmaciones via controles explicitos incluyen los IDs/versiones pendientes.
 Un texto ambiguo, memoria de una aprobacion anterior o decision de cocina no
-autoriza una escritura de negocio protegida por HITL. Esta regla no impide
+autoriza una escritura de negocio protegida. Esta regla no impide
 guardar automaticamente recuerdos no vinculantes. Un reintento del mismo
 comando conserva su clave.
 
@@ -655,11 +676,13 @@ comando conserva su clave.
 - Cuenta/pago: `awaiting_payment_confirmation -> processing ->
   paid | failed | unknown`. Cancelar la autorizacion no cancela la deuda.
   `unknown` se reconcilia antes de habilitar otro cobro.
-- Dos checkpoints: pedido y pago. Persistir antes de notificar; reanudar exige
-  cliente, tipo, recurso, version y vigencia coincidentes. Un ID solo no basta.
+- Persistir tanto la decision del pedido como el HITL de caja antes de notificar.
+  Reanudar exige actor, tipo, recurso, version y vigencia coincidentes. Un ID
+  solo no basta.
 - Un cambio de propuesta, precio, cantidad o cuenta invalida su confirmacion
   previa; una decision tardia no afecta a una visita nueva en la misma mesa.
-- Revalidar stock/precio al comprometer. Una consulta previa al HITL no evita
+- Revalidar stock/precio al comprometer. Una consulta previa a la decision del
+  pedido no evita
   sobreventa durante la espera humana.
 - El negocio conserva idempotencia aunque un checkpoint reejecute pasos; no
   prometer ejecucion distribuida "exactamente una vez".
@@ -673,15 +696,15 @@ comando conserva su clave.
 | Momento del cliente | Capacidad | Evidencia exigida | Fases |
 |---|---|---|---|
 | Se identifica y vuelve | Identidad y memoria gobernada | Recuperacion y prueba negativa entre clientes | 1-3, 9 |
-| Solicita mesa | Concurrencia y autoridad operacional | Una asignacion ante dos solicitudes concurrentes | 4, 6, 9 |
-| Consulta carta | RAG y procedencia | Fecha/fuente correctas; stock separado | 6 |
-| Propone pedido | Delegacion con autoridad limitada | Camarero -> chef -> especialistas -> chef -> camarero | 7 |
-| Recibe espera estimada | Consolidacion explicable | Estimaciones de especialistas y regla del chef | 7 |
+| Solicita mesa | Concurrencia y autoridad operacional | Una asignacion ante dos solicitudes concurrentes | 4, 9 |
+| Consulta carta | Foundry IQ y procedencia | Fuente correcta; stock separado | 5 |
+| Propone pedido | Delegacion con autoridad limitada | Camarero -> chef -> especialistas -> chef -> camarero | 6 |
+| Recibe espera estimada | Consolidacion explicable | Estimaciones de especialistas y regla del chef | 6 |
 | Falta producto | Interoperabilidad A2A | Solicitud remota, respuesta y fallo controlado | 8 |
-| Confirma pedido | HITL durable | Pausa/reinicio/reanudacion y version obsoleta rechazada | 4-5, 7, 9 |
-| Recibe plato | Efectos controlados | Comanda unica y eventos tras autorizacion | 4, 6 |
-| Recibe cuenta y paga | HITL y transaccion auditable | Importe exacto, decision, recibo e intento incierto | 4-6, 9 |
-| Libera mesa | Politica de negocio | Peticion propia aceptada solo despues del pago | 4, 6, 9 |
+| Confirma pedido | Decision explicita durable | Version obsoleta rechazada y comanda unica | 4, 6, 9 |
+| Recibe plato | Efectos controlados | Comanda unica y eventos tras confirmacion | 4, 6 |
+| Recibe cuenta y paga | HITL y transaccion auditable | Revision humana, importe exacto, recibo e intento incierto | 4, 7, 9 |
+| Libera mesa | Politica de negocio | Peticion propia aceptada solo despues del pago | 4, 9 |
 | Recarga la pagina | Resiliencia de interfaz | Snapshot/cursor y SSE sin repetir efectos | 3, 9 |
 | Prueban asistentes | Operacion empresarial | Identidades aisladas, limites y trazas sin datos ajenos | 9-10 |
 
@@ -689,10 +712,10 @@ comando conserva su clave.
 
 El objetivo de calendario es una version avanzada el **viernes 2 de octubre de
 2026**. Es un hito de planificacion, no una afirmacion de que todas las fases
-estan terminadas. Construir la base de fases 1-2, priorizar el recorrido completo
-de fases 3-4, probar hosting en fase 5 y avanzar RAG/MCP/cocina por incrementos
-validados. Revisar la viabilidad del hito segun los avances reales, sin dar por
-hecho trabajo previo.
+estan terminadas. Construir la base de fases 1-2, cerrar mesas en fases 3-4,
+priorizar Foundry IQ y MCP en fase 5, avanzar la cocina multiagente en fase 6 y
+validar despues el destino Hosted Agent en fase 7. Revisar la viabilidad del
+hito segun los avances reales, sin dar por hecho trabajo previo.
 
 Reservar la semana previa a la presentacion para pruebas y ensayo; la fecha de
 presentacion no se presupone. Si el calendario obliga a recortar, registrar y

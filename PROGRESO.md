@@ -21,10 +21,10 @@ indicadas en el propio plan.
 | 1. Proyecto y primer camarero | Completada | Validada conjuntamente el 28/09 | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas |
 | 2. Memoria persistente automática | Completada | Validada conjuntamente el 28/09 | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
 | 3. Vista única, BFF y continuidad | Implementada: 3A, 3B, 3C y 3D validadas en el Codespace el 28/09 | Pendiente; validada por Jesús el 28/09 ([revisión de 3A](docs/revision-fase-3a-jesus.md), [validación de 3C y 3D](#validación-en-el-codespace-28092026)) | 3A: 133 pruebas y 15 reglas del contrato. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) e imagen Docker publicada. 3C/3D: [BFF](#fase-3c-bff) con el camarero en Foundry; 146 + 8, 123 y 96 pruebas, smoke real y recorrido manual superados |
-| 4. Recorrido local completo y dos HITL | Pendiente; diseño de mesas acordado | Pendiente | Bloqueo temporal atómico, confirmación de mesa y concurrencia se pueden implementar en paralelo con 3C |
-| 5. Validación temprana de Hosted Agent | Pendiente | Pendiente | El agente solo se ha ejecutado localmente |
-| 6. Carta con fuentes y herramientas MCP | Pendiente | Pendiente | Sin implementación |
-| 7. Chef líder y especialistas | Pendiente | Pendiente | Sin implementación |
+| 4. Mesas y recorrido local con control de caja | Parcial: flujo de asientos integrado en `main`; pedido, caja, pago y liberación pendientes | Revisión conjunta del alcance completo pendiente | Bloqueo temporal, confirmación/rechazo, concurrencia, plano y recorrido E2E implementados |
+| 5. Conocimiento compartido con Foundry IQ y MCP | Acordada el 30/09; implementación iniciada fuera de `main` | Pendiente | Carta estática inicial, recetas e ingredientes en una base reutilizable por camarero y chef |
+| 6. Chef líder y especialistas | Diseño por detallar | Pendiente | Se prioriza después de conectar la carta |
+| 7. Validación de Hosted Agent | Pospuesta hasta disponer de carta y orquestación representativas | Pendiente | El agente actual se ha ejecutado localmente y como contenedor remoto, pero no acredita el workflow objetivo completo |
 | 8. Proveedor mediante A2A | Pendiente | Pendiente | Sin implementación |
 | 9. Integración duradera en Azure | Pendiente | Pendiente | Sin implementación |
 | 10. Evaluación y ensayo final | Pendiente | Pendiente | Sin implementación |
@@ -38,7 +38,7 @@ indicadas en el propio plan.
 - El contrato remoto tipado transporta estado confirmado, sesión opaca,
   informe de asientos y candidatos de memoria. El BFF sigue siendo la
   autoridad de identidad, visita, snapshots, SSE y memoria persistida, y
-  persiste y presenta los HITL; el camarero los ejecuta en el MCP.
+  persiste y presenta las decisiones explícitas; el camarero las ejecuta en el MCP.
 - El agente valida `x-agent-user-id`, ejecuta `ConversationManager`, llama al
   modelo de Foundry y a las tools MCP, y devuelve el resultado estructurado
   dentro de una respuesta estándar.
@@ -50,6 +50,34 @@ indicadas en el propio plan.
   separado y todas las aplicaciones quedan limitadas a una réplica. Es una
   topología inicial de demo, no el diseño de persistencia escalable de fase 9.
 
+## Acuerdos del sync del 30/09/2026
+
+Estos acuerdos cambian el diseño objetivo; cuando todavía no están en `main` se
+registran como pendientes y no como evidencia implementada:
+
+- Priorizar la carta antes de la orquestación del chef y posponer la validación
+  completa del Hosted Agent hasta que el flujo tenga conocimiento real.
+- Implementar una única base de conocimiento de dominio en Foundry IQ,
+  accesible mediante MCP y compartida por camarero y chef. La primera versión
+  puede usar una carta estática con documentos separados para recetas e
+  ingredientes; la búsqueda web es un fallback identificado.
+- Mantener carta/conocimiento separados del inventario: el chef contrasta los
+  ingredientes con la despensa operacional y puede rechazar un plato presente
+  en carta.
+- Tratar confirmaciones de mesa y pedido como decisiones explícitas de negocio.
+  El HITL diferenciado se sitúa en caja, donde una persona revisa petición,
+  ticket, consumos, cargos e importe antes del pago.
+- Para desbloquear el despliegue provisional, retirar los montajes Azure Files
+  de BFF y MCP y aceptar SQLite efímero dentro del contenedor. Perder datos al
+  reiniciar es aceptable en esta etapa y no acredita durabilidad.
+- Mantener la capa de repositorio para sustituir SQLite por Cosmos DB en la fase
+  de integración duradera.
+- El JSON del layout es configuración fija; ocupación y disponibilidad son
+  estado dinámico. ID, JSON canónico y SHA deben corresponder exactamente.
+  Cambiar la huella reinicializa solo los datos de asientos.
+- Foundry y el grupo de recursos se consideran prerrequisitos del script actual;
+  no se provisiona Foundry automáticamente.
+
 ## Fase 4: solo el camarero habla con el MCP (29/09/2026)
 
 Decisión de Jesús y dsanchor del 29/09: el MCP de asientos solo habla con el
@@ -57,7 +85,7 @@ agente. El camarero es quien confirma; ningún otro componente es cliente del
 MCP, tampoco en pruebas.
 
 - **Camarero.** `confirm_seating` es una tool del modelo que siempre requiere
-  aprobación (HITL de Agent Framework): tras bloquear, la ejecución se detiene
+  aprobación de Agent Framework: tras bloquear, la ejecución se detiene
   y la petición de aprobación queda en `session_json`. La decisión de los
   botones vuelve como respuesta de aprobación, nunca como texto. El propio
   camarero cancela el bloqueo al rechazar, lee la sala antes y después de cada
@@ -128,8 +156,8 @@ de implementación ni asignan responsables:
   el MCP. Debe revisarse con una conversación real contra ambos procesos
   locales antes de considerarla aceptada.
 - Esta primera versión solo crea una propuesta temporal; no confirma una
-  ocupación. Pendiente: incorporar la decisión explícita del usuario mediante
-  HITL, validar vigencia y versión antes de habilitar `confirm_seating`,
+  ocupación. Pendiente: incorporar la decisión explícita del usuario, validar
+  vigencia y versión antes de habilitar `confirm_seating`,
   permitir rechazo o cancelación de la propuesta, y habilitar
   `release_seating` exclusivamente después de la verificación del pago. El BFF
   y la UI proyectarán resultados de negocio sin exponer el contrato MCP; pedido,
@@ -312,7 +340,7 @@ Todos los recuerdos son **no vinculantes**:
 - las restricciones requieren reconfirmación en la visita actual;
 - una instrucción actual prevalece sobre el recuerdo;
 - la memoria no acredita carta, precio, stock o disponibilidad;
-- el pedido seguirá requiriendo confirmación HITL en una fase posterior.
+- el pedido seguirá requiriendo confirmación explícita en una fase posterior.
 - el resumen de pedido omite cantidades y no convierte el borrador en historial
   de pedidos completados.
 
@@ -476,7 +504,7 @@ Decisiones:
 - No se añaden mesas, pagos, HITL ni contratos completos de fase 4.
 - El servidor Responses sigue creando el agente directamente; el adaptador al
   BFF debe resolver esa integración sin asumir que usa `ConversationManager`.
-- Antes del `remote_build` de fase 5 debe incluirse el paquete compartido en el
+- Antes del `remote_build` de fase 7 debe incluirse el paquete compartido en el
   artefacto remoto o distribuir su wheel. La ruta editable funciona en el
   checkout local, no acredita un despliegue remoto.
 
@@ -621,17 +649,16 @@ La validación cubre también las comprobaciones de 3D acordadas en el sync:
 recarga, memoria, SSE y no duplicación. Revisión conjunta pendiente; no se
 marca ninguna casilla.
 
-## Fase 4: mesas y barra en la vista (en revisión)
+## Fase 4: mesas y barra integradas
 
-Rama `jrubiosainz-fase-4-mesas-en-la-web`, PR en borrador. Conecta el MCP de
+El trabajo terminó integrado en `main` mediante el PR #8. Conecta el MCP de
 asientos con la web: el camarero bloquea un sitio, la vista lo propone con dos
 botones y el plano muestra la sala.
 
 ### Implementado
 
 - **MCP de asientos.** Una mesa, un grupo: una mesa bloqueada u ocupada no está
-  disponible para otra visita aunque le queden sillas (**cambio pedido por
-  Jesús, pendiente de aprobar por dsanchor**; antes se compartía la mesa). La
+  disponible para otra visita aunque le queden sillas. La
   barra elige el tramo que deja el menor hueco y, a igualdad, la posición más
   baja. Un bloqueo nuevo de la misma visita sustituye en la misma transacción
   al pendiente. Nuevas tools para la aplicación: `cancel_seating_hold` y
@@ -694,7 +721,8 @@ botones y el plano muestra la sala.
     dibujar en cuanto el turno cambia el sitio del cliente.
   - Mejora pedida: cada mesa muestra su número («Mesa N» del layout; 1 a 5 en
     la sala decorativa).
-- Pendiente: revisión conjunta; no se marca ninguna casilla.
+- Pendiente: revisión conjunta del alcance completo de la fase; las casillas no
+  cubiertas por pedido, caja, pago y liberación siguen abiertas.
 - Pendiente de fase 4: liberar la mesa tras el pago (`table.release_requested`),
   pedido, cuenta y pago; adaptador Cosmos DB del MCP.
 - Riesgos: si el MCP está caído, cada turno del camarero de Foundry falla con
@@ -704,23 +732,16 @@ botones y el plano muestra la sala.
 
 ## Próximo trabajo previsto
 
-La fase 3 está implementada y validada en el Codespace. Falta la revisión
-conjunta, que además debe decidir:
-
-- cómo cumplir «mesas iniciales claramente etiquetadas como datos locales»: el
-  plano aún muestra mesas decorativas, que serán reales con el MCP de asientos
-  de la fase 4;
-- si bastan los spans sin exportador (el exportador llega en la fase 9) y el
-  despliegue en Container Apps documentado pero no ejecutado.
-
-En paralelo, la fase 4 ya dispone del servicio determinista de mesas y el
-camarero declara sus tools MCP directas de disponibilidad y bloqueo. Cada
-sesión Responses inicializa un `visit_id`, el middleware sustituye los
-argumentos de autoridad suministrados por el modelo y guarda la propuesta MCP
-confirmada en el estado de sesión. Queda pendiente la prueba de conversación
-real con el MCP levantado, seguida por su integración con el BFF: sembrar
-`visit_context.visit_id` con la visita del BFF y proyectar la propuesta de mesa
-en la vista.
+1. Integrar y validar el cambio de despliegue provisional a SQLite efímero,
+   incluyendo la correspondencia entre layout JSON, ID y SHA.
+2. Implementar la fase 5: carta estática inicial, recetas e ingredientes en una
+   base compartida de Foundry IQ accesible mediante MCP.
+3. Documentar y construir el scaffolding del chef y sus especialistas usando
+   esa misma base; el chef contrasta ingredientes con inventario.
+4. Definir el contrato y la superficie mínima del HITL de caja antes de
+   implementar cuenta y pago.
+5. Validar el Hosted Agent después de que carta y orquestación formen un flujo
+   representativo.
 
 ## Ejecución y validación
 

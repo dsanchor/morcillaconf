@@ -18,10 +18,13 @@ recorrido reconocible:
 6. El camarero recupera el contexto y permite repetir o continuar el pedido.
 7. El chef líder valida la disponibilidad, consulta a los especialistas y
    confirma al camarero el pedido viable con su tiempo de espera estimado.
-8. El camarero presenta esa confirmación al cliente y solicita su aprobación.
-9. Tras la confirmación humana, cocina prepara y entrega el plato.
+8. El camarero presenta esa confirmación al cliente y solicita una confirmación
+   explícita del pedido.
+9. Tras la confirmación del cliente, cocina prepara y entrega el plato.
 10. El cliente solicita la cuenta y el camarero la genera.
-11. El cliente confirma el pago y el camarero coordina su procesamiento.
+11. Caja reúne la petición original, el ticket, los consumos y los posibles
+    cargos adicionales; una persona revisora aprueba o rechaza el importe antes
+    de que el camarero coordine el pago simulado.
 12. Después de un pago correcto, el cliente solicita liberar la mesa.
 
 Después de este recorrido guiado, la aplicación puede quedar disponible para que
@@ -38,12 +41,13 @@ la demo:
 
 - Memoria: recordar automáticamente preferencias y restricciones de la identidad
   autenticada como contexto no vinculante entre visitas.
-- RAG o búsqueda: responder preguntas sobre la carta.
+- Foundry IQ: consultar una base de conocimiento compartida sobre carta, recetas
+  e ingredientes, conservando sus fuentes.
 - MCP: consultar datos operativos como mesas o existencias.
 - Multiagente: delegar la preparación del pedido en especialistas.
 - A2A: solicitar productos a un proveedor externo.
-- Human in the loop: confirmar el pedido después de hablar con cocina.
-- Human in the loop: autorizar el pago después de recibir la cuenta.
+- Human in the loop: una persona en caja revisa el ticket y el importe antes de
+  completar el pago.
 - Application Insights: explicar qué ocurrió y cuánto tardó cada paso.
 
 ### Eventos iniciados desde el frontal
@@ -94,7 +98,8 @@ Cada agente o herramienta responde únicamente sobre su dominio:
 
 - El camarero conversa, recopila datos y coordina.
 - El servicio de mesas determina la disponibilidad real.
-- La búsqueda documental responde sobre carta, ingredientes y alérgenos.
+- La base de conocimiento de Foundry IQ responde sobre carta, recetas,
+  ingredientes y alérgenos con fuentes.
 - La despensa informa de existencias.
 - Cocina decide si puede preparar la comanda.
 - El proveedor confirma si puede suministrar un producto.
@@ -168,8 +173,9 @@ muestra la propuesta con el sitio y los asientos, y el cliente la confirma o la
 rechaza con dos botones: una frase del chat nunca la confirma. Confirmar la
 convierte en ocupación; rechazarla la libera al momento y dejarla caducar
 también la libera. Una confirmación tardía recibe un aviso de caducidad. La
-confirmación es una aprobación humana (HITL) del camarero, que es el único
-cliente del servicio de mesas: el camarero pide la confirmación, el BFF
+confirmación es una decisión explícita de negocio, no el punto HITL principal
+de la demo. El camarero es el único cliente del servicio de mesas: pide la
+confirmación y el BFF
 persiste y presenta la decisión pendiente, y la respuesta de los botones
 vuelve al camarero, que confirma o libera el bloqueo. Si el cliente escribe en
 lugar de pulsar un botón, el sitio sigue reservado y el camarero vuelve a
@@ -215,7 +221,7 @@ Para la demo se recomienda un modelo sencillo:
 
 El frontal inicia comandos de negocio, pero no cada invocación interna. Por
 ejemplo, `order.submitted` inicia la atención del pedido; a partir de ahí el
-camarero y el líder de cocina coordinan memoria, RAG, MCP, especialistas y A2A
+camarero y el líder de cocina coordinan memoria, Foundry IQ, MCP, especialistas y A2A
 sin que la interfaz conozca esos detalles.
 
 Comandos mínimos del frontal:
@@ -315,7 +321,7 @@ consultar mesas.
 ### Escena 2: consulta y pedido
 
 El cliente pregunta por la carta o por un plato. La información descriptiva
-procede de la búsqueda documental. Antes de aceptar el pedido, la disponibilidad
+procede de la base compartida de Foundry IQ. Antes de aceptar el pedido, la disponibilidad
 real de ingredientes procede de la despensa.
 
 Ejemplo:
@@ -358,8 +364,8 @@ El workflow se pausa hasta que el cliente decide desde la misma vista:
   requiere otra confirmación.
 - **Cancelar:** no se crea la comanda y el cliente puede empezar otro pedido.
 
-Este es el primer human in the loop. Ningún plato comienza a prepararse sin una
-confirmación explícita del cliente.
+Esta es una decisión explícita de negocio del cliente, no el HITL diferenciado
+de la demo. Ningún plato comienza a prepararse sin esa confirmación.
 
 Tras la aprobación, la interfaz muestra una progresión sencilla:
 
@@ -371,14 +377,16 @@ El frontal emite una solicitud de cuenta. El camarero valida que el pedido esté
 entregado, invoca el servicio de cuenta, presenta el desglose de los elementos
 confirmados y pausa el workflow antes del cobro.
 
-El cliente revisa el importe y decide desde la misma vista:
+El sistema reúne la petición original, el ticket, los consumos y los posibles
+cargos adicionales. Una persona revisora de caja decide sobre esa versión:
 
-- **Confirmar pago:** el camarero envía el importe y la referencia al proveedor
-  de pago.
-- **Cancelar:** no se realiza ningún cobro y la cuenta permanece pendiente.
+- **Aprobar:** el camarero envía el importe y la referencia al proveedor de
+  pago simulado.
+- **Rechazar:** no se realiza ningún cobro y la cuenta permanece pendiente para
+  su corrección o revisión.
 
-Este es el segundo human in the loop. El proveedor comunica si el pago ha sido
-aprobado, rechazado o requiere un nuevo intento.
+Este es el human in the loop diferenciado de la demo. El proveedor comunica si
+el pago ha sido aprobado, rechazado o requiere un nuevo intento.
 
 Después de un pago correcto se habilita la acción **Liberar mesa**. El cliente la
 ejecuta, el camarero comprueba que la cuenta esté pagada, solicita la liberación
@@ -395,7 +403,7 @@ flowchart LR
     BFF -->|Eventos SSE| UI
 
     W --> MEM[Memoria]
-    W --> MENU[Busqueda de carta]
+    W --> MENU[Foundry IQ mediante MCP]
     W --> TABLES[Servicio de mesas]
     W --> CHEF[Lider de cocina]
     W --> BILL[Servicio de cuenta]
@@ -405,20 +413,21 @@ flowchart LR
     CHEF --> FRY[Especialista de fritos]
     CHEF --> COLD[Especialista de pinchos frios]
     CHEF --> SUPPLIER[Proveedor mediante A2A]
-    W --> ORDER_HITL{Cliente confirma pedido}
+    CHEF --> MENU
+    W --> ORDER_DECISION{Cliente confirma pedido}
 
     GRILL --> CHEF
     FRY --> CHEF
     COLD --> CHEF
     SUPPLIER --> CHEF
-    ORDER_HITL -->|Propuesta| BFF
-    BFF -->|Confirmar, modificar o cancelar| ORDER_HITL
-    ORDER_HITL -->|Pedido confirmado| CHEF
+    ORDER_DECISION -->|Propuesta| BFF
+    BFF -->|Confirmar, modificar o cancelar| ORDER_DECISION
+    ORDER_DECISION -->|Pedido confirmado| CHEF
     CHEF -->|Disponibilidad y espera estimada| W
-    BILL --> PAYMENT_HITL{Cliente confirma pago}
-    PAYMENT_HITL -->|Cuenta| BFF
-    BFF -->|Confirmar o cancelar| PAYMENT_HITL
-    PAYMENT_HITL -->|Pago autorizado| PAY
+    BILL --> PAYMENT_HITL{Caja revisa ticket e importe}
+    PAYMENT_HITL -->|Revision pendiente| BFF
+    BFF -->|Aprobar o rechazar| PAYMENT_HITL
+    PAYMENT_HITL -->|Pago aprobado| PAY
     PAY --> W
 
     OBS[Application Insights] -.-> BFF
@@ -445,14 +454,16 @@ Responsabilidades:
 - recuperar y guardar automáticamente memoria de la identidad autenticada,
   diferenciando preferencias y restricciones
   pendientes de reconfirmación;
-- responder sobre la carta utilizando la fuente documental;
+- responder sobre la carta utilizando la base de conocimiento compartida y sus
+  fuentes;
 - construir un borrador estructurado del pedido;
 - transferir el contexto relevante a cocina;
-- presentar al cliente la propuesta final de cocina y pausar hasta recibir su
-  confirmación;
+- presentar al cliente la propuesta final de cocina y esperar su confirmación
+  explícita;
 - comunicar el estado y la entrega;
 - generar la cuenta cuando el frontal lo solicite;
-- presentar la cuenta y pausar hasta que el cliente autorice el pago;
+- presentar la cuenta y enviar a caja el ticket, la petición original, los
+  consumos y los cargos adicionales para revisión humana;
 - iniciar el cobro mediante el proveedor correspondiente;
 - mantener la mesa ocupada hasta que el cliente solicite liberarla;
 - liberar la mesa únicamente después de validar que el pago está confirmado.
@@ -465,8 +476,9 @@ respuesta de los servicios correspondientes.
 
 Recibe una comanda estructurada y coordina su preparación:
 
-- valida que los productos pertenezcan a la carta vigente;
-- consulta ingredientes y existencias mediante MCP;
+- valida que los productos pertenezcan a la carta consultando la misma base de
+  conocimiento que el camarero;
+- consulta recetas e ingredientes en Foundry IQ y existencias mediante MCP;
 - divide el pedido por categoría;
 - delega en los especialistas adecuados;
 - solicita a cada especialista aceptación y tiempo estimado;
@@ -531,29 +543,38 @@ completo después de conocer la disponibilidad, sustituciones y tiempo estimado.
 | Pedido en curso | Estado de sesión | Cambia durante la conversación |
 | Preferencias y restricciones de la identidad autenticada | Memoria persistente automática | Sobreviven a una sesión como contexto no vinculante y diferenciado |
 | Pedidos anteriores | Historial | Permite repetir sin confundirlo con stock |
-| Carta, ingredientes y alérgenos | Búsqueda documental | Información descriptiva y versionada |
+| Carta, recetas, ingredientes y alérgenos | Base compartida de Foundry IQ accesible mediante MCP | Información descriptiva con fuentes reutilizable por camarero y chef |
 | Mesas disponibles | Servicio operacional o MCP | Estado que cambia en tiempo real |
 | Existencias de despensa | MCP | Estado operacional verificable |
 | Suministro externo | A2A | Capacidad de otro sistema o agente |
-| Confirmación del pedido | Human in the loop del cliente | Autoriza crear la comanda definitiva |
+| Confirmación del pedido | Decisión explícita del cliente | Autoriza crear la comanda definitiva sin presentarse como HITL diferenciado |
 | Cuenta | Servicio determinista | Requiere importes y líneas exactas |
-| Autorización del pago | Human in the loop del cliente | Autoriza el cobro del importe mostrado |
+| Revisión de ticket e importe | Human in the loop de caja | Una persona aprueba o rechaza antes del cobro |
 | Pago | Proveedor de pago | Confirma el resultado y devuelve una referencia verificable |
 | Liberación de mesa | Servicio operacional o MCP | Solo procede tras un pago confirmado |
 
-### Carta diaria
+### Conocimiento compartido del restaurante
 
-La carta puede organizarse por fecha y consultarse mediante búsqueda:
+La primera versión utiliza una única base de conocimiento de dominio en
+Foundry IQ, accesible mediante MCP y reutilizada por el camarero y el chef. Se
+mantiene deliberadamente sencilla y puede comenzar con una carta estática:
 
 ```text
-menu/
-  2026-10-01/
-  2026-10-02/
-  2026-10-03/
+knowledge/
+  menu/
+  recipes/
+  ingredients/
 ```
 
-La búsqueda debe priorizar la fecha activa y devolver la fuente utilizada. La
-carta explica qué se ofrece; la despensa confirma si todavía puede prepararse.
+La carta describe qué se ofrece; las recetas detallan preparación e
+ingredientes; la despensa confirma mediante MCP si todavía puede prepararse.
+Cada respuesta conserva la fuente utilizada. Los menús diarios, la separación
+entre laborables y fin de semana o varios contenedores son evoluciones futuras,
+no requisitos de la primera versión.
+
+Cuando la base no contenga una respuesta, el agente puede usar búsqueda web
+como fallback explícito. Debe identificar la fuente externa y no mezclarla con
+la carta oficial ni utilizarla para declarar stock, precio o disponibilidad.
 
 ### Memoria
 
@@ -614,7 +635,7 @@ restricciones.
 Todos los recuerdos son contexto no vinculante. Las alergias y restricciones
 recordadas deben reconfirmarse en la visita actual y nunca se consideran
 vigentes únicamente por proceder de una visita anterior. Una instrucción actual
-siempre prevalece sobre un recuerdo y el pedido requiere su confirmación HITL.
+siempre prevalece sobre un recuerdo y el pedido requiere confirmación explícita.
 
 ## 7. Secuencia de orquestación
 
@@ -628,7 +649,9 @@ un evento o una invocación procedente del frontal:
    reconfirmación, los solicita y pausa el flujo.
 4. El servicio de mesas bloquea atómicamente una mesa compatible y espera la
    confirmación o rechazo del cliente antes de ocuparla.
-5. La búsqueda documental resuelve las consultas sobre la carta.
+5. La base compartida de Foundry IQ resuelve las consultas sobre carta, recetas
+   e ingredientes y devuelve sus fuentes; la búsqueda web solo actúa como
+   fallback identificado.
 6. El camarero construye el borrador de la comanda.
 7. El líder de cocina consulta la despensa.
 8. Si falta un producto, el líder consulta al agente proveedor mediante A2A.
@@ -637,13 +660,16 @@ un evento o una invocación procedente del frontal:
 11. El líder consolida disponibilidad, sustituciones y tiempos.
 12. El líder confirma al camarero el pedido viable y el tiempo de espera
     estimado.
-13. El camarero presenta esa confirmación y pausa el workflow.
+13. El camarero presenta esa confirmación y espera una decisión explícita.
 14. El cliente confirma, modifica o cancela el pedido desde el frontal.
 15. Solo un pedido confirmado se prepara y entrega.
 16. El cliente solicita la cuenta y el camarero invoca el cálculo determinista.
-17. El camarero presenta la cuenta y pausa el workflow antes del cobro.
-18. El cliente confirma o cancela el pago desde el frontal.
-19. Solo una autorización válida permite al camarero iniciar el cobro.
+17. El camarero presenta la cuenta y reúne para caja la petición original, el
+    ticket, los consumos y los posibles cargos adicionales.
+18. El workflow pausa en el HITL de caja hasta que una persona aprueba o rechaza
+    el importe.
+19. Solo una aprobación humana válida y ligada a esa versión permite iniciar el
+    cobro simulado.
 20. Tras un pago confirmado, el cliente solicita liberar la mesa.
 21. El camarero valida el pago y libera la mesa.
 
@@ -680,9 +706,9 @@ La traza debe permitir localizar:
 - consolidación y estado del pedido;
 - confirmación del chef líder al camarero con disponibilidad y espera estimada;
 - propuesta final de cocina;
-- pausa y decisión HITL del cliente sobre el pedido;
+- decisión explícita del cliente sobre el pedido;
 - entrega y generación de la cuenta;
-- pausa y decisión HITL del cliente sobre el pago;
+- pausa y decisión HITL de caja sobre el ticket y el importe;
 - solicitud y resultado del cobro;
 - solicitud del cliente para liberar la mesa;
 - liberación de la mesa;
@@ -742,9 +768,10 @@ asociado a este repositorio; no se usa otro registro como destino del workflow.
 - cambio visual del estado de las mesas;
 - pedido estructurado;
 - estados de preparación y entrega;
-- HITL del cliente para confirmar, modificar o cancelar el pedido;
+- confirmación explícita del cliente para confirmar, modificar o cancelar el
+  pedido;
 - cuenta con cálculo determinista;
-- HITL del cliente para autorizar o cancelar el pago;
+- HITL de caja para aprobar o rechazar el ticket y el importe;
 - pago simulado con resultado explícito;
 - liberación de mesa solicitada por el cliente y coordinada por el camarero;
 - eventos del frontal con claves de idempotencia;
@@ -757,10 +784,13 @@ Un gateway de modelos/agentes puede incorporarse como mejora opcional si queda
 tiempo. No condiciona el recorrido principal ni sustituye al BFF: centraliza
 eventualmente el acceso a modelos y agentes para explicarlo durante la demo.
 
-### Incremento 3: carta y despensa
+### Incremento 3: conocimiento del restaurante y despensa
 
-- carta diaria versionada;
-- búsqueda documental;
+- carta estática inicial con fuentes;
+- base compartida de Foundry IQ con documentos separados de carta, recetas e
+  ingredientes;
+- acceso mediante MCP para camarero y chef;
+- búsqueda web de respaldo, identificada y sin autoridad operacional;
 - MCP para existencias;
 - separación verificable entre conocimiento y estado operacional.
 
@@ -809,11 +839,11 @@ La demo se considera preparada cuando:
 - obtiene de los especialistas la aceptación y el tiempo estimado;
 - recibe del chef líder la confirmación de disponibilidad y el tiempo de espera;
 - presenta al cliente el pedido final después de consultar a cocina;
-- pausa el workflow hasta que el cliente confirme, modifique o cancele;
+- espera una decisión explícita del cliente para confirmar, modificar o cancelar;
 - no prepara ningún plato antes de confirmar el pedido;
 - entrega el plato y genera una cuenta exacta;
-- presenta la cuenta y pausa el workflow antes de cobrar;
-- no inicia el cobro hasta que el cliente lo autoriza;
+- presenta la cuenta y pausa el workflow en la revisión humana de caja;
+- no inicia el cobro hasta que una persona aprueba el ticket y el importe;
 - procesa el pago y conserva su referencia;
 - mantiene la mesa ocupada hasta que el cliente solicite liberarla;
 - libera la mesa solo después de comprobar que el pago está confirmado;
@@ -831,10 +861,10 @@ La demo se considera preparada cuando:
 
 ### Prioridad inmediata
 
-Cerrar primero el camarero con memoria y la interfaz mínima. El siguiente paso es
-conseguir el recorrido completo con mesas, confirmación del pedido, entrega,
-cuenta, autorización del pago y liberación de mesa, aunque los servicios internos
-todavía sean simulados.
+Tras cerrar el camarero, la memoria y el flujo de mesas, la prioridad inmediata
+es conectar la carta sencilla a Foundry IQ mediante MCP. Después se construye
+la orquestación del chef y los especialistas. La validación temprana del Hosted
+Agent se pospone hasta que estos agentes dispongan de conocimiento real.
 
 ### Riesgos principales
 
@@ -843,7 +873,7 @@ todavía sean simulados.
 | La memoria intenta utilizar infraestructura no configurada | Mantener una implementación local desacoplada y activar el almacén gestionado por configuración |
 | La demo acumula demasiados agentes y servicios | Hacer que A2A y capacidades avanzadas sean opcionales |
 | El modelo pregunta datos ya proporcionados | Extraer primero los campos y pasar un estado estructurado al camarero |
-| RAG se usa para disponibilidad | Separar carta documental de mesas y despensa operacionales |
+| El conocimiento se usa para declarar disponibilidad | Separar Foundry IQ de mesas y despensa operacionales |
 | Una integración externa falla en directo | Preparar datos locales, timeouts y capturas de observabilidad |
 | El acceso del público altera el estado de la demo | Aislar sesiones y ofrecer un reinicio controlado |
 | El frontal reintenta un evento y duplica un efecto | Exigir una clave de idempotencia y persistir el resultado de cada invocación |
@@ -851,7 +881,7 @@ todavía sean simulados.
 | La conexión SSE se interrumpe | Reconectar desde el último evento y reconstruir la vista desde un snapshot |
 | El estado visual diverge del backend | Tratar el frontal como una proyección y mostrar solo transiciones confirmadas |
 | Se prepara un pedido sin confirmación | Exigir un `order_confirmation_id` válido antes de crear la comanda definitiva |
-| Se cobra sin autorización | Exigir un `payment_confirmation_id` válido y ligado a la versión exacta de la cuenta |
+| Se cobra sin revisión humana | Exigir un `payment_approval_id` válido y ligado a la versión exacta de la cuenta |
 | Una confirmación se repite o llega tarde | Hacer idempotente la decisión y cerrar el checkpoint tras el primer resultado válido |
 | Se libera una mesa antes del pago | Validar la máquina de estados y aceptar la liberación solo tras un pago confirmado |
 

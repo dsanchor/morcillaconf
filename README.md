@@ -140,3 +140,9 @@ validar solo la sintaxis sin crear recursos:
 ```bash
 bash -n scripts/deploy-container-apps.sh
 ```
+
+> Estado transitorio (30/09/2026): el script versionado todavía monta Azure
+> Files, que es el comportamiento descrito arriba. Se ha acordado sustituir
+> esos montajes por SQLite efímero dentro de BFF y MCP para el despliegue de
+> demostración. Hasta que ese cambio se integre, no debe atribuirse al script
+> actual ni presentarse esta topología como persistencia duradera.
