@@ -9,6 +9,7 @@ import httpx
 
 from restaurant_contracts.application import ActorContext
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
+from restaurant_contracts.kitchen import KitchenReport
 from restaurant_contracts.waiter import (
     WAITER_SEATING_RESPONSE_ADAPTER,
     WAITER_TURN_RESPONSE_ADAPTER,
@@ -47,6 +48,8 @@ class WaiterTurnResult:
     persisted_order_preferences: tuple[str, ...]
     session_json: str | None
     seating: SeatingReport | None = None
+    # The kitchen's answer when the waiter sent it the order in this turn.
+    kitchen: KitchenReport | None = None
 
 
 @dataclass(frozen=True)
@@ -149,6 +152,7 @@ class RemoteWaiter:
             ),
             session_json=result.session_json,
             seating=result.seating,
+            kitchen=result.kitchen,
         )
 
     async def decide_seating(

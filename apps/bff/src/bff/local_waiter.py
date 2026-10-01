@@ -150,6 +150,7 @@ class LocalWaiter:
             persisted_order_preferences=tuple(exported.persisted_order_preferences),
             session_json=self._codec.dump(exported.agent_session),
             seating=self._report(turn.visit_id),
+            kitchen=response.kitchen,
         )
 
     async def decide_seating(

@@ -763,6 +763,12 @@ class RestaurantService:
         span.set_attribute("bff.waiter.outcome", "completed" if succeeded else outcome[0])
         if succeeded:
             span.set_attribute("bff.waiter.turn_number", outcome.turn_count)
+            if outcome.kitchen is not None:
+                result = outcome.kitchen.result
+                span.set_attribute(
+                    "bff.kitchen.outcome",
+                    result.verdict if result.status == "planned" else result.code.value,
+                )
         self._finish_turn(job, outcome)
 
     def _finish_turn(
@@ -784,6 +790,20 @@ class RestaurantService:
 
                 if outcome.session_json is not None:
                     row.agent_session_json = outcome.session_json
+                if outcome.kitchen is not None:
+                    # The chef's plan is its own message, between the
+                    # customer's order and the waiter's answer to it.
+                    tx.add_message(
+                        row.conversation_id,
+                        ChatMessage(
+                            message_id=new_id("msg"),
+                            role="kitchen",
+                            text=outcome.kitchen.text,
+                            occurred_at=now,
+                            command_event_id=job.event_id,
+                            kitchen=outcome.kitchen,
+                        ),
+                    )
                 tx.add_message(
                     row.conversation_id,
                     ChatMessage(
