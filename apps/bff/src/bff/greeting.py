@@ -43,11 +43,20 @@ def form_of_address(name: str) -> str:
     return "majo"
 
 
+def arrival_question(name: str) -> str:
+    return (
+        "¿Has venido sola o acompañada?"
+        if form_of_address(name) == "maja"
+        else "¿Has venido solo o acompañado?"
+    )
+
+
 def greeting(name: str) -> str:
     """Greeting with which the waiter receives the customer at the door."""
 
     clean = " ".join(name.split())
+    address = form_of_address(clean)
     return (
-        f"Hombre, {clean}, ¿qué tal, {form_of_address(clean)}? "
-        "¿Has venido solo o acompañado?"
+        f"Hombre, {clean}, ¿qué tal, {address}? "
+        f"{arrival_question(clean)}"
     )

@@ -47,7 +47,7 @@ def test_mcp_is_not_a_bff_dependency() -> None:
 def test_the_bff_refuses_a_seating_mcp_url(monkeypatch) -> None:
     monkeypatch.setenv("SEATING_MCP_URL", "http://127.0.0.1:8080/mcp")
     with pytest.raises(ValueError, match="only client of the seating MCP"):
-        BffSettings(_env_file=None, bff_waiter="scripted")
+        BffSettings(_env_file=None, waiter_agent_url="http://test-waiter.invalid")
 
 
 def test_the_application_gateway_is_gone() -> None:

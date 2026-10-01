@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Seating end to end without Foundry or its knowledge base: the seating MCP,
-# the standalone waiter (scripted model, test code only), the BFF with
-# BFF_WAITER=remote and no MCP client, and the view's HTTP client, each on its
-# own temporary database.
+# the standalone waiter (scripted model, test code only), the BFF with its
+# remote adapter and no MCP client, and the view's HTTP client, each on its own
+# temporary database.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -65,7 +65,7 @@ wait_for "http://127.0.0.1:$agent_port/readiness" "El camarero" "$work/agent.log
 (
   cd "$repo_root/apps/bff"
   # No SEATING_MCP_URL: the waiter is the only client of the seating MCP.
-  exec env -u SEATING_MCP_URL BFF_WAITER=remote \
+  exec env -u SEATING_MCP_URL \
     WAITER_AGENT_URL="http://127.0.0.1:$agent_port" \
     BFF_DATABASE_PATH="$work/bff.db" MEMORY_DATABASE_PATH="$work/memory.db" \
     uv run --frozen uvicorn bff.main:create_app --factory \

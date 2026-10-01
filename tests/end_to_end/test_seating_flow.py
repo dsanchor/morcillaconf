@@ -1,8 +1,8 @@
 """Seating end to end without Foundry; the waiter is the only client of the MCP.
 
 ./scripts/test-e2e-seating.sh starts the seating MCP, the standalone waiter
-(dsanchor's create_server with a scripted model) and the BFF with
-BFF_WAITER=remote and no SEATING_MCP_URL, on fresh databases with the demo
+(dsanchor's create_server with a scripted model) and the remote-only BFF with
+no SEATING_MCP_URL, on fresh databases with the demo
 layout (Mesa 1 y 2 de 2, Mesa 3 y 4 de 4, Mesa 5 de 6, barra de 8). The view's
 HTTP client drives them. The tests run in order and share that room.
 """
@@ -57,7 +57,9 @@ def test_a_typed_yes_never_confirms_and_the_buttons_do() -> None:
 
     ana.decide_table("confirmed")
     assert ana.snapshot.seating.status == "seated"
-    assert ana.snapshot.messages[-1].text == "¡Estupendo! Os acompaño a la Mesa 3."
+    assert ana.snapshot.messages[-1].text == (
+        "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?"
+    )
     ana.decide_table("confirmed")
     assert sum("Os acompaño" in message.text for message in ana.snapshot.messages) == 1
 

@@ -28,16 +28,14 @@ Desde la raíz del repositorio:
 Camarero remoto con el agente ejecutándose en otro proceso:
 
 ```bash
-export BFF_WAITER=remote
 export WAITER_AGENT_URL="http://127.0.0.1:8088"
 ./scripts/run-bff.sh
 curl http://127.0.0.1:8000/healthz   # {"status":"ok","waiter":"remote"}
 ```
 
 Arranca antes el agente con sus variables de Foundry mediante
-`./scripts/run-local.sh`. Sin agente ni Foundry,
-`BFF_WAITER=scripted ./scripts/run-bff.sh` conserva el camarero simulado para
-desarrollo. La vista se conecta con
+`./scripts/run-local.sh`. El BFF no incluye un modo de ejecución simulado; sus
+dobles deterministas se inyectan exclusivamente desde las pruebas. La vista se conecta con
 `FRONTEND_BFF_CLIENT=http FRONTEND_BFF_URL=http://127.0.0.1:8000 ./scripts/run-frontend.sh`
 ([README del frontend](../frontend/README.md)).
 
@@ -68,8 +66,7 @@ La imagen se ejecuta como usuario no root, guarda SQLite en `/data` y expone un
 
 | Variable | Uso | Por defecto |
 |---|---|---|
-| `BFF_WAITER` | `remote` (Responses 2.0) o `scripted` (desarrollo) | `remote` |
-| `WAITER_AGENT_URL` | URL base del agente; obligatorio con `remote` | – |
+| `WAITER_AGENT_URL` | URL base obligatoria del agente remoto | – |
 | `WAITER_AGENT_TIMEOUT_SECONDS` | Tiempo máximo de una invocación remota | `60` |
 | `BFF_DATABASE_PATH` | SQLite del BFF: sesiones, visitas, eventos y resultados | `data/bff.db` |
 | `MEMORY_DATABASE_PATH` | SQLite de la memoria del camarero | `data/memory.db` |
@@ -80,8 +77,6 @@ La imagen se ejecuta como usuario no root, guarda SQLite en `/data` y expone un
 | `BFF_SESSION_TTL_HOURS` | Duración de la sesión de demo | `12` |
 | `BFF_EVENT_RETENTION` | Eventos que se conservan por conversación | `500` |
 | `BFF_SSE_HEARTBEAT_SECONDS` | Intervalo del latido SSE | `15` |
-| `BFF_SCRIPTED_DELAY_SECONDS` | Pausa del camarero simulado | `0` |
-| `BFF_SCRIPTED_SEATING` | Mesas simuladas en memoria para el camarero simulado (sin MCP) | `false` |
 | `BFF_HOST`, `BFF_PORT` | Dirección de `run-bff.sh` (`BFF_PORT` también en la imagen) | `0.0.0.0`, `8000` |
 
 El BFF envía la identidad resuelta mediante `x-agent-user-id` y un contrato
@@ -158,8 +153,8 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   niega: «Antes de empezar otra visita, confirma o rechaza la propuesta de …».
   Con el grupo sentado se niega tras pedir al camarero que lea la sala. Si el
   MCP no responde: «El servicio de mesas no responde ahora mismo…». Las
-  pruebas y el modo `scripted` simulan los asientos en memoria
-  (`BFF_SCRIPTED_SEATING`), sin MCP.
+  Las pruebas inyectan dobles deterministas de camarero y asientos en memoria,
+  sin exponerlos como modo de ejecución del BFF.
   Para una persona no hay propuesta ni botones: el camarero consulta los tipos
   disponibles y, cuando el cliente elige mesa o barra, bloquea y confirma el
   sitio en la misma interacción. Los grupos mantienen la propuesta temporal y

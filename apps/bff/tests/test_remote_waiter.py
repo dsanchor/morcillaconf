@@ -127,7 +127,11 @@ async def test_seating_decisions_and_syncs_go_to_the_waiter() -> None:
                 {
                     "status": "completed",
                     "operation": payload["operation"],
-                    "reply": "¡Estupendo! Os acompaño a la Mesa 3." if payload["operation"] == "decide_seating" else "",
+                    "reply": (
+                        "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?"
+                        if payload["operation"] == "decide_seating"
+                        else ""
+                    ),
                     "outcome": "confirmed" if payload["operation"] == "decide_seating" else None,
                     "session_json": '{"state": {"x": 1}}',
                     "seating": {"status": "seated", "token": "t1", "party_size": 3,

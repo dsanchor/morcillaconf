@@ -138,7 +138,7 @@ async def test_a_solo_customer_chooses_an_available_option_and_is_seated_immedia
             say("Hay mesa disponible. ¿Quieres mesa?", 1),
             hold(1, "table"),
             confirm_solo(),
-            say("Perfecto, te acompaño a la Mesa 1.", 1),
+            say("Perfecto, te acompaño a la Mesa 1. ¿Qué quieres tomar?", 1),
         ]
     )
 
@@ -153,7 +153,7 @@ async def test_a_solo_customer_chooses_an_available_option_and_is_seated_immedia
     assert calls(seating_server, "get_seating_availability")
 
     seated = await ana.say("Quiero mesa")
-    assert seated.reply == "Perfecto, te acompaño a la Mesa 1."
+    assert seated.reply == "Perfecto, te acompaño a la Mesa 1. ¿Qué quieres tomar?"
     assert calls(seating_server, "hold_seating")[0][1]["preference"] == "table"
     solo_calls = calls(seating_server, "confirm_solo_seating")
     assert solo_calls[0][1] == {
@@ -206,15 +206,15 @@ async def test_solo_hold_is_directly_confirmed_if_the_model_forgets(waiter, seat
             availability(),
             say("Tengo mesa disponible. ¿Quieres mesa?", 1),
             hold(1, "table"),
-            say("Perfecto, te acompaño a la Mesa 1.", 1),
-            say("Perfecto, te acompaño a la Mesa 1.", 1),
+            say("Perfecto, te acompaño a la Mesa 1. ¿Qué quieres tomar?", 1),
+            say("Perfecto, te acompaño a la Mesa 1. ¿Qué quieres tomar?", 1),
         ]
     )
     await ana.say("He venido sola")
 
     result = await ana.say("Quiero mesa")
 
-    assert result.reply == "Perfecto, te acompaño a la Mesa 1."
+    assert result.reply == "Perfecto, te acompaño a la Mesa 1. ¿Qué quieres tomar?"
     assert len(calls(seating_server, "confirm_solo_seating")) == 1
     assert pending_confirm_request(ana.session.state) is None
     assert ana.report()["status"] == "seated"
@@ -252,7 +252,7 @@ async def test_confirming_after_a_restart_seats_the_group_without_the_model(wait
 
     decided = await ana.decide(True)
 
-    assert decided.reply == "¡Estupendo! Os acompaño a la Mesa 3."
+    assert decided.reply == "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?"
     assert decided.seating["status"] == "seated" and decided.seating["place"]["label"] == "Mesa 3"
     assert decided.awaiting_seating_decision is False
     assert calls(seating_server, "confirm_seating")[0][1] == {
@@ -268,7 +268,7 @@ async def test_confirming_after_a_restart_seats_the_group_without_the_model(wait
         for content in message.contents
         if content.type == "text"
     ]
-    assert history[-1] == "¡Estupendo! Os acompaño a la Mesa 3."
+    assert history[-1] == "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?"
     with pytest.raises(NoPendingSeatingDecisionError):
         await ana.decide(True)
 
@@ -480,7 +480,9 @@ async def test_the_cli_asks_the_operator_to_decide(waiter, seating_server, capsy
     await ask_seating_decision(ana.manager, conversation_id="conv_1", actor_id="ana", read=read)
 
     assert questions == ["¿Confirmar Mesa 3 para 3? (s/n) "] * 2
-    assert "¡Estupendo! Os acompaño a la Mesa 3." in capsys.readouterr().out
+    assert "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?" in (
+        capsys.readouterr().out
+    )
     assert ana.report()["status"] == "seated"
 
 
@@ -509,6 +511,6 @@ async def test_a_retry_after_a_lost_confirmation_reports_the_seat(waiter, seatin
     decided = await ana.decide(True)
 
     assert decided.outcome == "confirmed"
-    assert decided.reply == "¡Estupendo! Os acompaño a la Mesa 3."
+    assert decided.reply == "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?"
     assert decided.seating["status"] == "seated"
     assert [name for name, _ in seating_server.stub.calls].count("confirm_seating") == 1

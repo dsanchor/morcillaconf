@@ -37,7 +37,7 @@ def test_empty_name_defaults_to_majo() -> None:
 
 def test_greeting_uses_the_normalized_name() -> None:
     assert greeting("Ana") == (
-        "Hombre, Ana, ¿qué tal, maja? ¿Has venido solo o acompañado?"
+        "Hombre, Ana, ¿qué tal, maja? ¿Has venido sola o acompañada?"
     )
     assert greeting("  Luis   Mateo ") == (
         "Hombre, Luis Mateo, ¿qué tal, majo? ¿Has venido solo o acompañado?"

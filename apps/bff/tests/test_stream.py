@@ -12,11 +12,14 @@ from bff.main import create_app
 
 
 @pytest.fixture
-def serve(settings):
+def serve(settings, waiter_factory):
     servers = []
 
     def start(**overrides) -> str:
-        app = create_app(settings.model_copy(update=overrides))
+        app = create_app(
+            settings.model_copy(update=overrides),
+            waiter_factory=waiter_factory,
+        )
         server = uvicorn.Server(
             uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
         )

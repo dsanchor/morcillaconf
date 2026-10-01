@@ -17,8 +17,7 @@ COPY apps/bff/tests ./tests
 # Only for the check that the BFF uses the waiter's validated versions.
 COPY agents/restaurant/src/restaurant_agent/uv.lock /workspace/agents/restaurant/src/restaurant_agent/uv.lock
 RUN uv sync --frozen --all-groups
-# The tests never call Foundry.
-ENV BFF_WAITER=scripted
+# Tests inject deterministic doubles and never call Foundry.
 CMD ["/workspace/apps/bff/.venv/bin/python", "-m", "pytest"]
 
 FROM base AS runtime

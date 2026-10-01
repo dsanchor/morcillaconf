@@ -261,7 +261,9 @@ def test_a_stated_party_gets_a_proposal_and_confirming_seats_it() -> None:
     assert visit.allows(Action.DECIDE_TABLE)
     visit.decide_table("confirmed")
     assert visit.snapshot.seating.status == "seated"
-    assert visit.snapshot.messages[-1].text == "¡Estupendo! Os acompaño a la Mesa 3."
+    assert visit.snapshot.messages[-1].text == (
+        "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?"
+    )
     assert visit.walk_elapsed() is not None and visit.walk_elapsed() < 1
     visit.decide_table("confirmed")
     assert sum("Os acompaño" in message.text for message in visit.snapshot.messages) == 1

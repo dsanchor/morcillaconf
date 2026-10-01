@@ -84,8 +84,8 @@ El cliente HTTP (`http_client.py`) usa solo la biblioteca estándar (`urllib`
 en hilos con `asyncio.to_thread`), así que no cambia `uv.lock`. El nombre de la
 puerta se envía una sola vez para abrir la sesión de demo; después solo viaja
 un token opaco. Si el BFF no responde, la puerta sigue cerrada con un aviso.
-«Camarero simulado» solo aparece con el falso o con el camarero simulado del
-BFF (`BFF_WAITER=scripted`); con el camarero real el BFF informa `remote`.
+«Camarero simulado» solo aparece con el falso del frontend o los dobles
+inyectados por las pruebas; el BFF en ejecución informa siempre `remote`.
 
 ## Imagen de contenedor y despliegue en Container Apps
 
@@ -187,8 +187,8 @@ Particularidades de Streamlit:
    la conversación), ventana de conversación, «Camarero simulado» y el plano.
    `/exit` vuelve a la puerta cerrada.
 
-El camarero simulado saluda con «Hombre, {nombre}, ¿qué tal, maja/majo? ¿Has
-venido solo o acompañado?», responde frases breves y convierte «prefiero …» y «soy
+El camarero simulado adapta el saludo: «¿Has venido sola o acompañada?» tras
+«maja» y «¿Has venido solo o acompañado?» tras «majo». Responde frases breves y convierte «prefiero …» y «soy
 alérgica a …» en recuerdos visibles. Los recuerdos pertenecen a la identidad:
 sobreviven a `/new` y a salir y volver a entrar con el mismo nombre mientras
 dure la sesión del navegador.

@@ -123,7 +123,7 @@ def clock() -> Clock:
 def settings(tmp_path: Path) -> BffSettings:
     return BffSettings(
         _env_file=None,
-        bff_waiter="scripted",
+        waiter_agent_url="http://test-waiter.invalid",
         bff_database_path=tmp_path / "bff.db",
         memory_database_path=tmp_path / "memory.db",
         bff_sse_heartbeat_seconds=0.2,
@@ -131,6 +131,19 @@ def settings(tmp_path: Path) -> BffSettings:
 
 
 ServiceFactory = Callable[..., RestaurantService]
+
+
+@pytest.fixture
+def waiter_factory():
+    def build(config, memory_store):
+        return LocalWaiter(
+            ScriptedWaiterAgent(),
+            mode="scripted",
+            max_turns=config.waiter_max_turns,
+            memory_store=memory_store,
+        )
+
+    return build
 
 
 @pytest.fixture

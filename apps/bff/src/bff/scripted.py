@@ -1,4 +1,4 @@
-"""Deterministic scripted waiter for tests, CI and offline development.
+"""Deterministic scripted waiter used only as an internal test double.
 
 It never calls a model. It reads the prompt that ConversationManager builds,
 so the whole application path (turn limit, memory, order guard, presented
@@ -26,6 +26,7 @@ from restaurant_agent.conversation import SeatingUnavailableError
 from restaurant_agent.memory.contracts import MemoryIntent
 from restaurant_agent.seating import VISIT_CONTEXT_KEY
 
+from bff.greeting import arrival_question
 from bff.scripted_seating import ScriptedSeating, ScriptedSeatingUnavailable
 
 _STATE = re.compile(r"Estado confirmado antes de este turno:\n(?P<state>.*?)\n\n", re.S)
@@ -211,7 +212,7 @@ class ScriptedWaiterAgent:
             return f"Lo siento, ahora mismo no hay sitio para {size}."
         if size == 1:
             self._seating.decide(visit_id, held.token, True)
-            return f"Perfecto, te acompaño a {held.place_text()}."
+            return f"Perfecto, te acompaño a {held.place_text()}. ¿Qué quieres tomar?"
         return _describe(held.place_text(), held.kind, size, preference)
 
     def _reply(
@@ -280,7 +281,7 @@ class ScriptedWaiterAgent:
             )
         )
         if not party_answered and not accompanied_answer:
-            parts.append("¿Has venido solo o acompañado?")
+            parts.append(arrival_question(fixed_name or customer.presented_name or ""))
         elif not parts:
             addressed = fixed_name or customer.presented_name
             parts.append(f"Tomo nota, {addressed}." if addressed else "Tomo nota.")

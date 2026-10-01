@@ -100,7 +100,10 @@ async def test_a_turn_pauses_and_a_decision_confirms_through_the_agent(remote, s
     )
 
     assert isinstance(decided, WaiterSeatingSuccess)
-    assert (decided.outcome, decided.reply) == ("confirmed", "¡Estupendo! Os acompaño a la Mesa 3.")
+    assert (decided.outcome, decided.reply) == (
+        "confirmed",
+        "¡Estupendo! Os acompaño a la Mesa 3. ¿Qué queréis tomar?",
+    )
     assert decided.seating.status == "seated" and decided.seating.awaiting_decision is False
     assert [name for name, _ in seating_server.stub.calls].count("confirm_seating") == 1
     assert len(model.calls) == 2
