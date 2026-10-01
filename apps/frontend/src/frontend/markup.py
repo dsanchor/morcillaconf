@@ -8,10 +8,20 @@ customer's text as Markdown, math or shortcodes.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from html import escape
 from typing import Literal
 
+from restaurant_contracts.application import ChatMessage
+from restaurant_contracts.kitchen import (
+    STATION_LABELS,
+    AcceptedItem,
+    KitchenFailure,
+    KitchenPlan,
+    KitchenSource,
+    StationTask,
+)
 from restaurant_contracts.seating import RoomView, SeatingProposal, SeatingView
 
 from frontend.facade import facade_html
@@ -22,6 +32,13 @@ from frontend.visit import Card, ConversationView
 DOOR_HINT = "Dinos tu nombre y te abrimos."
 SIMULATED_LABEL = "Camarero simulado"
 TYPING_LABEL = "El camarero está escribiendo"
+KITCHEN_LABEL = "Plan de cocina"
+KITCHEN_VERDICTS = {
+    "accepted": "Cocina acepta el pedido.",
+    "partial": "Cocina acepta parte del pedido.",
+    "rejected": "Cocina no puede aceptar el pedido.",
+}
+KITCHEN_FAILED = "Cocina no ha podido revisar el pedido."
 
 
 @dataclass(frozen=True)
@@ -119,6 +136,8 @@ def conversation_markup(view: ConversationView, *, reveal: Reveal | None = None)
                 rows.append(_revealed_greeting(message.text, reveal.pace))
             else:
                 rows.append(_waiter_row(text_html(message.text)))
+        elif message.role == "kitchen":
+            rows.append(kitchen_row(message))
         else:
             rows.append(_customer_row(message.text))
         rows.extend(_card(card) for card in placed.pop(message.message_id, []))
@@ -141,6 +160,111 @@ def _waiter_row(body: str, *, extra: str = "", hidden: bool = False) -> str:
         f'<div class="msg camarero{extra}"{aria}>{waiter_icon_svg()}'
         f'<div class="burbuja">{body}</div></div>'
     )
+
+
+def chef_icon_svg() -> str:
+    """The chef's toque, white on the kitchen's blue, for the conversation."""
+
+    return (
+        '<svg class="icono" viewBox="-16 -16 32 32" aria-hidden="true" focusable="false">'
+        '<path d="M-8.5 4.5 C-14.5 4.5 -15 -5.5 -8.5 -6 C-8 -13.5 1 -14.5 3 -9.5 '
+        'C6.5 -13 13.5 -10 11.5 -4.5 C15.5 -2.5 13.5 4.5 8.5 4.5 Z" '
+        'fill="#fbf8f1" stroke="#0e2747" stroke-width="1.4" stroke-linejoin="round"/>'
+        '<path d="M-3.5 4 C-4.2 0.5 -3.6 -2.5 -2.2 -5 M3 4 C3.6 0.8 3.4 -1.8 2.2 -4.2" '
+        'fill="none" stroke="#7d93b3" stroke-width="1.1" stroke-linecap="round"/>'
+        '<rect x="-8.5" y="3.5" width="17" height="7.5" rx="1.6" '
+        'fill="#fbf8f1" stroke="#0e2747" stroke-width="1.4"/>'
+        '<path d="M-8.5 7.2 H8.5" stroke="#7d93b3" stroke-width="1.1"/></svg>'
+    )
+
+
+def kitchen_row(message: ChatMessage) -> str:
+    """The chef's own bubble: the kitchen's plan or why it could not make one."""
+
+    report = message.kitchen
+    if report is None:
+        body = f"<p>{text_html(message.text)}</p>"
+    elif isinstance(report.result, KitchenFailure):
+        body = f'<p class="titular">{KITCHEN_FAILED}</p><p>{text_html(report.result.message)}</p>'
+    else:
+        body = _plan_body(report.result)
+    return (
+        f'<div class="msg cocina">{chef_icon_svg()}'
+        f'<div class="burbuja plan-cocina" role="group" aria-label="{KITCHEN_LABEL}">'
+        f"{body}</div></div>"
+    )
+
+
+def _plan_body(plan: KitchenPlan) -> str:
+    parts = [f'<p class="titular">{KITCHEN_VERDICTS[plan.verdict]}</p>']
+    if plan.accepted:
+        parts.append(_section("Aceptado", [_accepted(item) for item in plan.accepted]))
+    if plan.rejected:
+        parts.append(
+            _section(
+                "Rechazado",
+                [_item(f"{item.quantity} × {item.requested}", [item.reason]) for item in plan.rejected],
+            )
+        )
+    if plan.warnings:
+        parts.append(_section("Avisos", [_item(warning) for warning in plan.warnings]))
+    if plan.stations:
+        parts.append(
+            _section(
+                "Partidas",
+                [
+                    _item(STATION_LABELS[station.station], [_task(task) for task in station.tasks])
+                    for station in plan.stations
+                ],
+            )
+        )
+    if plan.sources:
+        cited = " · ".join(_source(source) for source in plan.sources)
+        parts.append(f'<p class="fuentes">{text_html("Fuentes: " + cited)}</p>')
+    return "".join(parts)
+
+
+def _section(title: str, items: list[str]) -> str:
+    return f'<p class="apartado">{text_html(title)}</p><ul>{"".join(items)}</ul>'
+
+
+def _item(head: str, details: Sequence[str] = ()) -> str:
+    lines = "".join(f'<span class="detalle">{text_html(detail)}</span>' for detail in details if detail)
+    return f'<li><span class="plato">{text_html(head)}</span>{lines}</li>'
+
+
+def _accepted(item: AcceptedItem) -> str:
+    station = STATION_LABELS[item.station]
+    if not item.allergens_verified:
+        allergens = "alérgenos pendientes de verificar"
+    else:
+        allergens = "alérgenos: " + (", ".join(item.allergens) or "ninguno de los 14")
+        if item.traces:
+            allergens += "; puede contener " + ", ".join(item.traces)
+    detail = " · ".join([station, *item.adaptations, allergens])
+    return _item(f"{item.quantity} × {item.name}", [detail])
+
+
+def _task(task: StationTask) -> str:
+    text = f"{task.quantity} × {task.name}"
+    if task.steps:
+        text += ". " + " ".join(_sentence(step) for step in task.steps)
+    if task.omit:
+        text += " Omitir: " + _sentence(", ".join(task.omit))
+    if task.precautions:
+        text += " Precauciones: " + " ".join(_sentence(item) for item in task.precautions)
+    return text
+
+
+def _source(source: KitchenSource) -> str:
+    details = ", ".join(
+        detail for detail in (f"versión {source.version}" if source.version else "", source.detail or "") if detail
+    )
+    return f"{source.document} ({details})" if details else source.document
+
+
+def _sentence(text: str) -> str:
+    return text if text.endswith((".", "!", "?", "…")) else f"{text}."
 
 
 def _customer_row(text: str, *, extra: str = "") -> str:

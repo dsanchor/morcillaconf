@@ -43,9 +43,11 @@ from restaurant_contracts.application import (
 )
 from restaurant_contracts.client import BffClientError
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
+from restaurant_contracts.kitchen import KitchenReport
 from restaurant_contracts.memory import MemoryKind
 from restaurant_contracts.seating import RoomView
 
+from frontend.fake_kitchen import fake_kitchen_report, kitchen_reply
 from frontend.fake_seating import FakeRoom, party_size
 from frontend.greeting import greeting
 
@@ -370,6 +372,11 @@ class FakeRestaurant:
         )
         if note:
             reply = f"{reply} {note}" if preferences or restrictions else note
+        kitchen = fake_kitchen_report(text, self._next_id("ko"))
+        if kitchen is not None:
+            # The simulated chef's bubble goes before the waiter's summary.
+            self._add_message(conversation, "kitchen", kitchen.text, command.event_id, kitchen=kitchen)
+            reply = kitchen_reply(kitchen)
         self._say(conversation, command, correlation_id, reply, pause=self.pause_seconds)
         return None
 
@@ -452,10 +459,12 @@ class FakeRestaurant:
     def _add_message(
         self,
         conversation: _Conversation,
-        role: Literal["user", "assistant"],
+        role: Literal["user", "assistant", "kitchen"],
         text: str,
         command_event_id: str,
         message_id: str | None = None,
+        *,
+        kitchen: KitchenReport | None = None,
     ) -> None:
         conversation.messages.append(
             ChatMessage(
@@ -464,6 +473,7 @@ class FakeRestaurant:
                 text=text,
                 occurred_at=self._clock(),
                 command_event_id=command_event_id,
+                kitchen=kitchen,
             )
         )
 
