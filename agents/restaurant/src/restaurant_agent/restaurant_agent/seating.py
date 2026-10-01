@@ -286,6 +286,17 @@ def confirm_arguments(proposal: Mapping[str, Any], visit_id: str) -> dict[str, A
     }
 
 
+def confirm_call_arguments(proposal: Mapping[str, Any], visit_id: str) -> str:
+    """The authoritative arguments as a function call stored in the history.
+
+    The history is replayed to the Responses API on later turns, and its schema
+    only accepts ``arguments`` as a JSON string: a dict makes every later model
+    call fail with HTTP 400 (invalid_payload).
+    """
+
+    return json.dumps(confirm_arguments(proposal, visit_id))
+
+
 def card_reply(state: Mapping[str, Any]) -> str | None:
     proposal = pending_proposal(state)
     if proposal is None:
@@ -1027,7 +1038,7 @@ class SeatingApprovalChatMiddleware(ChatMiddleware):
                 message.contents = [content for content in message.contents if id(content) not in drop]
             confirms = [call for call in confirms if id(call) not in drop]
         if confirms and proposal is not None and visit_id is not None:
-            confirms[0].arguments = confirm_arguments(proposal, visit_id)
+            confirms[0].arguments = confirm_call_arguments(proposal, visit_id)
             state[CONFIRM_CALL_KEY] = confirms[0].call_id
             state.pop(FRESH_HOLD_KEY, None)
             state.pop(SUPERSEDED_KEY, None)
@@ -1053,7 +1064,7 @@ def _confirm_call(state: State, proposal: Mapping[str, Any], visit_id: str) -> C
     return Content.from_function_call(
         call_id=call_id,
         name=CONFIRM_TOOL,
-        arguments=confirm_arguments(proposal, visit_id),
+        arguments=confirm_call_arguments(proposal, visit_id),
     )
 
 
@@ -1061,5 +1072,5 @@ def _solo_confirm_call(proposal: Mapping[str, Any], visit_id: str) -> Content:
     return Content.from_function_call(
         call_id=f"seating-confirm-solo-{uuid4().hex[:16]}",
         name=SOLO_CONFIRM_TOOL,
-        arguments=confirm_arguments(proposal, visit_id),
+        arguments=confirm_call_arguments(proposal, visit_id),
     )

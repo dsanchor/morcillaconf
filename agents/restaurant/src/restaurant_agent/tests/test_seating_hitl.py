@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 from agent_framework import AgentSession, Content, Message
+from agent_framework.foundry import FoundryChatClient
 
 from restaurant_agent.agent import create_waiter_agent
 from restaurant_agent.config import Settings
@@ -90,6 +91,55 @@ class Waiter:
 
 def calls(server, name=None):
     return [call for call in server.stub.calls if name is None or call[0] == name]
+
+
+class _NoCredential:
+    def get_token(self, *scopes, **kwargs):
+        raise AssertionError("These tests never call Foundry")
+
+
+RESPONSES_INPUT_TYPES = {"message", "function_call", "function_call_output", "reasoning"}
+AUTHORITATIVE_CONFIRM = {
+    "assignment_id": "seat_1",
+    "visit_id": "visit_ana",
+    "expected_version": 1,
+    "idempotency_key": "confirm:seat_1:1",
+}
+
+
+def responses_input(model_call: dict) -> list[dict]:
+    """The Responses ``input`` the production Foundry client builds for a model call.
+
+    The waiter sends ``store=False``: the whole history is replayed inline.
+    """
+
+    client = FoundryChatClient(
+        project_endpoint="https://example.services.ai.azure.com/api/projects/demo",
+        model="test-model",
+        credential=_NoCredential(),
+    )
+    return client._prepare_messages_for_openai(
+        model_call["raw_messages"], request_uses_service_side_storage=False
+    )
+
+
+def function_calls_of_valid_input(items: list[dict]) -> list[dict]:
+    """Check the shapes the Responses schema enforces; return the function calls."""
+
+    json.dumps(items)
+    function_calls = []
+    for item in items:
+        assert item.get("type") in RESPONSES_INPUT_TYPES, item
+        if item["type"] == "function_call":
+            assert isinstance(item["arguments"], str), item
+            assert isinstance(json.loads(item["arguments"]), dict), item
+            assert isinstance(item["call_id"], str) and item["call_id"], item
+            assert item["id"].startswith("fc_"), item
+            function_calls.append(item)
+        elif item["type"] == "function_call_output":
+            assert isinstance(item["call_id"], str) and item["call_id"], item
+            assert isinstance(item["output"], str | list), item
+    return function_calls
 
 
 @pytest.fixture
@@ -291,6 +341,48 @@ async def test_a_model_confirm_request_gets_the_authoritative_arguments(waiter, 
     assert response.reply == "Os propongo la Mesa 3 para 3. Confirmadlo o rechazadlo con los botones."
     assert response.customer.party_size == 3
     assert pending_confirm_request(ana.session.state).function_call.parse_arguments()["assignment_id"] == "seat_1"
+
+
+@pytest.mark.parametrize(
+    "proposal",
+    [say("Os propongo la Mesa 1.", 2), confirm()],
+    ids=["confirm-added-by-the-waiter", "confirm-asked-by-the-model"],
+)
+async def test_the_turn_after_a_button_decision_sends_a_valid_responses_input(
+    waiter, seating_server, proposal
+) -> None:
+    # Regression: the confirm call stayed in the history with dict arguments,
+    # so Foundry rejected every later model call with HTTP 400.
+    ana = waiter([hold(2), proposal, say("Anoto dos cañas.", 2)])
+    await ana.say("Somos dos")
+    await ana.decide(True)
+
+    response = await ana.say("Dos cañas, por favor.")
+
+    assert response.reply == "Anoto dos cañas."
+    function_calls = function_calls_of_valid_input(responses_input(ana.model.calls[-1]))
+    [confirmation] = [call for call in function_calls if call["name"] == "seating_confirm_seating"]
+    assert json.loads(confirmation["arguments"]) == AUTHORITATIVE_CONFIRM
+
+
+async def test_a_solo_confirmation_added_by_the_waiter_sends_a_valid_responses_input(
+    waiter, seating_server
+) -> None:
+    ana = waiter(
+        [
+            availability(),
+            say("Tengo mesa disponible. ¿Quieres mesa?", 1),
+            hold(1, "table"),
+            say("Perfecto, te acompaño a la Mesa 1.", 1),
+            say("Perfecto, te acompaño a la Mesa 1. ¿Qué quieres tomar?", 1),
+        ]
+    )
+    await ana.say("He venido sola")
+    await ana.say("Quiero mesa")
+
+    function_calls = function_calls_of_valid_input(responses_input(ana.model.calls[-1]))
+    [confirmation] = [call for call in function_calls if call["name"] == "seating_confirm_solo_seating"]
+    assert json.loads(confirmation["arguments"]) == AUTHORITATIVE_CONFIRM
 
 
 async def test_confirming_after_a_restart_seats_the_group_without_the_model(waiter, seating_server) -> None:
