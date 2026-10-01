@@ -1,0 +1,26 @@
+{
+  "name": "recetario-index",
+  "description": "Recetario de la casa (PDF) y ficha de ingredientes de cocina: cómo se elabora cada plato de la carta, qué ingredientes lleva, sus alérgenos y qué platos usan cada ingrediente.",
+  "fields": [
+    { "name": "chunk_id", "type": "Edm.String", "key": true, "searchable": true, "retrievable": true, "filterable": false, "sortable": false, "facetable": false, "analyzer": "keyword" },
+    { "name": "parent_id", "type": "Edm.String", "searchable": false, "retrievable": true, "filterable": true, "sortable": false, "facetable": false },
+    { "name": "title", "type": "Edm.String", "searchable": true, "retrievable": true, "filterable": false, "sortable": false, "facetable": false, "analyzer": "es.microsoft" },
+    { "name": "doc_type", "type": "Edm.String", "searchable": false, "retrievable": true, "filterable": true, "sortable": false, "facetable": false },
+    { "name": "version", "type": "Edm.String", "searchable": false, "retrievable": true, "filterable": true, "sortable": false, "facetable": false },
+    { "name": "source_file", "type": "Edm.String", "searchable": false, "retrievable": true, "filterable": true, "sortable": false, "facetable": false },
+    { "name": "content", "type": "Edm.String", "searchable": true, "retrievable": true, "filterable": false, "sortable": false, "facetable": false, "analyzer": "es.microsoft" }
+  ],
+  "semantic": {
+    "defaultConfiguration": "recetario-semantic",
+    "configurations": [
+      {
+        "name": "recetario-semantic",
+        "prioritizedFields": {
+          "titleField": { "fieldName": "title" },
+          "prioritizedContentFields": [ { "fieldName": "content" } ],
+          "prioritizedKeywordsFields": []
+        }
+      }
+    ]
+  }
+}

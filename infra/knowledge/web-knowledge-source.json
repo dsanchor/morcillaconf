@@ -1,0 +1,6 @@
+{
+  "name": "web-bing",
+  "kind": "web",
+  "description": "Búsqueda web pública (Grounding with Bing). Fuente externa de respaldo: solo para información pública general que no está en la carta ni en el recetario de la casa, como la historia de un producto o su denominación de origen. Nunca para precios, existencias ni para lo que ofrece el mesón.",
+  "webParameters": {}
+}

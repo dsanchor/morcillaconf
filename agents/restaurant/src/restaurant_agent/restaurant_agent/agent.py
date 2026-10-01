@@ -7,6 +7,7 @@ from agent_framework import Agent, MCPStreamableHTTPTool
 
 from restaurant_agent.config import Settings
 from restaurant_agent.contracts import WaiterModelResult
+from restaurant_agent.knowledge import KnowledgeToolMiddleware, create_knowledge_tool
 from restaurant_agent.memory.context import DurableMemoryContextProvider
 from restaurant_agent.memory.intent import MemoryIntentDecision
 from restaurant_agent.memory.middleware import (
@@ -124,8 +125,10 @@ def create_waiter_agent(
             "response_format": HabitualOrderQuestion,
         },
     )
-    tools = create_seating_tools(settings)
-    context_providers = [VisitContextProvider(tools[0] if tools else None)]
+    seating_tools = create_seating_tools(settings)
+    knowledge_tool = create_knowledge_tool(settings)
+    tools: list[Any] = [*(seating_tools or []), *([knowledge_tool] if knowledge_tool else [])]
+    context_providers = [VisitContextProvider(seating_tools[0] if seating_tools else None)]
     if memory_store:
         context_providers.append(
             DurableMemoryContextProvider(
@@ -141,7 +144,7 @@ def create_waiter_agent(
             )
         )
     default_options: dict[str, Any] = {"store": False}
-    if tools:
+    if seating_tools:
         # One call per model response: a hold must run before its confirmation.
         default_options["allow_multiple_tool_calls"] = False
     if settings.enable_dev_fake_identity:
@@ -152,11 +155,12 @@ def create_waiter_agent(
         description="Atiende al cliente y mantiene un borrador del pedido.",
         client=client,
         instructions=load_instructions(),
-        tools=tools,
+        tools=tools or None,
         context_providers=context_providers,
         middleware=[
             HabitualOrderMiddleware(intent_classifier),
             SeatingToolContextMiddleware(),
+            KnowledgeToolMiddleware(),
             SeatingApprovalChatMiddleware(),
         ],
         default_options=default_options,

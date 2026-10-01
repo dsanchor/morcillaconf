@@ -22,7 +22,7 @@ indicadas en el propio plan.
 | 2. Memoria persistente automática | Completada | Validada conjuntamente el 28/09 | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
 | 3. Vista única, BFF y continuidad | Implementada: 3A, 3B, 3C y 3D validadas en el Codespace el 28/09 | Pendiente; validada por Jesús el 28/09 ([revisión de 3A](docs/revision-fase-3a-jesus.md), [validación de 3C y 3D](#validación-en-el-codespace-28092026)) | 3A: 133 pruebas y 15 reglas del contrato. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) e imagen Docker publicada. 3C/3D: [BFF](#fase-3c-bff) con el camarero en Foundry; 146 + 8, 123 y 96 pruebas, smoke real y recorrido manual superados |
 | 4. Mesas y recorrido local con control de caja | Parcial: flujo de asientos integrado en `main`; pedido, caja, pago y liberación pendientes | Revisión conjunta del alcance completo pendiente | Bloqueo temporal, confirmación/rechazo, concurrencia, plano y recorrido E2E implementados |
-| 5. Conocimiento compartido con Foundry IQ y MCP | Acordada el 30/09; implementación iniciada fuera de `main` | Pendiente | Carta estática inicial, recetas e ingredientes en una base reutilizable por camarero y chef |
+| 5. Conocimiento compartido con Foundry IQ y MCP | Implementada en PR, fuera de `main`: base de conocimiento con carta, recetario en PDF con ficha de ingredientes y web de respaldo; el camarero la consulta por su endpoint MCP | Pendiente | [Fase 5](#fase-5-carta-con-foundry-iq-30092026): base aprovisionada y consultada por REST y MCP; camarero local con Foundry respondiendo desde cada fuente con su cita; 263 + 30 pruebas locales y recorrido E2E de asientos |
 | 6. Chef líder y especialistas | Diseño por detallar | Pendiente | Se prioriza después de conectar la carta |
 | 7. Validación de Hosted Agent | Pospuesta hasta disponer de carta y orquestación representativas | Pendiente | El agente actual se ha ejecutado localmente y como contenedor remoto, pero no acredita el workflow objetivo completo |
 | 8. Proveedor mediante A2A | Pendiente | Pendiente | Sin implementación |
@@ -79,6 +79,110 @@ registran como pendientes y no como evidencia implementada:
   JSON distinto debe publicarse con un ID nuevo.
 - Foundry y el grupo de recursos se consideran prerrequisitos del script actual;
   no se provisiona Foundry automáticamente.
+
+## Fase 5: carta con Foundry IQ (30/09/2026)
+
+Propuesta en un PR, pendiente de la revisión conjunta; no se marca ninguna
+casilla del plan.
+
+### Implementado
+
+- **Contenido** ([`data/knowledge`](data/knowledge/README.md)), original,
+  sintético y en español:
+  - una carta estática, sin dependencia de la fecha, por partidas (brasa,
+    fritos y pinchos fríos) y barra, con identificadores estables, precios en
+    euros, los 14 alérgenos de la UE, advertencias y procedencia en cada
+    plato; el chorizo a la brasa tiene los alérgenos «pendientes de verificar»
+    para demostrar la información ausente;
+  - un recetario de cocina burgalesa en HTML, impreso a PDF con Chromium;
+  - una ficha de ingredientes.
+
+  Una prueba de contrato comprueba la coherencia entre los tres documentos.
+- **Base de conocimiento** (`./scripts/provision-knowledge.sh`, con az CLI y
+  REST, idempotente): una base de Foundry IQ con exactamente tres fuentes:
+  - la carta, desde Blob Storage;
+  - el recetario y los ingredientes, en un índice propio alimentado por un
+    indexador desde el PDF;
+  - la web con Bing, como respaldo.
+
+  La base usa `gpt-4.1-mini` para planificar las consultas y resumir la web.
+  Sus instrucciones de recuperación reservan la web para información pública
+  general. Las definiciones de búsqueda están en [`infra/knowledge`](infra/knowledge).
+- **Camarero:** un segundo `MCPStreamableHTTPTool` hacia el endpoint MCP propio
+  de la base.
+  - `knowledge_base_retrieve` es de solo lectura y no pide aprobación.
+  - Usa Entra ID: la identidad administrada en Azure y `DefaultAzureCredential`
+    en local.
+  - Los tiempos están acotados.
+  - Etiqueta cada resultado como documento de la casa o fuente externa (web).
+  - Una caída de la base nunca bloquea el turno ni los asientos, y el
+    proceso no reintenta la conexión hasta pasados 30 s.
+  - Las instrucciones exigen citar la fuente y no deducir alérgenos, y reservan
+    la web a un respaldo identificado.
+  - `decide_seating` y `sync_seating` no se conectan a la base.
+  - Sin configuración, el camarero funciona como antes.
+- **Despliegue:** tres variables opcionales y juntas. Con ellas, la identidad del
+  agente recibe `Search Index Data Reader` y el agente, la configuración.
+- **Pendiente para la fase 6:** el chef reutilizará la misma base y el mismo
+  endpoint; la despensa seguirá siendo un MCP operacional aparte.
+
+### Recursos de Azure creados
+
+En `rg-morcillaconf-aca`, región `swedencentral` (España Central no ofrece
+recuperación agéntica):
+
+- **Almacenamiento:** la cuenta `stmorcillaconf`, con los contenedores `carta` y
+  `recetario`.
+- **Azure AI Search Basic:** el servicio `srch-morcillaconf`, con identidad
+  administrada y solo autenticación Entra ID.
+- **Base de conocimiento** `conocimiento-restaurante`, con:
+  - sus fuentes `carta-de-la-casa`, `recetario-de-la-casa` y `web-bing`;
+  - el índice `recetario-index`, con su indexador.
+- **Roles:**
+  - el buscador lee el almacenamiento y usa el modelo del proyecto Foundry;
+  - el camarero desplegado ya tiene `Search Index Data Reader`.
+
+No se ha tocado el despliegue de Container Apps.
+
+### Evidencia
+
+- **Aprovisionamiento:** se ejecutó varias veces sin cambios inesperados. El
+  indexador del recetario procesa 2 documentos y el de la carta, 1, sin
+  fallos.
+- **Consultas por REST y MCP:**
+  - «¿Qué tenéis típico de Burgos?» solo consulta la carta.
+  - «¿Qué lleva la morcilla?» consulta el recetario y la carta.
+  - «¿Qué es la IGP Morcilla de Burgos?» solo consulta la web. Hace tres
+    búsquedas y tarda unos 8 s.
+- **Camarero local** con `gpt-5.6-luna`, la base y el MCP de asientos. Responde
+  a las tres preguntas con su cita:
+  - «Fuente: carta de la casa, versión 1»;
+  - «Fuente: recetario de la casa, versión 1, receta R01»;
+  - «Fuente externa, web: …».
+
+  Además:
+  - Admite los alérgenos pendientes del chorizo.
+  - Con una base inexistente, dice que no puede consultar la carta.
+  - Mantiene el bloqueo y la confirmación de mesa.
+- **Pruebas:** 263 del camarero, los contratos y la carta, y 30 del MCP
+  (`./scripts/test.sh`); 6 del recorrido E2E de asientos; 146 del BFF.
+- **CI:** la evidencia está en el PR.
+
+### Límites y pendientes
+
+- **Versión preview:** la base y su endpoint MCP usan la versión preview
+  `2026-08-01-preview`, sin SLA.
+- **Web:**
+  - Sale del límite de datos de Azure y cuesta por uso.
+  - Sus resúmenes llegan en inglés; el camarero responde en español.
+- **Fuentes en la respuesta:** las citas van en el texto de la respuesta. No se
+  ha cambiado el contrato ni la vista.
+- **Borrador del pedido:** sus productos siguen sin verificar hasta que cocina
+  confirme la disponibilidad.
+- **Pendientes tras el PR:**
+  - la revisión conjunta;
+  - redesplegar el camarero con las variables de la base;
+  - probar en el navegador.
 
 ## Fase 4: solo el camarero habla con el MCP (29/09/2026)
 
@@ -740,8 +844,8 @@ botones y el plano muestra la sala.
 
 ## Próximo trabajo previsto
 
-1. Implementar la fase 5: carta estática inicial, recetas e ingredientes en una
-   base compartida de Foundry IQ accesible mediante MCP.
+1. Revisar conjuntamente la fase 5 y redesplegar el camarero con la base de
+   conocimiento de Foundry IQ.
 2. Documentar y construir el scaffolding del chef y sus especialistas usando
    esa misma base; el chef contrasta ingredientes con inventario.
 3. Definir el contrato y la superficie mínima del HITL de caja antes de
@@ -783,6 +887,14 @@ Arrancar el agente local:
 
 ```bash
 ./scripts/run-local.sh
+```
+
+Aprovisionar y consultar la base de conocimiento (ver el
+[README](README.md#base-de-conocimiento-foundry-iq)):
+
+```bash
+./scripts/provision-knowledge.sh scripts/knowledge.env
+./scripts/query-knowledge.sh "¿Qué tenéis típico de Burgos?"
 ```
 
 Ejecutar el smoke real contra Foundry:

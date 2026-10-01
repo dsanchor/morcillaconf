@@ -212,6 +212,11 @@ class RemoteWaiterService:
         agent_factory: Callable = create_waiter_agent,
     ) -> None:
         self._settings = settings
+        # Seating decisions and syncs never call the model, so they never
+        # connect to the knowledge base either.
+        self._seating_settings = settings.model_copy(
+            update={"azure_search_endpoint": None, "knowledge_base_name": None}
+        )
         self._memory = RequestMemoryStore()
         self._agent_factory = agent_factory
 
@@ -259,7 +264,7 @@ class RemoteWaiterService:
 
         with self._memory.bind([]):
             try:
-                async with self._conversation(request) as manager:
+                async with self._conversation(request, settings=self._seating_settings) as manager:
                     decided = await manager.decide_seating(
                         conversation_id=request.conversation_id,
                         actor_id=request.actor.actor_id,
@@ -287,7 +292,7 @@ class RemoteWaiterService:
 
         with self._memory.bind([]):
             try:
-                async with self._conversation(request) as manager:
+                async with self._conversation(request, settings=self._seating_settings) as manager:
                     await manager.sync_seating(
                         conversation_id=request.conversation_id,
                         actor_id=request.actor.actor_id,
@@ -309,10 +314,11 @@ class RemoteWaiterService:
         self,
         request: WaiterTurnRequest | WaiterSeatingRequest,
         *,
+        settings: Settings | None = None,
         state: SessionState | None = None,
         persisted_order_preferences: list[str] | None = None,
     ) -> AsyncIterator[ConversationManager]:
-        agent = self._agent_factory(self._settings, memory_store=self._memory)
+        agent = self._agent_factory(settings or self._settings, memory_store=self._memory)
         entered = False
         try:
             if hasattr(agent, "__aenter__"):

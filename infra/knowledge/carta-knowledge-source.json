@@ -1,0 +1,14 @@
+{
+  "name": "carta-de-la-casa",
+  "kind": "azureBlob",
+  "description": "Carta oficial del mesón: platos y bebidas con identificador, partida (brasa, fritos, pinchos fríos o barra), precio en euros, alérgenos de la UE, advertencias y si el plato es típico de Burgos. Es la única fuente de lo que ofrece el mesón y de sus precios.",
+  "azureBlobParameters": {
+    "connectionString": "ResourceId=${STORAGE_ACCOUNT_ID};",
+    "containerName": "carta",
+    "isADLSGen2": false,
+    "ingestionParameters": {
+      "contentExtractionMode": "minimal",
+      "disableImageVerbalization": true
+    }
+  }
+}

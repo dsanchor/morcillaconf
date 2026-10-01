@@ -1,0 +1,35 @@
+{
+  "name": "recetario-skillset",
+  "description": "Trocea el recetario y la ficha de ingredientes; cada fragmento conserva el título, el tipo, la versión y el fichero de su documento.",
+  "skills": [
+    {
+      "@odata.type": "#Microsoft.Skills.Text.SplitSkill",
+      "name": "trocear",
+      "description": "Fragmentos de hasta 2000 caracteres con 400 de solapamiento, para que cada receta llegue con su cabecera.",
+      "context": "/document",
+      "textSplitMode": "pages",
+      "maximumPageLength": 2000,
+      "pageOverlapLength": 400,
+      "defaultLanguageCode": "es",
+      "inputs": [ { "name": "text", "source": "/document/content" } ],
+      "outputs": [ { "name": "textItems", "targetName": "pages" } ]
+    }
+  ],
+  "indexProjections": {
+    "selectors": [
+      {
+        "targetIndexName": "recetario-index",
+        "parentKeyFieldName": "parent_id",
+        "sourceContext": "/document/pages/*",
+        "mappings": [
+          { "name": "content", "source": "/document/pages/*" },
+          { "name": "title", "source": "/document/title" },
+          { "name": "doc_type", "source": "/document/doc_type" },
+          { "name": "version", "source": "/document/version" },
+          { "name": "source_file", "source": "/document/metadata_storage_name" }
+        ]
+      }
+    ],
+    "parameters": { "projectionMode": "skipIndexingParentDocuments" }
+  }
+}

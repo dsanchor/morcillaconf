@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Recetario de la casa · versión 1</title>
+<meta name="description" content="Recetario de cocina tradicional de Burgos de la demo Morcillaconf. Datos sintéticos.">
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 22mm;
+    @bottom-center {
+      content: "Recetario de la casa · versión 1 · página " counter(page);
+      font: 8.5pt Alegreya, Georgia, "Times New Roman", serif;
+      color: #6b4a2f;
+    }
+  }
+  html { color: #24180f; font: 11pt/1.45 Alegreya, Georgia, "Times New Roman", serif; }
+  body { margin: 0; }
+  h1, h2, h3 { color: #8c1c2b; line-height: 1.2; }
+  h1 { font-size: 28pt; margin: 0 0 6mm; }
+  h2 { font-size: 18pt; margin: 2mm 0 4mm; }
+  h3 { font-size: 12pt; margin: 5mm 0 2mm; text-transform: uppercase; letter-spacing: 0.04em; }
+  p { margin: 0 0 3mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+  li { margin-bottom: 1.2mm; }
+  section { break-before: page; }
+  .portada { break-before: auto; padding-top: 40mm; }
+  .portada .subtitulo { font-size: 14pt; color: #6b4a2f; }
+  .procedencia { font-size: 8.5pt; color: #6b4a2f; border-bottom: 0.3mm solid #b9a685; padding-bottom: 1.5mm; }
+  .alergenos { background: #e7d7b5; border-left: 1.2mm solid #8a6644; padding: 2mm 3mm; }
+  .aviso { font-size: 9pt; color: #6b4a2f; margin-top: 12mm; }
+  table { border-collapse: collapse; width: 100%; font-size: 10pt; }
+  td, th { border-bottom: 0.2mm solid #b9a685; padding: 1.5mm 2mm; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+
+<section class="portada">
+  <p class="procedencia">Recetario de la casa · versión 1 · 30/09/2026 · documento: recetario</p>
+  <h1>Recetario de la casa</h1>
+  <p class="subtitulo">Cocina tradicional de Burgos para la carta del mesón</p>
+  <p>Este recetario reúne las elaboraciones de los platos de la carta de la casa. Cada receta indica
+    el plato de la carta al que corresponde, la partida que lo prepara, sus ingredientes, los pasos y
+    los alérgenos que contiene, con los 14 nombres de declaración obligatoria en la Unión Europea.</p>
+  <p>Las bebidas no tienen receta porque se sirven en la barra. El chorizo a la brasa tampoco, porque
+    es un embutido de proveedor y no se elabora en la casa.</p>
+  <h3>Índice</h3>
+  <table>
+    <tr><th>Receta</th><th>Plato</th><th>Partida</th></tr>
+    <tr><td>R01</td><td>Morcilla de Burgos de la casa (elaboración base)</td><td>brasa</td></tr>
+    <tr><td>R02</td><td>Morcilla de Burgos a la brasa</td><td>brasa</td></tr>
+    <tr><td>R03</td><td>Chuletillas de lechazo a la brasa</td><td>brasa</td></tr>
+    <tr><td>R04</td><td>Pimientos rojos asados</td><td>brasa</td></tr>
+    <tr><td>R05</td><td>Croquetas de morcilla</td><td>fritos</td></tr>
+    <tr><td>R06</td><td>Morcilla frita con pimientos del piquillo</td><td>fritos</td></tr>
+    <tr><td>R07</td><td>Cojonudo de morcilla</td><td>fritos</td></tr>
+    <tr><td>R08</td><td>Tortilla de patatas en pincho</td><td>pinchos fríos</td></tr>
+    <tr><td>R09</td><td>Queso fresco de Burgos con miel y nueces</td><td>pinchos fríos</td></tr>
+    <tr><td>R10</td><td>Ensalada de tomate con cebolleta</td><td>pinchos fríos</td></tr>
+    <tr><td>R11</td><td>Pincho de anchoa y piquillo</td><td>pinchos fríos</td></tr>
+  </table>
+  <p class="aviso">Datos sintéticos de la demo Morcillaconf. No es información alimentaria real.</p>
+</section>
+
+<section class="receta" id="R01" data-carta-ids="">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R01 · elaboración base · partida: brasa</p>
+  <h2>R01. Morcilla de Burgos de la casa</h2>
+  <p>Elaboración base de la casa. De ella salen cuatro platos de la carta:
+    morcilla-de-burgos-a-la-brasa, croquetas-de-morcilla, morcilla-frita-con-piquillos y
+    cojonudo-de-morcilla.</p>
+  <h3>Ingredientes (unas doce morcillas de 300 g)</h3>
+  <ul>
+    <li>2 kg de cebolla horcal</li>
+    <li>1 kg de arroz redondo</li>
+    <li>600 g de manteca de cerdo</li>
+    <li>1 l de sangre de cerdo fresca, removida para que no cuaje</li>
+    <li>60 g de sal</li>
+    <li>30 g de pimentón dulce</li>
+    <li>10 g de pimienta negra molida</li>
+    <li>5 g de orégano seco</li>
+    <li>Tripa natural de cerdo, lavada y remojada</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Picar la cebolla muy fina, salarla y dejarla escurrir en un paño durante la noche para que suelte el agua.</li>
+    <li>Derretir la manteca a fuego suave y mezclarla con la cebolla escurrida, el arroz en crudo y las especias.</li>
+    <li>Añadir la sangre poco a poco, sin dejar de remover, hasta que la masa tome un color uniforme.</li>
+    <li>Embutir la masa en la tripa sin llenarla del todo, porque el arroz crece al cocer, y atar los extremos.</li>
+    <li>Cocer las morcillas en agua muy caliente, sin que llegue a hervir, pinchándolas con una aguja fina para que no revienten.</li>
+    <li>Sacarlas, dejarlas enfriar y orearlas en un lugar fresco antes de usarlas.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> ninguno de los 14.</p>
+  <p><strong>Notas de cocina:</strong> la cebolla horcal aporta el dulzor que distingue a esta morcilla y el
+    arroz le da cuerpo. Lleva sangre y manteca de cerdo, así que ningún plato hecho con ella es apto para
+    dietas vegetarianas.</p>
+</section>
+
+<section class="receta" id="R02" data-carta-ids="morcilla-de-burgos-a-la-brasa">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R02 · plato de la carta: morcilla-de-burgos-a-la-brasa · partida: brasa</p>
+  <h2>R02. Morcilla de Burgos a la brasa</h2>
+  <h3>Ingredientes (una ración)</h3>
+  <ul>
+    <li>1 morcilla de la casa (receta R01)</li>
+    <li>Medio pimiento rojo asado (receta R04)</li>
+    <li>Sal en escamas</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Cortar la morcilla en cuatro rodajas gruesas, sin quitarle la piel.</li>
+    <li>Marcar las rodajas sobre brasa de encina por los dos lados, sin pincharlas, hasta que la piel cruja y el interior esté caliente.</li>
+    <li>Servir con tiras de pimiento rojo asado y unas escamas de sal.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> ninguno de los 14.</p>
+  <p><strong>Notas de cocina:</strong> si la brasa está demasiado viva, la rodaja se abre; conviene trabajar en la zona templada de la parrilla.</p>
+</section>
+
+<section class="receta" id="R03" data-carta-ids="chuletillas-de-lechazo-a-la-brasa">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R03 · plato de la carta: chuletillas-de-lechazo-a-la-brasa · partida: brasa</p>
+  <h2>R03. Chuletillas de lechazo a la brasa</h2>
+  <h3>Ingredientes (una ración)</h3>
+  <ul>
+    <li>8 chuletillas de lechazo (cordero lechal)</li>
+    <li>Sal gruesa</li>
+    <li>Sarmientos de vid para la brasa</li>
+    <li>Un puñado de lechuga, aceite de oliva virgen extra y sal para el aliño</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Quemar los sarmientos hasta que quede una brasa uniforme, sin llama.</li>
+    <li>Salar las chuletillas justo antes de ponerlas en la parrilla.</li>
+    <li>Asarlas a buena distancia de la brasa, dándoles la vuelta una sola vez, hasta que la grasa se dore.</li>
+    <li>Servirlas enseguida con la lechuga aliñada solo con aceite y sal.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> ninguno de los 14.</p>
+  <p><strong>Notas de cocina:</strong> el sarmiento da un humo suave; la carne no se marina para no tapar su sabor.</p>
+</section>
+
+<section class="receta" id="R04" data-carta-ids="pimientos-rojos-asados">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R04 · plato de la carta: pimientos-rojos-asados · partida: brasa</p>
+  <h2>R04. Pimientos rojos asados</h2>
+  <h3>Ingredientes (cuatro raciones)</h3>
+  <ul>
+    <li>4 pimientos rojos grandes y carnosos</li>
+    <li>2 dientes de ajo</li>
+    <li>Aceite de oliva virgen extra</li>
+    <li>Sal</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Asar los pimientos enteros sobre la brasa, girándolos hasta que la piel quede negra por todos los lados.</li>
+    <li>Dejarlos reposar tapados para que suden y la piel se suelte sola.</li>
+    <li>Pelarlos y quitarles las semillas sin lavarlos, para no perder el jugo.</li>
+    <li>Cortarlos en tiras y aliñarlos con aceite, ajo laminado y sal.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> ninguno de los 14.</p>
+  <p><strong>Notas de cocina:</strong> el jugo que sueltan se guarda para el aliño. También sirven de guarnición a la morcilla y al cojonudo.</p>
+</section>
+
+<section class="receta" id="R05" data-carta-ids="croquetas-de-morcilla">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R05 · plato de la carta: croquetas-de-morcilla · partida: fritos</p>
+  <h2>R05. Croquetas de morcilla</h2>
+  <h3>Ingredientes (unas cuarenta croquetas)</h3>
+  <ul>
+    <li>300 g de morcilla de la casa sin piel (receta R01)</li>
+    <li>80 g de mantequilla</li>
+    <li>90 g de harina de trigo</li>
+    <li>1 l de leche entera</li>
+    <li>Sal</li>
+    <li>2 huevos batidos y pan rallado de trigo para el rebozado</li>
+    <li>Aceite de oliva para freír</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Desmigar la morcilla en una sartén amplia a fuego medio hasta que suelte la grasa.</li>
+    <li>Añadir la mantequilla y la harina y tostar la mezcla sin dejar de remover.</li>
+    <li>Incorporar la leche caliente poco a poco hasta lograr una bechamel espesa y fina. Ajustar la sal.</li>
+    <li>Extender la masa en una bandeja, taparla y dejarla enfriar por completo.</li>
+    <li>Formar las croquetas, pasarlas por huevo batido y después por pan rallado.</li>
+    <li>Freírlas en aceite abundante y bien caliente hasta que estén doradas, y escurrirlas.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> cereales con gluten (harina y pan rallado de trigo), leche, huevos.</p>
+  <p><strong>Notas de cocina:</strong> se fríen en la freidora compartida de la partida de fritos, por lo que dejan trazas de gluten, leche y huevo en el resto de fritos.</p>
+</section>
+
+<section class="receta" id="R06" data-carta-ids="morcilla-frita-con-piquillos">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R06 · plato de la carta: morcilla-frita-con-piquillos · partida: fritos</p>
+  <h2>R06. Morcilla frita con pimientos del piquillo</h2>
+  <h3>Ingredientes (una ración)</h3>
+  <ul>
+    <li>1 morcilla de la casa (receta R01)</li>
+    <li>6 pimientos del piquillo en conserva</li>
+    <li>1 diente de ajo</li>
+    <li>Aceite de oliva, sal y una pizca de azúcar</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Confitar los piquillos a fuego muy suave con aceite, el ajo laminado, sal y una pizca de azúcar.</li>
+    <li>Cortar la morcilla en rodajas de dos dedos de grosor.</li>
+    <li>Freír las rodajas en la freidora hasta que la piel se dore y escurrirlas.</li>
+    <li>Servir las rodajas sobre los piquillos confitados.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> ninguno de los 14.</p>
+  <p><strong>Notas de cocina:</strong> puede contener trazas de cereales con gluten, leche y huevos por la freidora compartida con las croquetas.</p>
+</section>
+
+<section class="receta" id="R07" data-carta-ids="cojonudo-de-morcilla">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R07 · plato de la carta: cojonudo-de-morcilla · partida: fritos</p>
+  <h2>R07. Cojonudo de morcilla</h2>
+  <h3>Ingredientes (un pincho)</h3>
+  <ul>
+    <li>1 rebanada de pan de trigo</li>
+    <li>1 rodaja gruesa de morcilla de la casa (receta R01)</li>
+    <li>1 huevo de codorniz</li>
+    <li>1 tira de pimiento rojo asado (receta R04)</li>
+    <li>Aceite de oliva y sal</li>
+    <li>1 palillo de madera</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Tostar la rebanada de pan.</li>
+    <li>Freír la rodaja de morcilla hasta que esté crujiente por fuera.</li>
+    <li>Freír el huevo de codorniz en aceite muy caliente, con puntilla y la yema entera.</li>
+    <li>Montar sobre el pan la morcilla, la tira de pimiento y el huevo, y sujetarlo todo con el palillo.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> cereales con gluten (pan de trigo), huevos.</p>
+  <p><strong>Notas de cocina:</strong> es un pincho de barra que se sirve recién hecho. Puede contener trazas de leche por la freidora compartida.</p>
+</section>
+
+<section class="receta" id="R08" data-carta-ids="pincho-de-tortilla-de-patatas">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R08 · plato de la carta: pincho-de-tortilla-de-patatas · partida: pinchos fríos</p>
+  <h2>R08. Tortilla de patatas en pincho</h2>
+  <h3>Ingredientes (una tortilla de ocho pinchos)</h3>
+  <ul>
+    <li>1 kg de patatas</li>
+    <li>1 cebolla</li>
+    <li>8 huevos</li>
+    <li>Aceite de oliva y sal</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Pelar las patatas y cortarlas en láminas finas; cortar la cebolla en juliana.</li>
+    <li>Pocharlas juntas en aceite abundante a fuego medio, sin que lleguen a dorarse, y escurrirlas.</li>
+    <li>Batir los huevos con sal, mezclarlos con la patata y la cebolla y dejar reposar la mezcla.</li>
+    <li>Cuajar la tortilla en una sartén por un lado, darle la vuelta con un plato y cuajar el otro, dejándola jugosa.</li>
+    <li>Dejarla templar hasta temperatura ambiente y cortarla en ocho pinchos.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> huevos.</p>
+  <p><strong>Notas de cocina:</strong> se prepara en la partida de pinchos fríos y no pasa por la freidora compartida.</p>
+</section>
+
+<section class="receta" id="R09" data-carta-ids="queso-fresco-de-burgos-con-miel-y-nueces">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R09 · plato de la carta: queso-fresco-de-burgos-con-miel-y-nueces · partida: pinchos fríos</p>
+  <h2>R09. Queso fresco de Burgos con miel y nueces</h2>
+  <h3>Ingredientes (una ración)</h3>
+  <ul>
+    <li>200 g de queso fresco de Burgos de leche de oveja</li>
+    <li>2 cucharadas de miel de brezo</li>
+    <li>30 g de nueces peladas</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Escurrir bien el queso y cortarlo en tacos regulares.</li>
+    <li>Tostar ligeramente las nueces en una sartén sin aceite y trocearlas.</li>
+    <li>Colocar el queso en el plato, repartir las nueces y regar con la miel justo antes de servir.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> leche, frutos de cáscara (nueces).</p>
+  <p><strong>Notas de cocina:</strong> las nueces se tuestan aparte y se añaden al final para no mezclarlas con otros platos.</p>
+</section>
+
+<section class="receta" id="R10" data-carta-ids="ensalada-de-tomate-con-cebolleta">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R10 · plato de la carta: ensalada-de-tomate-con-cebolleta · partida: pinchos fríos</p>
+  <h2>R10. Ensalada de tomate con cebolleta</h2>
+  <h3>Ingredientes (una ración)</h3>
+  <ul>
+    <li>2 tomates maduros</li>
+    <li>1 cebolleta tierna</li>
+    <li>Aceite de oliva virgen extra</li>
+    <li>Sal en escamas y orégano seco</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Cortar los tomates en gajos y la cebolleta en aros muy finos.</li>
+    <li>Aliñar en el momento de servir con aceite, sal en escamas y una pizca de orégano.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> ninguno de los 14.</p>
+  <p><strong>Notas de cocina:</strong> no lleva vinagre para que el tomate mande en el plato.</p>
+</section>
+
+<section class="receta" id="R11" data-carta-ids="pincho-de-anchoa-y-piquillo">
+  <p class="procedencia">Recetario de la casa · versión 1 · receta R11 · plato de la carta: pincho-de-anchoa-y-piquillo · partida: pinchos fríos</p>
+  <h2>R11. Pincho de anchoa y piquillo</h2>
+  <h3>Ingredientes (un pincho)</h3>
+  <ul>
+    <li>1 rebanada de pan de trigo</li>
+    <li>1 pimiento del piquillo en conserva</li>
+    <li>1 lomo de anchoa en aceite de oliva</li>
+    <li>Unas gotas de aceite de oliva virgen extra</li>
+  </ul>
+  <h3>Elaboración</h3>
+  <ol>
+    <li>Tostar la rebanada de pan.</li>
+    <li>Abrir el pimiento del piquillo y extenderlo sobre el pan.</li>
+    <li>Colocar encima el lomo de anchoa bien escurrido y terminar con unas gotas de aceite.</li>
+  </ol>
+  <p class="alergenos"><strong>Contiene:</strong> pescado (anchoa), cereales con gluten (pan de trigo).</p>
+  <p><strong>Notas de cocina:</strong> se monta al momento para que el pan no se reblandezca.</p>
+  <p class="aviso">Fin del recetario de la casa, versión 1. Datos sintéticos de la demo Morcillaconf; no es información alimentaria real.</p>
+</section>
+
+</body>
+</html>

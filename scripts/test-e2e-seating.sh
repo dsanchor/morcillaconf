@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Seating end to end without Foundry: the seating MCP, the standalone waiter
-# (scripted model, test code only), the BFF with its remote adapter and no MCP
-# client, and the view's HTTP client, each on its own temporary database.
+# Seating end to end without Foundry or its knowledge base: the seating MCP,
+# the standalone waiter (scripted model, test code only), the BFF with its
+# remote adapter and no MCP client, and the view's HTTP client, each on its own
+# temporary database.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,11 +48,14 @@ wait_for "http://127.0.0.1:$mcp_port/mcp" "El MCP de asientos" "$work/mcp.log"
 
 (
   cd "$repo_root/agents/restaurant/src/restaurant_agent"
+  # No knowledge base: empty values override a developer's .env.
   PORT="$agent_port" \
     FOUNDRY_PROJECT_ENDPOINT="https://scripted.invalid/api/projects/scripted" \
     AZURE_AI_MODEL_DEPLOYMENT_NAME="scripted" \
     MEMORY_DATABASE_PATH="$work/agent-memory.db" \
     SEATING_MCP_URL="http://127.0.0.1:$mcp_port/mcp" \
+    AZURE_SEARCH_ENDPOINT="" \
+    KNOWLEDGE_BASE_NAME="" \
     OTEL_SDK_DISABLED=true \
     exec uv run --frozen python "$repo_root/tests/end_to_end/scripted_agent_server.py"
 ) >"$work/agent.log" 2>&1 &

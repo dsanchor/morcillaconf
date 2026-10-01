@@ -1,0 +1,14 @@
+{
+  "name": "recetario-indexer",
+  "description": "Indexa el PDF del recetario y la ficha de ingredientes con la identidad administrada del servicio de búsqueda.",
+  "dataSourceName": "recetario-datasource",
+  "targetIndexName": "recetario-index",
+  "skillsetName": "recetario-skillset",
+  "parameters": {
+    "configuration": {
+      "dataToExtract": "contentAndMetadata",
+      "parsingMode": "default",
+      "indexedFileNameExtensions": ".pdf,.md"
+    }
+  }
+}

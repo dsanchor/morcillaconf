@@ -24,6 +24,7 @@ El objetivo es mostrar conceptos como:
 - [Progreso de implementación](PROGRESO.md)
 - [Convenciones de estructura y nombres](CONVENCIONES.md)
 - [Contratos públicos de fase 3A](packages/contracts/README.md)
+- [Conocimiento del restaurante: carta, recetario e ingredientes](data/knowledge/README.md)
 
 El proyecto está planteado como una demo incremental con Python, Microsoft Agent
 Framework, Microsoft Foundry, FastAPI y Streamlit.
@@ -41,7 +42,8 @@ sus pruebas:
 
 La fase 3A añade contratos tipados, fixtures y pruebas compartidas en
 [`packages/contracts`](packages/contracts). El mismo comando valida el camarero,
-los contratos y su compatibilidad.
+los contratos y su compatibilidad, y la coherencia de la carta, el recetario y
+los ingredientes.
 
 La vista de cliente en Streamlit ([`apps/frontend`](apps/frontend)) funciona
 con un camarero simulado: `./scripts/setup-frontend.sh` y después
@@ -63,12 +65,22 @@ Las mesas y la barra (fase 4) salen del MCP de asientos
 del MCP: el BFF no lo usa. `./scripts/test-e2e-seating.sh` prueba el
 recorrido de asientos sin Foundry.
 
+La carta, el recetario y los ingredientes (fase 5) salen de la
+[base de conocimiento de Foundry IQ](#base-de-conocimiento-foundry-iq): el
+camarero la consulta por su endpoint MCP si recibe `AZURE_SEARCH_ENDPOINT` y
+`KNOWLEDGE_BASE_NAME`; sin ellas funciona como antes y dice que no puede
+consultar la carta.
+
 ```mermaid
 flowchart LR
     F[Frontend Streamlit] -->|HTTP y SSE| B[BFF FastAPI]
     B -->|Responses 2.0| A[Agente camarero]
     A --> FO[Microsoft Foundry]
     A -->|Tools y aprobación| M[MCP de asientos]
+    A -->|MCP de solo lectura| K[Base de conocimiento Foundry IQ]
+    K --> C[Carta en Blob Storage]
+    K --> R[Recetario PDF e ingredientes en su índice]
+    K -.->|Respaldo externo| W[Web con Bing]
 ```
 
 Para crear una configuración local reutilizable:
@@ -104,6 +116,94 @@ existentes; no desactiva el guardado automático de interacciones futuras.
 Consulta el README del agente para ejecutar la CLI, el servidor local o el smoke
 test opt-in contra Foundry.
 
+## Base de conocimiento (Foundry IQ)
+
+La carta, el recetario y los ingredientes del restaurante forman una única base
+de conocimiento de Foundry IQ (recuperación agéntica de Azure AI Search) con
+exactamente tres fuentes:
+
+| Fuente | Tipo | Contenido |
+|---|---|---|
+| `carta-de-la-casa` | Blob de Azure Storage (contenedor `carta`) | [La carta](data/knowledge/menu/carta.md), por partidas, con precios, alérgenos y advertencias |
+| `recetario-de-la-casa` | Índice propio (`recetario-index`) | [El recetario en PDF](data/knowledge/recipes/recetario.pdf) y [la ficha de ingredientes](data/knowledge/ingredients/ingredientes.md), indexados desde el contenedor `recetario` |
+| `web-bing` | Web (Grounding with Bing) | Solo respaldo externo para información pública general |
+
+La base `conocimiento-restaurante` planifica cada consulta con un modelo del
+proyecto Foundry (`gpt-4.1-mini`), con esfuerzo `low` y salida extractiva, y
+tiene sus instrucciones de recuperación en español: la carta y el recetario
+primero, la web nunca para precios, existencias ni lo que ofrece el
+restaurante. El camarero la consulta por el **endpoint MCP propio de la base**
+(versión `2026-08-01-preview`), sin servidores intermedios; el chef de la fase
+6 usará la misma base y la despensa seguirá siendo un MCP operacional aparte.
+Detalles del camarero en [su README](agents/restaurant/README.md#carta-y-base-de-conocimiento-foundry-iq).
+
+Como Foundry y el grupo de recursos, la base de conocimiento es un
+prerrequisito del despliegue. Requisitos: Bash, Python 3, curl, Azure CLI con
+sesión iniciada, permisos para crear recursos y asignaciones RBAC, el grupo de
+recursos ya creado y el proyecto Foundry con un deployment de chat compatible
+(por ejemplo, `gpt-4.1-mini`). No hace falta ningún modelo de embeddings.
+
+```bash
+cp scripts/knowledge.env.example scripts/knowledge.env
+${EDITOR:-vi} scripts/knowledge.env
+./scripts/provision-knowledge.sh scripts/knowledge.env
+```
+
+El script es idempotente y crea o actualiza, en una región con recuperación
+agéntica (por ejemplo, `swedencentral`):
+
+- una cuenta de almacenamiento sin acceso por clave compartida, con los
+  contenedores `carta` y `recetario`, donde sube los documentos de
+  [`data/knowledge`](data/knowledge);
+- un servicio de Azure AI Search (Basic) con identidad administrada y solo
+  autenticación Entra ID;
+- el índice `recetario-index` y su indexador, que trocea el PDF y la ficha de
+  ingredientes; las definiciones están en [`infra/knowledge`](infra/knowledge);
+- las tres fuentes y la base de conocimiento;
+- los roles: la identidad del buscador lee el almacenamiento (Storage Blob Data
+  Reader) y usa el modelo (Cognitive Services User sobre el recurso Foundry);
+  quien ejecuta el script puede subir documentos, administrar y consultar la
+  base; opcionalmente, la identidad del camarero recibe Search Index Data
+  Reader.
+
+Al terminar, consulta la base por REST y por MCP e imprime los valores para
+`scripts/container-apps.env` y para un camarero local. Para repetir las
+consultas:
+
+```bash
+export AZURE_SEARCH_ENDPOINT="https://<servicio>.search.windows.net"
+export KNOWLEDGE_BASE_NAME="conocimiento-restaurante"
+./scripts/query-knowledge.sh "¿Qué tenéis típico de Burgos?"
+./scripts/query-knowledge.sh --mcp "¿Qué lleva la morcilla?"
+```
+
+Si cambias la carta, el recetario o los ingredientes, vuelve a ejecutar el
+script: sube los documentos de nuevo y reindexa. Para regenerar el PDF desde
+su HTML, `./scripts/build-recetario-pdf.sh`.
+
+Coste mensual estimado:
+
+| Concepto | Estimación |
+|---|---|
+| Azure AI Search Basic (swedencentral) | unos 74 US$ (0,101 US$/hora; se factura aunque no se use) |
+| Almacenamiento Blob (menos de 1 MB) | menos de 0,01 US$ |
+| Recuperación agéntica | 0 US$ con el plan gratuito del servicio hasta su cupo mensual; al agotarlo, la base responde con error y el camarero lo dice |
+| Web (Grounding with Bing) | 14 US$ por 1.000 transacciones; una pregunta web típica hace 3 búsquedas (unos 0,04 US$) |
+| `gpt-4.1-mini` (planificación y resúmenes web) | menos de 0,002 US$ por consulta |
+| `gpt-5.6-luna` (camarero) | unos miles de tokens más por pregunta sobre la carta |
+
+> [!IMPORTANT]
+> La fuente web usa Grounding with Bing: las consultas que la base envía a la
+> web salen del límite de cumplimiento y geográfico de Azure, no les aplica el
+> Data Protection Addendum de Microsoft y se rigen por los términos de uso de
+> Grounding with Bing, que exigen mostrar las citas al usuario. Tiene coste por
+> uso. Un administrador puede desactivarla en la suscripción con
+> `az feature register --name WebKnowledgeSourceDisabled --namespace Microsoft.Search`.
+
+Para dejar de pagar, borra el servicio de búsqueda y la cuenta de
+almacenamiento (`az search service delete` y `az storage account delete`); el
+servicio Basic no se puede pausar.
+
 ## Despliegue en Azure Container Apps
 
 El script [`scripts/deploy-container-apps.sh`](scripts/deploy-container-apps.sh)
@@ -112,7 +212,8 @@ administrada, un entorno de Container Apps y las cuatro aplicaciones. Solo el
 frontend tiene entrada externa; BFF, agente y MCP usan entrada interna y se
 descubren mediante sus FQDN del mismo entorno. El grupo de recursos y el
 proyecto de Foundry son prerrequisitos: el script no los crea, y tampoco
-modifica el grupo.
+modifica el grupo. La [base de conocimiento](#base-de-conocimiento-foundry-iq)
+es un prerrequisito opcional con su propio script.
 
 Por ahora BFF y MCP guardan sus bases SQLite en el almacenamiento efímero de su
 propio contenedor (`/data`), sin volúmenes ni cuentas de almacenamiento. Cada
@@ -123,8 +224,8 @@ La persistencia duradera en Cosmos DB llega en la fase 9.
 Requisitos: Bash, Python 3, Azure CLI con la extensión `containerapp`, una sesión
 iniciada con `az login`, permisos para crear recursos y asignaciones RBAC, el
 grupo de recursos ya creado (por ejemplo con `az group create`) y el proyecto de
-Foundry con su modelo desplegado. Copia el ejemplo versionado y completa todos
-sus marcadores:
+Foundry con su modelo desplegado. La base de conocimiento es opcional. Copia el
+ejemplo versionado y completa todos sus marcadores:
 
 ```bash
 cp scripts/container-apps.env.example scripts/container-apps.env
@@ -136,8 +237,16 @@ El fichero usa sintaxis simple `NOMBRE=valor`; el script lo analiza sin
 ejecutarlo como Bash. No necesita secretos ni credenciales de registro: recibe
 cuatro referencias públicas completas de GHCR y las despliega directamente. Usa preferentemente digest
 `sha256` o etiquetas de commit SHA, nunca `latest`. La identidad solo se asigna
-al agente y recibe `Azure AI User` sobre el proyecto Foundry indicado.
+al agente y recibe `Foundry User` sobre el proyecto Foundry indicado.
 Conviene mantener `scripts/container-apps.env` fuera del control de versiones.
+
+Para que el camarero desplegado consulte la carta, añade al fichero los tres
+valores que imprime `provision-knowledge.sh`: `AZURE_SEARCH_RESOURCE_ID`,
+`AZURE_SEARCH_ENDPOINT` y `KNOWLEDGE_BASE_NAME` (y, si quieres,
+`KNOWLEDGE_BASE_TIMEOUT_SECONDS`, 20 por defecto). Van juntos: con ellos, la
+identidad del agente recibe además `Search Index Data Reader` sobre el servicio
+de búsqueda y el agente recibe la configuración de la base. Sin ellos, el
+despliegue no cambia y los ficheros de entorno existentes siguen sirviendo.
 
 El despliegue es idempotente y no construye ni publica imágenes, pero no realiza
 una previsualización: revisa el fichero de entorno antes de ejecutarlo. Para

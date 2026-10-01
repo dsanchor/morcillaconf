@@ -1,0 +1,11 @@
+{
+  "name": "recetario-datasource",
+  "description": "Contenedor recetario: el recetario de la casa en PDF y la ficha de ingredientes.",
+  "type": "azureblob",
+  "credentials": {
+    "connectionString": "ResourceId=${STORAGE_ACCOUNT_ID};"
+  },
+  "container": {
+    "name": "recetario"
+  }
+}
