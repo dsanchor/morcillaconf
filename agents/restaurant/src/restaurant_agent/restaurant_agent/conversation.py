@@ -28,6 +28,30 @@ from restaurant_agent.memory.contracts import (
 from restaurant_agent.memory.store import DurableMemoryRepository
 
 
+def _compact_completed_tool_history(state: dict[str, Any]) -> None:
+    """Keep conversational text but drop completed stateless tool protocol items."""
+
+    messages = state.get("messages")
+    if not isinstance(messages, list):
+        return
+    compacted: list[Message] = []
+    for message in messages:
+        if not isinstance(message, Message):
+            continue
+        text_contents = [content for content in message.contents if content.type == "text"]
+        if not text_contents:
+            continue
+        compacted.append(
+            Message(
+                role=message.role,
+                contents=text_contents,
+                author_name=message.author_name,
+                message_id=message.message_id,
+            )
+        )
+    state["messages"] = compacted
+
+
 class ConversationError(RuntimeError):
     """Base error surfaced by the conversation application."""
 
@@ -311,6 +335,11 @@ class ConversationManager:
                     ),
                     Message(role="user", contents=[prompt]),
                 ]
+            else:
+                # Foundry deployments do not return replayable encrypted
+                # reasoning. Completed tool groups therefore cannot be sent
+                # inline on a later stateless Responses request.
+                _compact_completed_tool_history(record.agent_session.state)
             response = await self._run(
                 record, run_input, options={"response_format": WaiterModelResult}
             )

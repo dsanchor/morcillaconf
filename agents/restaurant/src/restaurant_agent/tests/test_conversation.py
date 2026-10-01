@@ -2,6 +2,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from agent_framework import Content, Message
 from pydantic import ValidationError
 
 from restaurant_agent.contracts import (
@@ -17,6 +18,7 @@ from restaurant_agent.conversation import (
     ConversationNotFoundError,
     InvalidAgentResponseError,
     TurnLimitExceededError,
+    _compact_completed_tool_history,
 )
 
 
@@ -77,6 +79,35 @@ def contract_violation() -> FakeChatClientException:
     except ValidationError as exc:
         return wrapped_by_chat_client(exc)
     raise AssertionError("The model output should violate the contract")
+
+
+def test_completed_tool_history_keeps_only_conversational_text() -> None:
+    state = {
+        "messages": [
+            Message(role="user", contents=["Somos cuatro"]),
+            Message(
+                role="assistant",
+                contents=[
+                    Content.from_text_reasoning(id="rs_1", text=""),
+                    Content.from_function_call(
+                        "call_1", "seating_confirm_seating", arguments={}
+                    ),
+                ],
+            ),
+            Message(
+                role="tool",
+                contents=[Content.from_function_result("call_1", result="occupied")],
+            ),
+            Message(role="assistant", contents=["Os acompaño a la Mesa 3."]),
+        ]
+    }
+
+    _compact_completed_tool_history(state)
+
+    assert [(message.role, message.text) for message in state["messages"]] == [
+        ("user", "Somos cuatro"),
+        ("assistant", "Os acompaño a la Mesa 3."),
+    ]
 
 
 def service_failure() -> FakeChatClientException:
