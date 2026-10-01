@@ -29,6 +29,7 @@ include = ["restaurant_agent*"]
 
 [tool.setuptools.package-data]
 restaurant_agent = ["instructions.md"]
+"restaurant_agent.kitchen" = ["instructions.md"]
 
 [dependency-groups]
 dev = [

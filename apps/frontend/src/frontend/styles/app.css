@@ -6,6 +6,9 @@
   --carbon: #0e0907;
   --lumbre: #ffd27a;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  /* The kitchen's voice: azulejo blue under white text. */
+  --azulejo: #1d4e89;
+  --azulejo-hondo: #153a68;
 }
 /* The longest command is five characters; retain room for identity and controls. */
 .stApp {
@@ -160,6 +163,27 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   background: var(--vino); color: #f6ead3;
   font: 400 1.12rem/1.5 var(--sans); border-radius: 12px 3px 12px 12px;
 }
+/* The chef's plan: its own voice in the room, with the toque and azulejo blue. */
+.stApp .msg.cocina { max-width: min(68ch, 92%); }
+.stApp .msg.cocina .icono { background: var(--azulejo-hondo); border-color: #7fa3d4; }
+.stApp .msg.cocina .burbuja {
+  background: var(--azulejo); color: #ffffff;
+  font: 400 1.05rem/1.45 var(--sans); border-radius: 3px 12px 12px 12px;
+}
+.stApp .plan-cocina p, .stApp .plan-cocina ul, .stApp .plan-cocina li {
+  margin: 0; padding: 0; font: inherit; color: inherit;
+}
+.stApp .plan-cocina .titular { font: 500 1.2rem/1.3 var(--serif); }
+.stApp .plan-cocina .apartado { margin-top: .75rem; font-weight: 700; letter-spacing: .01em; }
+.stApp .plan-cocina ul { margin-top: .25rem; list-style: none; display: grid; gap: .35rem; }
+.stApp .plan-cocina li { position: relative; padding-left: .95rem; }
+.stApp .plan-cocina li::before {
+  content: ""; position: absolute; left: .15rem; top: .62em;
+  width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+}
+.stApp .plan-cocina .plato { display: block; }
+.stApp .plan-cocina .detalle { display: block; font-size: 1rem; color: rgba(255, 255, 255, .86); }
+.stApp .plan-cocina .fuentes { margin-top: .75rem; font-size: 1rem; color: rgba(255, 255, 255, .86); }
 .stApp .msg.enviando .burbuja { opacity: .72; }
 .stApp .msg.provisional .burbuja { opacity: .85; }
 .stApp .tarjeta {
@@ -293,6 +317,8 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   .stApp .msg { max-width: 94%; }
   .stApp .msg.camarero .burbuja { font-size: 1.12rem; }
   .stApp .msg.cliente .burbuja { font-size: 1.05rem; }
+  .stApp .msg.cocina { max-width: 100%; }
+  .stApp .msg.cocina .burbuja { font-size: 1rem; }
   .stApp .planta-marco .planta { max-height: 24vh; }
   .stApp .simulado { margin: 0 2px; }
 }

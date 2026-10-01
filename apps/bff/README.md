@@ -158,9 +158,18 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   disponibles y, cuando el cliente elige mesa o barra, bloquea y confirma el
   sitio en la misma interacción. Los grupos mantienen la propuesta temporal y
   la decisión explícita.
+- **Cocina.** Si el camarero ha pasado el pedido al chef en ese turno, su
+  respuesta trae el `KitchenReport` tipado. El BFF lo guarda como un mensaje
+  propio, con el rol `kitchen`, el texto en español y el informe completo
+  (plan o fallo), entre el mensaje del cliente y la respuesta del camarero, y
+  lo publica en el mismo snapshot y los mismos eventos. Los mensajes del
+  cliente y del camarero conservan exactamente su forma anterior. El BFF no
+  habla con el chef ni interpreta su plan.
 - **Observabilidad.** Spans `bff.command`, `bff.waiter.turn`,
   `bff.seating.decision` y `bff.seating.sync` con tipo,
-  correlación, conversación y resultado, sin texto ni nombres. Solo se usa la
+  correlación, conversación y resultado, sin texto ni nombres. Un turno con
+  cocina añade `bff.kitchen.outcome`: el veredicto (`accepted`, `partial` o
+  `rejected`) o el código del fallo. Solo se usa la
   API de OpenTelemetry: falta configurar un exportador (Application Insights,
   fase 9).
 

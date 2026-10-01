@@ -16,6 +16,8 @@ colors:
   carbon: "#0e0907"
   lumbre: "#ffd27a"
   cuero: "#6b4a2f"
+  azulejo: "#1d4e89"
+  azulejo-hondo: "#153a68"
 typography:
   display:
     fontFamily: "Alegreya, Georgia, Times New Roman, serif"
@@ -96,6 +98,11 @@ components:
     textColor: "#f6ead3"
     rounded: "12px 3px 12px 12px"
     padding: ".7rem 1rem"
+  message-chef:
+    backgroundColor: "{colors.azulejo}"
+    textColor: "#ffffff"
+    rounded: "3px 12px 12px 12px"
+    padding: ".7rem 1rem"
   card-memory:
     backgroundColor: "rgba(231, 215, 181, .05)"
     textColor: "{colors.piedra}"
@@ -116,7 +123,7 @@ Dentro, la sala sigue siendo una escena de restaurante, no un chatbot con cabece
 **Key Characteristics:**
 - Fachada a sangre antes de cualquier UI interior.
 - Ámbar como único color de estado y acción.
-- Piedra clara para habla del camarero; vino Ribera para habla del cliente.
+- Piedra clara para habla del camarero; vino Ribera para habla del cliente; azulejo para el plan del chef.
 - Textos mínimos; el restaurante explica el sistema sin carteles.
 - Movimiento escénico: llamar, abrir, cruzar, saludar y acercarse.
 
@@ -127,6 +134,7 @@ La paleta es nocturna y mineral: casi todo nace de nogal, roble, piedra y forja;
 ### Primary
 - **Luz de farol**: acción principal, estado activo, foco visual, puntos de escritura y halo de confirmación.
 - **Vino Ribera**: voz del cliente y presencia del cliente en el plano.
+- **Azulejo de cocina**: voz del chef; su plan va en blanco sobre azulejo y su gorro descansa en azulejo hondo.
 
 ### Neutral
 - **Noche castellana**: fondo exterior y cielo de entrada.
@@ -215,6 +223,7 @@ La geometría distintiva viene de los materiales: arco de dovelas, portón parti
 ### Conversation Bubbles
 - **Waiter:** piedra clara, tinta tostada, Alegreya serif y radio direccional hacia el icono del camarero.
 - **Customer:** vino Ribera, crema cálida y radio direccional hacia el lado derecho.
+- **Chef:** azulejo con texto blanco, Alegreya Sans y gorro de cocinero en el icono; va entre el pedido del cliente y la respuesta del camarero. Muestra lo aceptado, lo rechazado con su motivo, los avisos, las partidas y las fuentes, o por qué cocina no ha podido revisar el pedido.
 - **Typing:** tres puntos ámbar circulares con pulso vertical; se elimina con reducción de movimiento.
 
 ### Plan Scene

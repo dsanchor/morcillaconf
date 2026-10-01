@@ -153,6 +153,7 @@ class RemoteWaiterService:
                     persisted_order_preferences=exported.persisted_order_preferences,
                     session_json=_session_to_json(exported.agent_session),
                     seating=_report(manager, request),
+                    kitchen=response.kitchen,
                 )
         except ConversationError as exc:
             return _failure(exc)

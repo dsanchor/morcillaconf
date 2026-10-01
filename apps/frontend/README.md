@@ -228,6 +228,20 @@ stream hasta que termina.
   huecos, caducidad, `/new`), pero solo dentro de una sesión del navegador:
   para ver clientes en paralelo hace falta el BFF.
 
+### Cocina (chef v1)
+
+- Cuando el camarero pasa el pedido al chef, su plan llega en el snapshot como
+  un mensaje con el rol `kitchen` y la vista lo pinta como una burbuja propia
+  en la misma conversación: fondo azul con texto blanco y un gorro de
+  cocinero, entre el mensaje del cliente y la respuesta del camarero. Muestra
+  si cocina acepta el pedido, lo aceptado con su partida, sus adaptaciones y
+  sus alérgenos, lo rechazado con su motivo, los avisos, el reparto por
+  partidas y las fuentes; si cocina no ha podido revisarlo, lo dice. Todo el
+  texto sale del informe tipado y se escapa.
+- El falso incluye un chef simulado con una carta mínima: los mensajes que
+  empiezan por «Pido…» o «Ponme…» reciben su burbuja, por ejemplo
+  «Pido una morcilla a la brasa y una hamburguesa sin queso».
+
 ## Fronteras de arquitectura
 
 - `app.py` solo usa el protocolo `BffClient` a través de `VisitSession`.

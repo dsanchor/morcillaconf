@@ -14,14 +14,22 @@ from pydantic import (
 )
 
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
+from restaurant_contracts.kitchen import RENDERED_TEXT_LIMIT, KitchenReport
 from restaurant_contracts.memory import MemoryKind
 from restaurant_contracts.seating import SeatingView
 
 Identifier = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
 ]
+MESSAGE_TEXT_LIMIT = 2_000
 MessageText = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2_000)
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=MESSAGE_TEXT_LIMIT),
+]
+# A kitchen plan is longer than a chat message; the other roles keep their limit.
+ConversationText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=RENDERED_TEXT_LIMIT),
 ]
 MemoryText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
@@ -165,11 +173,26 @@ class MemoryView(ContractModel):
 
 
 class ChatMessage(ContractModel):
+    """A line of the conversation: the customer, the waiter or the kitchen's plan."""
+
     message_id: Identifier
-    role: Literal["user", "assistant"]
-    text: MessageText
+    role: Literal["user", "assistant", "kitchen"]
+    text: ConversationText
     occurred_at: AwareDatetime
     command_event_id: Identifier
+    # Left out of the JSON when absent, so customer and waiter messages keep
+    # the exact shape that earlier versions read.
+    kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def kitchen_messages_carry_their_report(self) -> "ChatMessage":
+        if (self.role == "kitchen") != (self.kitchen is not None):
+            raise ValueError("Kitchen messages, and only they, carry a kitchen report")
+        if self.role != "kitchen" and len(self.text) > MESSAGE_TEXT_LIMIT:
+            raise ValueError(
+                f"Customer and waiter messages have at most {MESSAGE_TEXT_LIMIT} characters"
+            )
+        return self
 
 
 class RestaurantSnapshot(ContractModel):

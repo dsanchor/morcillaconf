@@ -135,6 +135,21 @@ if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
   validate_match KNOWLEDGE_BASE_NAME '^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$' "lowercase letters, numbers, or hyphens"
   validate_match KNOWLEDGE_BASE_TIMEOUT_SECONDS '^([1-9]|[1-5][0-9]|60)$' "a whole number of seconds from 1 to 60"
 fi
+
+# Optional chef settings (cocina v1). The chef runs inside the restaurant agent,
+# in the same Foundry project: its own model deployment, or the waiter's when
+# empty, and a time budget for the whole kitchen plan.
+KITCHEN_TIMEOUT_SECONDS="${KITCHEN_TIMEOUT_SECONDS:-30}"
+export KITCHEN_TIMEOUT_SECONDS
+validate_match KITCHEN_TIMEOUT_SECONDS '^([1-9]|[1-9][0-9]|1[01][0-9]|120)$' "a whole number of seconds from 1 to 120"
+if [[ -n "${KITCHEN_MODEL_DEPLOYMENT_NAME:-}" ]]; then
+  validate_match KITCHEN_MODEL_DEPLOYMENT_NAME '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' "a model deployment name"
+fi
+validate_match WAITER_AGENT_TIMEOUT_SECONDS '^[1-9][0-9]*$' "a whole number of seconds"
+if ((KITCHEN_TIMEOUT_SECONDS + 20 > WAITER_AGENT_TIMEOUT_SECONDS)); then
+  printf 'WARNING: KITCHEN_TIMEOUT_SECONDS (%s) leaves less than 20 s of WAITER_AGENT_TIMEOUT_SECONDS (%s) for the waiter itself\n' \
+    "$KITCHEN_TIMEOUT_SECONDS" "$WAITER_AGENT_TIMEOUT_SECONDS" >&2
+fi
 validate_ghcr_image() {
   local name="$1"
   local image
@@ -329,6 +344,10 @@ if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
     "KNOWLEDGE_BASE_NAME=$KNOWLEDGE_BASE_NAME"
     "KNOWLEDGE_BASE_TIMEOUT_SECONDS=$KNOWLEDGE_BASE_TIMEOUT_SECONDS"
   )
+fi
+agent_env+=("KITCHEN_TIMEOUT_SECONDS=$KITCHEN_TIMEOUT_SECONDS")
+if [[ -n "${KITCHEN_MODEL_DEPLOYMENT_NAME:-}" ]]; then
+  agent_env+=("KITCHEN_MODEL_DEPLOYMENT_NAME=$KITCHEN_MODEL_DEPLOYMENT_NAME")
 fi
 apply_app "$RESTAURANT_AGENT_APP_NAME" \
   "$RESTAURANT_AGENT_IMAGE" internal 8088 true "${agent_env[@]}"

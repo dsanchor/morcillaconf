@@ -149,10 +149,12 @@ async def run_cli(actor_id: str, *, authenticated: bool) -> None:
             print(f"Error: {exc}")
             continue
 
+        if response.kitchen is not None:
+            print(f"Cocina> {response.kitchen.text}")
         print(f"Camarero> {response.reply}")
         print(
             json.dumps(
-                response.model_dump(mode="json", exclude={"reply"}),
+                response.model_dump(mode="json", exclude={"reply", "kitchen"}),
                 ensure_ascii=False,
                 indent=2,
             )

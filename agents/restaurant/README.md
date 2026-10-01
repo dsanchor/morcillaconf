@@ -120,9 +120,72 @@ el [README principal](../../README.md#base-de-conocimiento-foundry-iq).
 - El borrador del pedido sigue sin verificar: estar en la carta no acredita
   existencias.
 
-El chef de la fase 6 reutilizará la misma base y el mismo endpoint MCP para
+El [chef](#cocina-chef-v1) reutiliza la misma base y el mismo endpoint MCP para
 validar platos, recetas e ingredientes. La despensa seguirá siendo un MCP
 operacional aparte: cambiar el stock no obliga a reindexar la base.
+
+## Cocina: chef v1
+
+Primera porción de la fase 6, según el sync del 01/10: el chef, sin pinches,
+sin despensa y en el mismo contenedor que el camarero, con la orquestación
+dentro de él.
+
+- **Camarero.** Su tool `pedir_a_cocina` (`restaurant_agent/kitchen_tool.py`)
+  recibe un pedido tipado: líneas con plato, cantidad y modificaciones, y las
+  alergias o intolerancias declaradas en la visita. La llama cuando el pedido
+  está claro, como mucho una vez por turno; una segunda llamada, aunque llegue
+  en paralelo, recibe que cocina ya ha respondido. Construye el `KitchenOrder`
+  de `packages/contracts` solo con el pedido: el chef nunca recibe el nombre,
+  el perfil, la memoria ni el historial del cliente. Las instrucciones le piden
+  resumir el veredicto del chef sin alterarlo y no inventar nunca un resultado
+  de cocina.
+- **Puerto.** El camarero habla con cocina mediante `KitchenPort`
+  (`restaurant_contracts.kitchen`). Hoy lo implementa `InProcessKitchen`, en el
+  mismo proceso; el chef podrá pasar a un endpoint Responses o a un Hosted Agent
+  sin tocar al camarero.
+- **Chef** (`restaurant_agent/kitchen/`): un `Agent` de Agent Framework
+  (`kitchen-lead`) sin sesión, sin memoria y sin contacto con el cliente, con
+  [instrucciones en español](restaurant_agent/kitchen/instructions.md),
+  salida estructurada y una sola herramienta: `knowledge_base_retrieve`, con su
+  propia conexión de solo lectura a la base. Usa el mismo proyecto Foundry; su
+  deployment es `KITCHEN_MODEL_DEPLOYMENT_NAME` o, si está vacío, el del
+  camarero. Como mucho cuatro consultas a la base por pedido.
+- **Validación determinista** (`kitchen/validation.py`), sobre lo que devolvió
+  la base y no sobre lo que dice el modelo:
+  - cada línea del pedido se acepta o se rechaza una sola vez, con la cantidad
+    pedida; una decisión contradictoria cuenta como rechazo y una línea sin
+    decidir se rechaza con su motivo;
+  - un plato aceptado tiene que aparecer en un pasaje de la carta devuelto por
+    la base; la partida y los alérgenos son los de esa carta, y las partidas
+    son un conjunto fijo: brasa, fritos, pinchos fríos y barra;
+  - una alergia o intolerancia declarada, o una modificación que pide quitar
+    un alérgeno («sin gluten»), nunca se sirve con un plato que contiene ese
+    alérgeno, puede tener trazas de él o no tiene sus alérgenos completos y
+    verificados en la carta consultada; sin restricciones, un plato así se
+    acepta con su aviso y sin alérgenos dados por buenos;
+  - una línea aceptada con modificaciones tiene que recogerlas en sus
+    adaptaciones; si no, se rechaza;
+  - un texto de la web no puede hacerse pasar por un documento de la casa;
+  - solo se citan los documentos de la casa que se consultaron de verdad; la
+    web nunca cuenta como prueba.
+- **Fallos explícitos.** Sin base configurada, cocina responde que no puede
+  consultar la carta. Si la base no responde, si el chef no la consulta, si su
+  respuesta no es un plan válido, si el modelo falla o si se supera
+  `KITCHEN_TIMEOUT_SECONDS` (30 s por defecto), el resultado es un
+  `KitchenFailure` con su motivo y nunca un plan inventado. El plazo corta todo
+  el plan: el camarero recibe el fallo en ese momento, aunque una consulta
+  colgada termine de cerrarse después.
+- **Transporte.** El turno del camarero devuelve el `KitchenReport` tipado (el
+  pedido, el plan o el fallo y su texto en español) en `WaiterResponse.kitchen`
+  y, por el endpoint Responses, en `WaiterTurnSuccess.kitchen`. El BFF lo guarda
+  como un mensaje propio con el rol `kitchen` y la vista lo pinta como la
+  burbuja azul del chef, entre el pedido y la respuesta del camarero.
+
+Medido el 01/10 con `gpt-5.6-luna` y la base real: el chef tarda entre 9 y
+17 s y el turno completo con cocina, entre 18 y 28 s.
+
+Límites de esta versión: no hay pinches, tiempos ni despensa, el pedido no se
+confirma y cada cambio del cliente es un pedido nuevo en un turno nuevo.
 
 En la CLI (`./scripts/run-waiter-cli.sh`), una propuesta pendiente se decide
 respondiendo `s` o `n`.
@@ -169,11 +232,15 @@ SEATING_MCP_TIMEOUT_SECONDS="5"
 AZURE_SEARCH_ENDPOINT="https://<servicio>.search.windows.net"
 KNOWLEDGE_BASE_NAME="conocimiento-restaurante"
 KNOWLEDGE_BASE_TIMEOUT_SECONDS="20"
+KITCHEN_MODEL_DEPLOYMENT_NAME=""
+KITCHEN_TIMEOUT_SECONDS="30"
 ```
 
-Las tres últimas variables son opcionales: conectan la base de conocimiento.
-Tu usuario necesita el rol Search Index Data Reader sobre el servicio de
-búsqueda (`./scripts/provision-knowledge.sh` se lo asigna a quien lo ejecuta).
+Las variables de la base de conocimiento son opcionales: la conectan. Tu
+usuario necesita el rol Search Index Data Reader sobre el servicio de búsqueda
+(`./scripts/provision-knowledge.sh` se lo asigna a quien lo ejecuta). Las dos
+del chef también son opcionales: un deployment propio del mismo proyecto
+(vacío, el del camarero) y el tiempo máximo del plan de cocina.
 
 La configuración local debe coincidir con el entorno de `azd`, porque
 `azd ai agent run` da prioridad a sus propias variables.
@@ -488,6 +555,9 @@ agents/restaurant/
     ├── pyproject.toml
     ├── uv.lock
     ├── restaurant_agent/
+    │   ├── agent.py, instructions.md   # el camarero
+    │   ├── kitchen_tool.py             # su tool pedir_a_cocina
+    │   └── kitchen/                    # el chef: agent, instructions, validación y puerto
     └── tests/
 ```
 

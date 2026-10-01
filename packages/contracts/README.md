@@ -183,6 +183,32 @@ Todo es aditivo y se mantiene `schema_version: 1`: los consumidores viven en
 este repositorio y se publican desde el mismo commit, y los campos nuevos
 tienen valores por defecto que mantienen válidos los payloads de fase 3.
 
+## Cocina (chef v1)
+
+`restaurant_contracts.kitchen` define lo que se cruzan el camarero y el chef:
+
+- `KitchenOrder`: solo el pedido, con líneas numeradas (plato, cantidad y
+  modificaciones) y las alergias o intolerancias declaradas. No admite datos
+  del cliente.
+- `KitchenPlan`: lo aceptado (`AcceptedItem`, con su identificador de carta,
+  partida, adaptaciones y alérgenos), lo rechazado con su motivo
+  (`RejectedItem`), los avisos, el reparto por partidas (`StationPlan` con sus
+  `StationTask`), las fuentes y la versión del plan. Las partidas son un
+  conjunto fijo (`brasa`, `fritos`, `pinchos_frios` y `barra`), ninguna línea
+  puede estar aceptada y rechazada a la vez y cada línea aceptada tiene una
+  tarea, y solo una, en su partida.
+- `KitchenFailure`: el motivo explícito cuando cocina no ha podido revisar el
+  pedido; nunca se sustituye por un plan inventado.
+- `KitchenReport`: el pedido, el resultado y su texto en español; comprueba que
+  el plan decide todas las líneas con las cantidades pedidas.
+- `KitchenPort`: la frontera entre camarero y chef, hoy en el mismo proceso.
+
+`ChatMessage` admite el rol `kitchen`: esos mensajes, y solo ellos, llevan el
+`KitchenReport` en `kitchen` y su texto puede llegar a 6.000 caracteres; el
+resto sigue limitado a 2.000. `WaiterTurnSuccess.kitchen` lleva el informe del
+turno. Ambos campos se omiten del JSON cuando faltan, así que los mensajes y
+turnos sin cocina mantienen su forma anterior.
+
 ## Eventos, SSE y recuperación
 
 La versión 1 define tres eventos:

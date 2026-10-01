@@ -3,15 +3,32 @@ import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 
 from restaurant_contracts.application import ChatMessage
+from restaurant_contracts.kitchen import (
+    AcceptedItem,
+    KitchenFailure,
+    KitchenFailureCode,
+    KitchenOrder,
+    KitchenOrderLine,
+    KitchenPlan,
+    KitchenReport,
+    KitchenSource,
+    KitchenStation,
+    RejectedItem,
+    StationPlan,
+    StationTask,
+)
 
 from frontend.markup import (
     DOOR_HINT,
+    KITCHEN_FAILED,
+    KITCHEN_LABEL,
     Reveal,
     command_row_markup,
     conversation_markup,
     door_hint_markup,
     facade_markup,
     identity_markup,
+    kitchen_row,
     plan_markup,
     simulated_markup,
     text_html,
@@ -31,6 +48,49 @@ QUESTION = ChatMessage(
     message_id="msg_2", role="user", text='<b>hola</b> & "adiós"\n$5 :smile:',
     occurred_at=AT, command_event_id="cmd_message",
 )
+ORDER = KitchenOrder(
+    order_id="ko_1",
+    lines=[
+        KitchenOrderLine(line=1, name="morcilla a la brasa"),
+        KitchenOrderLine(line=2, name="croquetas", quantity=2, modifications=["sin cebolla"]),
+    ],
+    restrictions=["celiaquía"],
+)
+PLAN = KitchenPlan(
+    order_id="ko_1",
+    accepted=[
+        AcceptedItem(
+            line=1, carta_id="morcilla-de-burgos-a-la-brasa", name="Morcilla de Burgos a la brasa",
+            quantity=1, station=KitchenStation.BRASA, adaptations=["sin pimiento"],
+        )
+    ],
+    rejected=[
+        RejectedItem(line=2, requested="croquetas, sin cebolla", quantity=2, reason="Llevan <gluten> & cebolla.")
+    ],
+    warnings=["La casa no ofrece platos certificados sin gluten."],
+    stations=[
+        StationPlan(
+            station=KitchenStation.BRASA,
+            tasks=[
+                StationTask(
+                    line=1, carta_id="morcilla-de-burgos-a-la-brasa", name="Morcilla de Burgos a la brasa",
+                    quantity=1, steps=["Marcar a la brasa"], omit=["pimiento asado"], precautions=["Pinzas limpias"],
+                )
+            ],
+        )
+    ],
+    sources=[KitchenSource(document="carta de la casa", version="1")],
+)
+KITCHEN = ChatMessage(
+    message_id="msg_k", role="kitchen", text="Plan de cocina", occurred_at=AT, command_event_id="cmd_message",
+    kitchen=KitchenReport(order=ORDER, result=PLAN, text="Plan de cocina"),
+)
+REPLY = ChatMessage(
+    message_id="msg_r", role="assistant", text="Cocina acepta la morcilla.", occurred_at=AT,
+    command_event_id="cmd_message",
+)
+
+
 def _parse(markup: str) -> ET.Element:
     return ET.fromstring(re.sub(r"<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ', markup))
 
@@ -52,6 +112,7 @@ def test_every_fragment_is_a_single_html_block() -> None:
         door_hint_markup(), identity_markup("Ana"), command_row_markup("/new"),
         simulated_markup(), plan_markup("Ana", "llegando", entering=True),
         conversation_markup(ConversationView(messages=(GREETING, QUESTION), waiting=True)),
+        kitchen_row(KITCHEN),
     ]
     for fragment in fragments:
         assert fragment.startswith("<div")
@@ -133,3 +194,51 @@ def test_sidebar_is_sized_for_the_longest_command_on_one_line() -> None:
     assert f"({longest} * .61)" in css
     assert longest * 0.61 * 16 + 2 * 12 + 2 * 18 <= width
     assert "white-space: nowrap" in css
+
+
+def test_the_kitchen_plan_is_its_own_bubble_between_the_order_and_the_reply() -> None:
+    root = _parse(conversation_markup(ConversationView(messages=(GREETING, QUESTION, KITCHEN, REPLY))))
+    hilo = root.find("div[@class='hilo']")
+    assert [child.get("class") for child in hilo] == [
+        "msg camarero", "msg cliente", "msg cocina", "msg camarero",
+    ]
+    chef = hilo[2]
+    assert chef.find("*[@class='icono']") is not None
+    bubble = chef.find("div[@class='burbuja plan-cocina']")
+    assert (bubble.get("role"), bubble.get("aria-label")) == ("group", KITCHEN_LABEL)
+    lines = [_text(element) for element in bubble if element.tag == "p"]
+    assert lines == [
+        "Cocina acepta parte del pedido.", "Aceptado", "Rechazado", "Avisos", "Partidas",
+        "Fuentes: carta de la casa (versión 1)",
+    ]
+    items = [_text(item) for item in bubble.iter("li")]
+    assert items == [
+        "1 × Morcilla de Burgos a la brasaBrasa · sin pimiento · alérgenos: ninguno de los 14",
+        "2 × croquetas, sin cebollaLlevan <gluten> & cebolla.",
+        "La casa no ofrece platos certificados sin gluten.",
+        "Brasa1 × Morcilla de Burgos a la brasa. Marcar a la brasa. Omitir: pimiento asado. Precauciones: Pinzas limpias.",
+    ]
+
+
+def test_a_kitchen_failure_is_said_in_the_chefs_bubble() -> None:
+    failure = KitchenFailure(order_id="ko_1", code=KitchenFailureCode.TIMEOUT, message="Cocina no ha respondido a tiempo.")
+    message = KITCHEN.model_copy(
+        update={"kitchen": KitchenReport(order=ORDER, result=failure, text="Cocina no ha podido preparar el plan.")}
+    )
+    bubble = _parse(kitchen_row(message)).find("div[@class='burbuja plan-cocina']")
+    assert [_text(element) for element in bubble] == [KITCHEN_FAILED, "Cocina no ha respondido a tiempo."]
+
+
+def test_the_chef_speaks_white_on_azulejo_blue() -> None:
+    css = base_stylesheet()
+    azulejo = re.search(r"--azulejo: (#[0-9a-f]{6});", css).group(1)
+    bubble = re.search(r"\.msg\.cocina \.burbuja \{([^}]*)\}", css).group(1)
+    assert "background: var(--azulejo)" in bubble and "color: #ffffff" in bubble
+
+    def luminance(hex_color: str) -> float:
+        channels = [int(hex_color[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+        linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    # Readable when projected: well above WCAG AAA for body text.
+    assert (1.05) / (luminance(azulejo) + 0.05) >= 7

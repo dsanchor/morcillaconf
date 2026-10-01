@@ -30,6 +30,7 @@ from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, OrderIte
 from restaurant_contracts.memory import MemoryCandidate, MemoryKind
 
 from restaurant_agent.contracts import WaiterModelResult
+from restaurant_agent.kitchen_tool import KITCHEN_TOOL
 from restaurant_agent.memory.contracts import MemoryIntent
 from restaurant_agent.memory.intent import MemoryIntentDecision
 from restaurant_agent.memory.options import HabitualOrderQuestion
@@ -66,6 +67,7 @@ _YES = re.compile(r"^\W*(?:s[ií]|vale|ok|de acuerdo|confirm\w*)\b", re.IGNORECA
 _USUAL = re.compile(r"\blo (?:de siempre|habitual)\b|\bcomo siempre\b", re.IGNORECASE)
 _ARTICLE = re.compile(r"^(?:el|la|los|las|un|una|unos|unas)\s+", re.IGNORECASE)
 _SPLIT_ITEMS = re.compile(r",\s*|\s+y\s+")
+_KITCHEN_ORDER = re.compile(r"^\s*(?:pido|pedimos)\s+(?P<items>[^.;!?]+)", re.IGNORECASE)
 _HOLD = "seating_hold_seating"
 _CONFIRM = "seating_confirm_seating"
 _BUTTONS = "Confirmadlo o rechazadlo con los botones."
@@ -149,6 +151,33 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
         )
         seating = self._seating(options)
         tools = {getattr(tool, "name", None) for tool in options.get("tools") or []}
+        # «Pido …» is a clear order: it goes to the kitchen before the answer.
+        kitchen_result = next(
+            (
+                content
+                for message in after
+                for content in message.contents
+                if content.type == "function_result" and content.call_id == "scripted-kitchen"
+            ),
+            None,
+        )
+        order = _KITCHEN_ORDER.search(message)
+        if order and KITCHEN_TOOL in tools:
+            if kitchen_result is None:
+                items = [_clean(item) for item in _SPLIT_ITEMS.split(order["items"])]
+                request = Content.from_function_call(
+                    call_id="scripted-kitchen",
+                    name=KITCHEN_TOOL,
+                    arguments=json.dumps({"items": [{"name": item} for item in items if item]}),
+                )
+                return ChatResponse(messages=[Message(role="assistant", contents=[request])])
+            answer = str(kitchen_result.result or "")
+            reply = (
+                "Cocina no ha podido revisar el pedido ahora mismo."
+                if answer.startswith("kitchen_failed")
+                else "Cocina ha revisado el pedido."
+            )
+            result = result.model_copy(update={"reply": reply})
         if seating is not None and _HOLD in tools:
             if hold_result is None:
                 request = self._hold_request(message, result.customer, seating)

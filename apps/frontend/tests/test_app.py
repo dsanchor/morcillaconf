@@ -139,6 +139,21 @@ def test_rejecting_a_proposal_removes_the_card(app) -> None:
     assert not [button for button in at.button if button.label == "Confirmar"]
 
 
+def test_the_chefs_plan_appears_between_the_order_and_the_waiters_reply(app) -> None:
+    at = _enter(app, "Ana").run()
+    at = _say(at, "Pido una morcilla a la brasa y una hamburguesa sin queso")
+    assert not at.exception
+    markup = _markup(at)
+    order = markup.index("Pido una morcilla a la brasa")
+    chef = markup.index('class="msg cocina"')
+    reply = markup.index("Cocina acepta 1 × Morcilla de Burgos a la brasa.")
+    assert order < chef < reply
+    assert 'aria-label="Plan de cocina"' in markup
+    assert "Cocina acepta parte del pedido." in markup and "No está en la carta." in markup
+    # The toque, not the waiter seen from above.
+    assert markup[chef:].split("</svg>", 1)[0].count("<path") == 3
+
+
 def test_the_plan_is_drawn_before_the_waiter_answers(app, monkeypatch) -> None:
     import frontend.markup as markup
     from frontend.visit import VisitSession

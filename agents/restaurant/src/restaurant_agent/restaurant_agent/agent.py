@@ -5,8 +5,12 @@ from typing import Any
 
 from agent_framework import Agent, MCPStreamableHTTPTool
 
+from restaurant_contracts.kitchen import KitchenPort
+
 from restaurant_agent.config import Settings
 from restaurant_agent.contracts import WaiterModelResult
+from restaurant_agent.kitchen import InProcessKitchen
+from restaurant_agent.kitchen_tool import create_kitchen_tool
 from restaurant_agent.knowledge import KnowledgeToolMiddleware, create_knowledge_tool
 from restaurant_agent.memory.context import DurableMemoryContextProvider
 from restaurant_agent.memory.intent import MemoryIntentDecision
@@ -75,11 +79,13 @@ def create_waiter_agent(
     *,
     memory_store: DurableMemoryRepository | None = None,
     client: Any | None = None,
+    kitchen: KitchenPort | None = None,
 ) -> Agent:
     """Build the waiter; by default with the configured Microsoft Foundry deployment.
 
     ``client`` replaces the model (the BFF's scripted waiter), keeping the
-    same tools, middleware and context providers.
+    same tools, middleware and context providers. ``kitchen`` is where
+    ``pedir_a_cocina`` sends orders: by default the chef in this process.
     """
 
     if client is None:
@@ -127,7 +133,13 @@ def create_waiter_agent(
     )
     seating_tools = create_seating_tools(settings)
     knowledge_tool = create_knowledge_tool(settings)
-    tools: list[Any] = [*(seating_tools or []), *([knowledge_tool] if knowledge_tool else [])]
+    tools: list[Any] = [
+        *(seating_tools or []),
+        *([knowledge_tool] if knowledge_tool else []),
+        # Always offered: without a knowledge base the kitchen answers that it
+        # cannot consult the carta, instead of the waiter promising anything.
+        create_kitchen_tool(kitchen or InProcessKitchen(settings)),
+    ]
     context_providers = [VisitContextProvider(seating_tools[0] if seating_tools else None)]
     if memory_store:
         context_providers.append(
@@ -155,7 +167,7 @@ def create_waiter_agent(
         description="Atiende al cliente y mantiene un borrador del pedido.",
         client=client,
         instructions=load_instructions(),
-        tools=tools or None,
+        tools=tools,
         context_providers=context_providers,
         middleware=[
             HabitualOrderMiddleware(intent_classifier),

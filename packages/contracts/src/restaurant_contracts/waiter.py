@@ -6,6 +6,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter
 
 from .application import ActorContext
 from .customer import CustomerSnapshot, OrderDraft
+from .kitchen import KitchenReport
 from .seating import PlaceKind, PlaceState, SeatingPlace
 
 
@@ -118,6 +119,10 @@ class WaiterTurnSuccess(WireModel):
     persisted_order_preferences: list[str] = Field(default_factory=list)
     session_json: str | None = None
     seating: SeatingReport | None = None
+    # The kitchen's answer when the waiter sent it the order in this turn.
+    # Left out of the JSON when absent, so a BFF of the previous version still
+    # reads every other turn while both are being redeployed.
+    kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class WaiterSeatingSuccess(WireModel):

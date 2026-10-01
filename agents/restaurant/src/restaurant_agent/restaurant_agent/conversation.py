@@ -12,6 +12,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from restaurant_agent import seating as seating_state
+from restaurant_agent.kitchen_tool import take_kitchen_report
 
 from restaurant_agent.contracts import (
     SessionState,
@@ -321,6 +322,8 @@ class ConversationManager:
                 )
 
             self._refresh_remembered_memories(record)
+            # Only the kitchen's answer to this turn's order reaches the response.
+            take_kitchen_report(record.agent_session.state)
             prompt = self._build_prompt(record, normalized_message)
             run_input: Any = prompt
             pending = seating_state.pending_confirm_request(record.agent_session.state)
@@ -340,9 +343,12 @@ class ConversationManager:
                 # reasoning. Completed tool groups therefore cannot be sent
                 # inline on a later stateless Responses request.
                 _compact_completed_tool_history(record.agent_session.state)
-            response = await self._run(
-                record, run_input, options={"response_format": WaiterModelResult}
-            )
+            try:
+                response = await self._run(
+                    record, run_input, options={"response_format": WaiterModelResult}
+                )
+            finally:
+                kitchen = take_kitchen_report(record.agent_session.state)
             paused = bool(
                 seating_state.confirm_approval_requests(
                     getattr(response, "user_input_requests", None) or []
@@ -423,6 +429,7 @@ class ConversationManager:
                     MemoryCandidate(kind=memory.kind, value=memory.value)
                     for memory in record.remembered_memories
                 ],
+                kitchen=kitchen,
             )
 
     def seating_report(self, *, conversation_id: str, actor_id: str) -> dict[str, Any] | None:

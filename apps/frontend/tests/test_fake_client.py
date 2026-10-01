@@ -19,6 +19,7 @@ from restaurant_contracts.client import BffClient, BffClientError
 from restaurant_contracts.memory import MemoryKind
 
 from frontend.fake_client import FakeBffClient, FakeRestaurant, extract_memories
+from frontend.fake_kitchen import fake_kitchen_report, kitchen_reply
 
 AT = datetime(2026, 9, 27, 20, 0, tzinfo=UTC)
 SNAPSHOT_ADAPTER = TypeAdapter(RestaurantSnapshot)
@@ -327,12 +328,46 @@ async def test_clock_is_used_for_server_dates() -> None:
     assert snapshot.messages[0].occurred_at.tzinfo is not None
 
 
+def test_the_simulated_chef_answers_orders_with_a_valid_report() -> None:
+    assert fake_kitchen_report("Hola, venimos dos", "ko_1") is None
+    report = fake_kitchen_report(
+        "Pido una morcilla a la brasa, dos croquetas de morcilla y una hamburguesa sin queso, y soy celíaca",
+        "ko_1",
+    )
+    plan = report.result
+    assert report.order.restrictions == ["celiaquía"]
+    assert [(line.name, line.quantity, line.modifications) for line in report.order.lines] == [
+        ("morcilla a la brasa", 1, []),
+        ("croquetas de morcilla", 2, []),
+        ("hamburguesa", 1, ["sin queso"]),
+    ]
+    assert [item.carta_id for item in plan.accepted] == ["morcilla-de-burgos-a-la-brasa"]
+    assert [(item.line, item.reason) for item in plan.rejected] == [
+        (2, "Contiene cereales con gluten y has indicado celiaquía."),
+        (3, "No está en la carta."),
+    ]
+    assert kitchen_reply(report).startswith("Cocina acepta 1 × Morcilla de Burgos a la brasa.")
+
+
+async def test_an_order_shows_the_chef_between_the_customer_and_the_waiter() -> None:
+    client = _client()
+    arrival = await _arrive(client)
+    await client.submit(
+        _command("conversation.message_sent", "cmd_pido", arrival.conversation_id, message="Pido un agua con gas")
+    )
+    snapshot = await client.get_snapshot(arrival.conversation_id)
+    assert [message.role for message in snapshot.messages] == ["assistant", "user", "kitchen", "assistant"]
+    assert snapshot.messages[2].kitchen.result.accepted[0].station == "barra"
+    assert snapshot.messages[3].text == "Cocina acepta 1 × Agua con gas."
+    assert SNAPSHOT_ADAPTER.validate_json(SNAPSHOT_ADAPTER.dump_json(snapshot)) == snapshot
+
+
 def test_view_modules_do_not_import_agents_frameworks_or_databases() -> None:
     subprocess.run(
         [
             sys.executable, "-c",
             "import sys\n"
-            "import frontend.config, frontend.fake_client, frontend.http_client\n"
+            "import frontend.config, frontend.fake_client, frontend.fake_kitchen, frontend.http_client\n"
             "import frontend.markup\n"
             "import frontend.slash_commands, frontend.stylesheets, frontend.visit\n"
             "forbidden = ('restaurant_agent', 'agent_framework', 'azure', 'mcp', 'a2a',\n"
