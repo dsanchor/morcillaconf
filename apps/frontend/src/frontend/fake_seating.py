@@ -262,6 +262,11 @@ class FakeRoom:
         del self._holds[owner]
         return None
 
+    def exit(self, owner: str) -> None:
+        """Release either a pending or occupied assignment."""
+
+        self._holds.pop(owner, None)
+
     def drop_expired(self, owner: str) -> None:
         hold = self._holds.get(owner)
         if hold is not None and hold.status == "held" and hold.expires_at is not None and hold.expires_at <= self._clock():

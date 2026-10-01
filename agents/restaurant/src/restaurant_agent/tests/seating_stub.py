@@ -52,7 +52,8 @@ class StubSeating:
             raise ValueError("not_found: assignment does not exist")
         if item["status"] == "expired":
             raise ValueError("expired: assignment hold has expired")
-        if item["status"] != "held" or item["version"] != version:
+        expected_status = "occupied" if status == "released" else "held"
+        if item["status"] != expected_status or item["version"] != version:
             raise ValueError("conflict: assignment cannot change")
         item.update(status=status, version=version + 1, expires_at=None)
         return item
@@ -87,6 +88,11 @@ def build_server(stub: StubSeating, port: int) -> FastMCP:
     def cancel_seating_hold(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
         stub.calls.append(("cancel_seating_hold", {"assignment_id": assignment_id, "visit_id": visit_id}))
         return stub.change(assignment_id, visit_id, expected_version, "cancelled")
+
+    @server.tool()
+    def release_seating(assignment_id: str, visit_id: str, expected_version: int, idempotency_key: str) -> dict[str, object]:
+        stub.calls.append(("release_seating", {"assignment_id": assignment_id, "visit_id": visit_id, "expected_version": expected_version, "idempotency_key": idempotency_key}))
+        return stub.change(assignment_id, visit_id, expected_version, "released")
 
     @server.tool()
     def get_seating_map(visit_id: str = "") -> dict[str, object]:

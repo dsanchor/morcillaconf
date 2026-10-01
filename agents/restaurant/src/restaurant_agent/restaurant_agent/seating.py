@@ -676,6 +676,11 @@ class VisitContextProvider(ContextProvider):
         session.state.pop(SUPERSEDED_KEY, None)
         if self._tool is not None:
             await self._connect()
+            control = session.state.get(CONTROL_KEY)
+            if control == "release":
+                await self.refresh(session.state)
+                await self._release(session.state)
+                await self.refresh(session.state)
             rejected = rejected_confirmations(context.input_messages)
             if rejected:
                 typed = any(
@@ -747,6 +752,27 @@ class VisitContextProvider(ContextProvider):
         clear_proposal(state)
         set_outcome(state, outcome, proposal.get("resource_label") or proposal["resource_id"])
         state[DECISION_KEY] = {"decision": outcome, "place": place}
+
+    async def _release(self, state: State) -> None:
+        """Release this visit's hold or occupied assignment through the MCP."""
+
+        proposal = pending_proposal(state)
+        if proposal is not None:
+            await self._cancel(state, "cancelled")
+            return
+        seated = state.get(SEATED_KEY) if isinstance(state.get(SEATED_KEY), dict) else None
+        visit_id = visit_id_of(state)
+        if seated is None or visit_id is None:
+            return
+        await self._tool.call_tool(
+            "release_seating",
+            assignment_id=seated["assignment_id"],
+            visit_id=visit_id,
+            expected_version=seated["version"],
+            idempotency_key=f"release:{seated['assignment_id']}:{seated['version']}",
+        )
+        state.pop(SEATED_KEY, None)
+        set_outcome(state, "cancelled", seated.get("label", ""))
 
 
 class SeatingToolContextMiddleware(FunctionMiddleware):
@@ -940,7 +966,7 @@ class SeatingApprovalChatMiddleware(ChatMiddleware):
             await call_next()
             return
         state = session.state
-        if state.get(CONTROL_KEY) == "sync":
+        if state.get(CONTROL_KEY) in ("sync", "release"):
             context.result = ChatResponse(messages=[])
             return
         decided = self._decision_reply(state, context.messages)

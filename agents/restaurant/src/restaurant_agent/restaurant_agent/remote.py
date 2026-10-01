@@ -23,6 +23,7 @@ from restaurant_contracts.waiter import (
     SeatingReport,
     WaiterSeatingDecisionRequest,
     WaiterSeatingRequest,
+    WaiterSeatingReleaseRequest,
     WaiterSeatingSuccess,
     WaiterSeatingSyncRequest,
     WaiterTurnFailure,
@@ -210,6 +211,33 @@ class RemoteWaiterService:
         except ConversationError as exc:
             return _failure(exc)
 
+    async def release_seating(
+        self, request: WaiterSeatingReleaseRequest
+    ) -> WaiterSeatingSuccess | WaiterTurnFailure:
+        """Release the visit's place through the agent's MCP connection."""
+
+        try:
+            async with self._conversation(
+                request, settings=self._seating_settings
+            ) as manager:
+                await manager.release_seating(
+                    conversation_id=request.conversation_id,
+                    actor_id=request.actor.actor_id,
+                )
+                exported = manager.export_conversation(
+                    conversation_id=request.conversation_id,
+                    actor_id=request.actor.actor_id,
+                )
+                return WaiterSeatingSuccess(
+                    operation="release_seating",
+                    reply="La mesa o barra queda libre. ¡Hasta pronto!",
+                    outcome="cancelled",
+                    session_json=_session_to_json(exported.agent_session),
+                    seating=_report(manager, request),
+                )
+        except ConversationError as exc:
+            return _failure(exc)
+
     @asynccontextmanager
     async def _conversation(
         self,
@@ -345,6 +373,8 @@ def create_server(
                 raise ValueError("The request identity does not match the waiter turn")
             if isinstance(turn, WaiterSeatingDecisionRequest):
                 operation = selected_service.decide_seating(turn)
+            elif isinstance(turn, WaiterSeatingReleaseRequest):
+                operation = selected_service.release_seating(turn)
             elif isinstance(turn, WaiterSeatingSyncRequest):
                 operation = selected_service.sync_seating(turn)
             else:

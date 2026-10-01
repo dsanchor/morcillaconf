@@ -75,6 +75,9 @@ class Waiter:
     async def decide(self, approved: bool):
         return await self.manager.decide_seating(conversation_id="conv_1", actor_id="ana", approved=approved)
 
+    async def release(self):
+        return await self.manager.release_seating(conversation_id="conv_1", actor_id="ana")
+
     def report(self):
         return self.manager.seating_report(conversation_id="conv_1", actor_id="ana")
 
@@ -128,6 +131,23 @@ async def test_a_hold_pauses_for_approval_even_if_the_model_forgets_to_ask(waite
     assert "seating_get_seating_map" not in ana.model.calls[0]["tools"]
 
 
+async def test_exit_cancels_a_pending_hold_without_calling_the_model(
+    waiter, seating_server
+) -> None:
+    ana = waiter([hold(3), say("Os propongo la Mesa 3.", 3)])
+    await ana.say("Venimos tres")
+    model_calls = len(ana.model.calls)
+
+    report = await ana.release()
+
+    assert report["status"] == "none"
+    assert len(ana.model.calls) == model_calls
+    assert calls(seating_server, "cancel_seating_hold")[0][1] == {
+        "assignment_id": "seat_1",
+        "visit_id": "visit_ana",
+    }
+
+
 async def test_a_solo_customer_chooses_an_available_option_and_is_seated_immediately(
     waiter, seating_server
 ) -> None:
@@ -165,6 +185,34 @@ async def test_a_solo_customer_chooses_an_available_option_and_is_seated_immedia
     assert not calls(seating_server, "confirm_seating")
     assert pending_confirm_request(ana.session.state) is None
     assert ana.report()["status"] == "seated"
+
+
+async def test_exit_releases_an_occupied_assignment_without_calling_the_model(
+    waiter, seating_server
+) -> None:
+    ana = waiter(
+        [
+            availability(),
+            say("Hay mesa disponible. ¿Quieres mesa?", 1),
+            hold(1, "table"),
+            confirm_solo(),
+            say("Perfecto, te acompaño a la Mesa 1. ¿Qué quieres tomar?", 1),
+        ]
+    )
+    await ana.say("He venido sola")
+    await ana.say("Quiero mesa")
+    model_calls = len(ana.model.calls)
+
+    report = await ana.release()
+
+    assert report["status"] == "none"
+    assert len(ana.model.calls) == model_calls
+    assert calls(seating_server, "release_seating")[0][1] == {
+        "assignment_id": "seat_1",
+        "visit_id": "visit_ana",
+        "expected_version": 2,
+        "idempotency_key": "release:seat_1:2",
+    }
 
 
 async def test_solo_hold_requires_a_prior_availability_lookup(waiter, seating_server) -> None:

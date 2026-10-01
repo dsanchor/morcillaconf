@@ -468,6 +468,21 @@ class ConversationManager:
                 state.pop(seating_state.CONTROL_KEY, None)
             return self._report(record)
 
+    async def release_seating(
+        self, *, conversation_id: str, actor_id: str
+    ) -> dict[str, Any] | None:
+        """Release this visit's pending or occupied seating without the model."""
+
+        record = self._get_owned_conversation(conversation_id, actor_id)
+        async with record.lock:
+            state = record.agent_session.state
+            state[seating_state.CONTROL_KEY] = "release"
+            try:
+                await self._run(record, None, options={"response_format": None})
+            finally:
+                state.pop(seating_state.CONTROL_KEY, None)
+            return self._report(record)
+
     async def _run(self, record: ConversationRecord, messages: Any, *, options: dict[str, Any]) -> Any:
         try:
             return await self._agent.run(

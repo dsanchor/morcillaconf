@@ -132,3 +132,17 @@ def test_a_group_too_large_gets_an_honest_answer() -> None:
     big.send_message("Somos nueve")
     assert big.snapshot.seating.status == "none"
     assert "no hay sitio para nueve" in big.snapshot.messages[-1].text
+
+
+def test_exit_releases_the_place_for_another_visit() -> None:
+    ana = VisitSession(HttpBffClient.open(BFF_URL, "Ana", timeout=30))
+    ana.arrive(ana._client.active_visit_id)
+    assert ana.snapshot.seating.place.label == "Mesa 3"
+
+    assert ana.exit()
+    ana.refresh_room()
+    assert place(ana, "Mesa 3").state == "free"
+
+    replacement = enter("Relevo")
+    replacement.send_message("Somos tres")
+    assert replacement.snapshot.seating.proposal.place.label == "Mesa 3"

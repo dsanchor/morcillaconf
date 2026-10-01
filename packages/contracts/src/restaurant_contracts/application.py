@@ -48,6 +48,7 @@ class Action(StrEnum):
     DELETE_MEMORY = "memory.deletion_requested"
     CLEAR_MEMORY = "memory.clear_requested"
     DECIDE_TABLE = "table.confirmation_decided"
+    END_VISIT = "visit.end_requested"
 
 
 class EmptyPayload(ContractModel):
@@ -124,6 +125,11 @@ class DecideTableCommand(ConversationCommand):
     payload: TableDecisionPayload
 
 
+class EndVisitCommand(ConversationCommand):
+    event_type: Literal["visit.end_requested"]
+    payload: EmptyPayload
+
+
 Command = Annotated[
     ArriveCommand
     | SendMessageCommand
@@ -131,7 +137,8 @@ Command = Annotated[
     | CorrectMemoryCommand
     | DeleteMemoryCommand
     | ClearMemoryCommand
-    | DecideTableCommand,
+    | DecideTableCommand
+    | EndVisitCommand,
     Field(discriminator="event_type"),
 ]
 COMMAND_ADAPTER = TypeAdapter(Command)
@@ -208,7 +215,13 @@ class RestaurantSnapshot(ContractModel):
             if self.memory.memories:
                 raise ValueError("Guests cannot have durable memory")
             if any(
-                action not in (Action.ARRIVE, Action.SEND_MESSAGE)
+                action
+                not in (
+                    Action.ARRIVE,
+                    Action.SEND_MESSAGE,
+                    Action.DECIDE_TABLE,
+                    Action.END_VISIT,
+                )
                 for action in self.allowed_actions
             ):
                 raise ValueError("Guests cannot manage durable memory")

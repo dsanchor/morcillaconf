@@ -409,10 +409,21 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   importe antes del cobro.
 - [ ] Implementar pago simulado aprobado, rechazado y resultado incierto;
   referencia persistida y consulta por clave antes de repetir una escritura.
+- [ ] Mientras cuenta, caja y pago no estén implementados, usar `/exit` como
+  cierre temporal de la visita: si hay un bloqueo pendiente, cancelarlo; si el
+  cliente ya está sentado, pedir al agente que invoque `release_seating` en el
+  MCP y volver a la puerta solo después de confirmar la liberación. El BFF no
+  accede directamente al MCP y un fallo de liberación mantiene activa la
+  visita con un error visible. Este atajo permite probar ocupación, liberación
+  y reasignación de mesas, pero no representa un pago ni el flujo definitivo.
+  `/new` conserva su significado de iniciar otra visita y no libera una mesa
+  ocupada.
 - [ ] Liberar mesa solo por solicitud del cliente propietario y con cuenta
   pagada. El pago no la libera automaticamente ni lo hace cerrar el navegador.
 - [ ] Añadir pedido, pago y liberación integrada: la liberación invoca el MCP
-  solo después de verificar el pago y la pertenencia de la visita.
+  solo después de verificar el pago y la pertenencia de la visita. Al completar
+  este flujo, retirar el atajo temporal de `/exit`: pasará a solicitar cuenta,
+  revisión humana de caja y pago antes de liberar el asiento y cerrar la visita.
 - [ ] Registrar decisiones y efectos, con checkpoints duraderos en local.
 
 **Aceptacion y pruebas**
@@ -420,6 +431,10 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
 - Dos grupos concurrentes no obtienen el mismo bloqueo ni ocupan las mismas
   plazas; rechazar o caducar una propuesta libera el bloqueo. Dos pedidos no
   consumen la ultima unidad.
+- Durante la etapa temporal, `/exit` libera una ocupación propia y permite
+  reasignar el recurso a otra visita; no libera ocupaciones ajenas, no sale si
+  el MCP falla y repetir la operación no produce una segunda liberación.
+  `/new` sigue rechazándose mientras la visita permanezca sentada.
 - Doble clic y reanudacion no duplican comanda, bebida, cobro ni liberacion.
 - Reiniciar durante la confirmacion del pedido o el HITL de caja recupera la
   misma decision pendiente; una decision antigua o de otra version no ejecuta

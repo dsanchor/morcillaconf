@@ -178,6 +178,16 @@ class LocalWaiter:
             seating=self._report(call.visit_id),
         )
 
+    async def release_seating(self, call: WaiterSeatingCall) -> WaiterSeatingResult:
+        if self._seating is not None:
+            self._seating.leave(call.visit_id)
+        return WaiterSeatingResult(
+            reply="La mesa o barra queda libre. ¡Hasta pronto!",
+            outcome="cancelled",
+            session_json=call.session_json,
+            seating=self._report(call.visit_id),
+        )
+
     def _report(self, visit_id: str | None):
         if self._seating is None or visit_id is None:
             return None

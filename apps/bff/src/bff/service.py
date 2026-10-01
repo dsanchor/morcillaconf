@@ -32,6 +32,7 @@ from restaurant_contracts.application import (
     CommandStatusChanged,
     CompletedCommandResult,
     DecideTableCommand,
+    EndVisitCommand,
     ErrorCode,
     FailedCommandResult,
     MemoryView,
@@ -282,6 +283,8 @@ class RestaurantService:
     async def submit(self, session: DemoSession, command: Command) -> CommandResult:
         if isinstance(command, DecideTableCommand):
             return await self._decide_table(session, command)
+        if isinstance(command, EndVisitCommand):
+            return await self._end_visit(session, command)
         if isinstance(command, ArriveCommand) and command.payload.resume_visit_id is None:
             refused = await self._leave_seating_for_new_visit(session, command)
             if refused is not None:
@@ -290,6 +293,97 @@ class RestaurantService:
         if isinstance(command, ArriveCommand) and result.status == "completed":
             self._start(self._sync_seating(result.conversation_id))
         return result
+
+    async def _end_visit(
+        self, session: DemoSession, command: EndVisitCommand
+    ) -> CommandResult:
+        """Ask the waiter to release seating before confirming the exit."""
+
+        actor_id = session.actor.actor_id
+        digest = fingerprint(command)
+        conversation_id = command.conversation_id
+        async with self._lock(conversation_id):
+            correlation_id = new_id("corr")
+            with self._db.write() as tx:
+                stored = tx.get_result(actor_id, command.event_id)
+                if stored is not None:
+                    if stored.fingerprint != digest:
+                        raise PublicFailure(
+                            ErrorCode.IDEMPOTENCY_CONFLICT, IDEMPOTENCY_CONFLICT
+                        )
+                    return stored.result
+                row = tx.get_conversation(conversation_id)
+                if row is None:
+                    return self._failed(
+                        command.event_id,
+                        correlation_id,
+                        ErrorCode.NOT_FOUND,
+                        NOT_FOUND_CONVERSATION,
+                    )
+                if row.actor_id != actor_id:
+                    return self._failed(
+                        command.event_id,
+                        correlation_id,
+                        ErrorCode.FORBIDDEN,
+                        FORBIDDEN_CONVERSATION,
+                    )
+                row.process_status = "processing"
+                row.pending_event_id = command.event_id
+                row.updated_at = self._clock()
+                tx.update_conversation(row)
+                pending = PendingCommandResult(
+                    schema_version=1,
+                    event_id=command.event_id,
+                    correlation_id=correlation_id,
+                    status="pending",
+                )
+                tx.save_result(
+                    actor_id=actor_id,
+                    fingerprint=digest,
+                    conversation_id=conversation_id,
+                    result=pending,
+                    now=self._clock(),
+                )
+                self._emit_snapshot(tx, row, command.event_id, correlation_id)
+            self._notifier.notify(conversation_id)
+            try:
+                released = await self._waiter.release_seating(
+                    self._seating_call(row, correlation_id)
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.error(
+                    "Visit exit failed (correlation %s): %s",
+                    correlation_id,
+                    type(exc).__name__,
+                )
+                released = None
+            with self._db.write() as tx:
+                current = tx.get_conversation(conversation_id)
+                assert current is not None
+                current.process_status = "idle"
+                current.pending_event_id = None
+                current.updated_at = self._clock()
+                if released is None:
+                    tx.update_conversation(current)
+                    outcome = self._fail_in(
+                        tx,
+                        current,
+                        command,
+                        correlation_id,
+                        ErrorCode.UNAVAILABLE,
+                        SEATING_UNAVAILABLE,
+                    )
+                else:
+                    if released.session_json is not None:
+                        current.agent_session_json = released.session_json
+                    tx.update_conversation(current)
+                    self._apply_report(tx, conversation_id, released.seating)
+                    outcome = self._complete(tx, current, command, correlation_id)
+                tx.update_result(actor_id, outcome.result, self._clock())
+        self._notifier.notify(conversation_id)
+        return outcome.result
 
     async def _submit(self, session: DemoSession, command: Command) -> CommandResult:
         actor_id = session.actor.actor_id
@@ -1252,6 +1346,8 @@ class RestaurantService:
         actions = [Action.ARRIVE]
         if idle and row.turn_count < self._max_turns:
             actions.append(Action.SEND_MESSAGE)
+        if idle:
+            actions.append(Action.END_VISIT)
 
         if idle and seat is not None and seat.status == "proposed":
             actions.append(Action.DECIDE_TABLE)

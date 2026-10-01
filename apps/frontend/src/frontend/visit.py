@@ -26,6 +26,8 @@ from restaurant_contracts.application import (
     CommandResult,
     CommandStatusChanged,
     DecideTableCommand,
+    EmptyPayload,
+    EndVisitCommand,
     ErrorCode,
     ResponseTextDelta,
     RestaurantSnapshot,
@@ -84,6 +86,7 @@ class VisitSession:
         self.outgoing: str | None = None
         self._provisional: dict[str, str] = {}
         self._reported: str | None = None
+        self._last_completed_event_id: str | None = None
         self.room: RoomView | None = None
         # Monotonic time when this browser saw its group sit down: the walk
         # to the seats plays once from here, never after a reload.
@@ -193,6 +196,30 @@ class VisitSession:
             on_update,
             action=Action.DECIDE_TABLE,
         )
+
+    def exit(self, on_update: Updater | None = None) -> bool:
+        """Release this visit's seating; return whether the backend confirmed it."""
+
+        if self.snapshot is None or self.pending is not None:
+            return False
+        event_id = self._new_event_id()
+        try:
+            command = EndVisitCommand(
+                schema_version=1,
+                event_id=event_id,
+                occurred_at=self._clock(),
+                event_type="visit.end_requested",
+                conversation_id=self.snapshot.conversation_id,
+                payload=EmptyPayload(),
+            )
+        except ValidationError:
+            self._notice(UNKNOWN_COMMAND)
+            return False
+        if not self.allows(Action.END_VISIT):
+            self._notice(NOT_ALLOWED)
+            return False
+        self._run(self._dispatch(command, on_update))
+        return self._last_completed_event_id == event_id
 
     def walk_elapsed(self) -> float | None:
         """Seconds since this browser saw the group sit down, for the walk."""
@@ -333,6 +360,7 @@ class VisitSession:
                 except BffClientError:
                     pass
         else:
+            self._last_completed_event_id = command.event_id
             self._conclude(command)
         _notify(on_update)
 

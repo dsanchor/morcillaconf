@@ -38,7 +38,7 @@ PLAN_REFRESH_SECONDS = 3
 ENTRANCE_SECONDS = 4.5
 SIDEBAR_BUTTONS = {
     "new": ("/new", "Nueva visita", Action.ARRIVE),
-    "exit": ("/exit", "Salir", None),
+    "exit": ("/exit", "Salir", Action.END_VISIT),
 }
 SIDEBAR_ORDER = (
     "new",
@@ -234,8 +234,10 @@ def _apply_slash(visit: VisitSession, command: SlashCommand) -> str | None:
     """Run a typed command; returns the greeting reveal pace for a new visit."""
 
     if command.action == "exit":
-        _leave()
-        st.rerun()
+        if visit.exit():
+            _leave()
+            st.rerun()
+        return None
     if command.action == "new":
         visit.arrive()
         return "quick"
@@ -285,8 +287,11 @@ def _enter() -> None:
 def _run_command(action: str) -> None:
     state = st.session_state
     visit: VisitSession | None = state.get("visit")
-    if action == "exit" or visit is None:
+    if visit is None:
         _leave()
+    elif action == "exit":
+        if visit.exit():
+            _leave()
     elif action == "new":
         visit.arrive()
         state.reveal = "quick"

@@ -54,6 +54,7 @@ from restaurant_contracts.waiter import (  # noqa: E402
     WaiterSeatingDecisionRequest,
     WaiterSeatingSuccess,
     WaiterSeatingSyncRequest,
+    WaiterSeatingReleaseRequest,
     WaiterTurnFailure,
 )
 
@@ -94,11 +95,12 @@ def test_requests_are_discriminated_by_operation() -> None:
     assert isinstance(decision, WaiterSeatingDecisionRequest)
     sync = WAITER_REQUEST_ADAPTER.validate_python({**base, "operation": "sync_seating"})
     assert isinstance(sync, WaiterSeatingSyncRequest)
+    release = WAITER_REQUEST_ADAPTER.validate_python({**base, "operation": "release_seating"})
+    assert isinstance(release, WaiterSeatingReleaseRequest)
     for invalid in (
         {**base, "operation": "decide_seating", "decision": "maybe", "proposal_token": "abc"},
         {**base, "operation": "decide_seating", "decision": "confirmed"},
         {**base, "operation": "sync_seating", "assignment_id": "seat_1"},
-        {**base, "operation": "release_seating"},
     ):
         with pytest.raises(ValidationError):
             WAITER_REQUEST_ADAPTER.validate_python(invalid)

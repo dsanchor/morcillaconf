@@ -184,6 +184,15 @@ class ScriptedSeating:
         hold = self.own(visit_id)
         return hold is not None and hold.status == "held"
 
+    def leave(self, visit_id: str) -> None:
+        """Release any live assignment owned by this visit."""
+
+        self._check()
+        own = self.own(visit_id)
+        if own is not None:
+            self._holds.remove(own)
+            self._outcomes[visit_id] = {"decision": "cancelled", "place": own.label}
+
     def report(self, visit_id: str) -> SeatingReport:
         self._check()
         own = self.own(visit_id)

@@ -26,6 +26,7 @@ from restaurant_contracts.application import (
     CompletedCommandResult,
     CorrectMemoryCommand,
     DecideTableCommand,
+    EndVisitCommand,
     DeleteMemoryCommand,
     ErrorCode,
     FailedCommandResult,
@@ -301,6 +302,9 @@ class FakeRestaurant:
             return self._converse(conversation, command, correlation_id)
         if isinstance(command, DecideTableCommand):
             return self._decide(conversation, command, correlation_id)
+        if isinstance(command, EndVisitCommand):
+            self.room.exit(conversation.conversation_id)
+            return None
         if not conversation.owner.authenticated:
             return _Failure(ErrorCode.FORBIDDEN, "Los invitados no tienen recuerdos guardados.")
         memories = self._memories.setdefault(conversation.owner.actor_id, [])
@@ -578,6 +582,8 @@ class FakeRestaurant:
         process_status: ProcessStatus = "idle",
     ) -> list[Action]:
         actions = [Action.ARRIVE]
+        if process_status == "idle":
+            actions.append(Action.END_VISIT)
         if conversation.turns < self.max_turns:
             actions.append(Action.SEND_MESSAGE)
         if conversation.owner.authenticated:

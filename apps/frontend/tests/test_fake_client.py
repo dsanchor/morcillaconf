@@ -310,7 +310,11 @@ async def test_guest_has_no_durable_memory() -> None:
     snapshot = await guest.get_snapshot(arrival.conversation_id)
     assert _roundtrip(snapshot) == snapshot
     assert snapshot.memory.memories == []
-    assert set(snapshot.allowed_actions) <= {Action.ARRIVE, Action.SEND_MESSAGE}
+    assert set(snapshot.allowed_actions) <= {
+        Action.ARRIVE,
+        Action.SEND_MESSAGE,
+        Action.END_VISIT,
+    }
     refused = await guest.submit(_command("memory.read_requested", "cmd_read", arrival.conversation_id))
     assert refused.status == "failed" and refused.error.code == ErrorCode.FORBIDDEN
 

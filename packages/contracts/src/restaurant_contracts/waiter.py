@@ -53,8 +53,17 @@ class WaiterSeatingSyncRequest(WaiterSeatingRequest):
     operation: Literal["sync_seating"] = "sync_seating"
 
 
+class WaiterSeatingReleaseRequest(WaiterSeatingRequest):
+    """Release this visit's pending or occupied place."""
+
+    operation: Literal["release_seating"] = "release_seating"
+
+
 WaiterRequest = Annotated[
-    WaiterTurnRequest | WaiterSeatingDecisionRequest | WaiterSeatingSyncRequest,
+    WaiterTurnRequest
+    | WaiterSeatingDecisionRequest
+    | WaiterSeatingSyncRequest
+    | WaiterSeatingReleaseRequest,
     Field(discriminator="operation"),
 ]
 WAITER_REQUEST_ADAPTER = TypeAdapter(WaiterRequest)
@@ -115,9 +124,11 @@ class WaiterSeatingSuccess(WireModel):
     """Result of a seating decision or sync; ``reply`` is the waiter's fixed answer."""
 
     status: Literal["completed"] = "completed"
-    operation: Literal["decide_seating", "sync_seating"]
+    operation: Literal["decide_seating", "sync_seating", "release_seating"]
     reply: str = Field(default="", max_length=2_000)
-    outcome: Literal["confirmed", "rejected", "expired", "stale", "unavailable"] | None = None
+    outcome: Literal[
+        "confirmed", "rejected", "expired", "stale", "unavailable", "cancelled"
+    ] | None = None
     session_json: str | None = None
     seating: SeatingReport | None = None
 

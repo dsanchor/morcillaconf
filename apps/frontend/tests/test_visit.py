@@ -72,6 +72,13 @@ def test_new_visit_starts_a_clean_conversation() -> None:
     assert len(visit.snapshot.messages) == 1
 
 
+def test_exit_only_succeeds_after_the_backend_releases_the_visit() -> None:
+    visit = _visit()
+
+    assert visit.exit()
+    assert visit.pending is None
+
+
 def test_interrupted_command_is_resolved_without_resending() -> None:
     restaurant = FakeRestaurant()
     visit = _visit(restaurant=restaurant)

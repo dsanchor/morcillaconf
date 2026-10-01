@@ -14,6 +14,7 @@ from restaurant_contracts.waiter import (
     WAITER_TURN_RESPONSE_ADAPTER,
     SeatingReport,
     WaiterSeatingDecisionRequest,
+    WaiterSeatingReleaseRequest,
     WaiterSeatingSyncRequest,
     WaiterTurnFailure,
     WaiterTurnRequest,
@@ -103,6 +104,8 @@ class WaiterPort(Protocol):
 
     async def sync_seating(self, call: WaiterSeatingCall) -> WaiterSeatingResult: ...
 
+    async def release_seating(self, call: WaiterSeatingCall) -> WaiterSeatingResult: ...
+
     async def aclose(self) -> None: ...
 
 
@@ -163,9 +166,18 @@ class RemoteWaiter:
     async def sync_seating(self, call: WaiterSeatingCall) -> WaiterSeatingResult:
         return await self._seating(WaiterSeatingSyncRequest(**_seating_fields(call)), call)
 
+    async def release_seating(self, call: WaiterSeatingCall) -> WaiterSeatingResult:
+        return await self._seating(
+            WaiterSeatingReleaseRequest(**_seating_fields(call)), call
+        )
+
     async def _seating(
         self,
-        request: WaiterSeatingDecisionRequest | WaiterSeatingSyncRequest,
+        request: (
+            WaiterSeatingDecisionRequest
+            | WaiterSeatingSyncRequest
+            | WaiterSeatingReleaseRequest
+        ),
         call: WaiterSeatingCall,
     ) -> WaiterSeatingResult:
         result = await self._post(

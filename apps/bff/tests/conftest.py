@@ -96,6 +96,14 @@ class Commands:
             event_type="memory.clear_requested", conversation_id=conversation_id, payload={}
         )
 
+    def exit(self, conversation_id: str, *, event_id: str | None = None) -> Command:
+        return self._command(
+            event_id=event_id,
+            event_type="visit.end_requested",
+            conversation_id=conversation_id,
+            payload={},
+        )
+
 
 class GatedAgent(ScriptedWaiterAgent):
     """Scripted waiter that waits until the test opens the gate."""

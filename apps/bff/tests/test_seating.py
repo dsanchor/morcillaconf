@@ -74,6 +74,43 @@ async def test_the_waiters_proposal_becomes_the_card(service, commands, seating)
     assert seating.awaiting(snapshot.visit_id)
 
 
+async def test_exit_releases_an_occupied_place_and_is_idempotent(
+    service, commands, seating
+) -> None:
+    session, conversation_id, snapshot = await propose(service, commands)
+    proposal = snapshot.seating.proposal
+    await service.submit(session, commands.decide(conversation_id, proposal.proposal_id))
+    assert service.get_snapshot(session, conversation_id).seating.status == "seated"
+
+    command = commands.exit(conversation_id)
+    result = await service.submit(session, command)
+
+    assert result.status == "completed"
+    assert await service.submit(session, command) == result
+    released = service.get_snapshot(session, conversation_id)
+    assert released.seating.status == "none"
+    assert seating.own(released.visit_id) is None
+
+
+async def test_failed_exit_keeps_the_visit_and_place_occupied(
+    service, commands, seating
+) -> None:
+    session, conversation_id, snapshot = await propose(service, commands)
+    await service.submit(
+        session,
+        commands.decide(conversation_id, snapshot.seating.proposal.proposal_id),
+    )
+    seating.available = False
+
+    result = await service.submit(session, commands.exit(conversation_id))
+
+    assert result.status == "failed"
+    assert result.error.message == SEATING_UNAVAILABLE
+    after = service.get_snapshot(session, conversation_id)
+    assert after.seating.status == "seated"
+    assert after.process_status == "idle"
+
+
 async def test_solo_customer_selects_and_occupies_available_seating_without_a_card(
     service, commands, seating
 ) -> None:
