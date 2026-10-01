@@ -226,6 +226,17 @@ MCP, tampoco en pruebas.
 - **Despliegue.** El script deja de pasar `SEATING_MCP_URL` al BFF.
 - **Recorrido sin Foundry.** `./scripts/test-e2e-seating.sh` levanta MCP,
   camarero independiente con un modelo guionizado y BFF remoto.
+- **Corrección del 01/10/2026.** Tras confirmar una mesa con «Confirmar»,
+  todos los mensajes posteriores fallaban con HTTP 400 de Foundry
+  (`invalid_payload`). La causa:
+  - La llamada de confirmación se quedaba en el historial con los argumentos
+    como objeto JSON.
+  - El esquema de Responses exige una cadena.
+
+  Ahora los argumentos autoritativos se guardan como cadena JSON, también en
+  la confirmación directa individual que añade la salvaguarda. Las pruebas de
+  regresión validan el `input` que construye el cliente de Foundry. El error
+  venía de 661112e (PR #8).
 - Evidencia de CI y validación en el Codespace: en el PR correspondiente.
   Revisión conjunta pendiente; no se marca ninguna casilla.
 

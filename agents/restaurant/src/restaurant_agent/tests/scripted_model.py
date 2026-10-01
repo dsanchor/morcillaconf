@@ -94,6 +94,8 @@ class ScriptedModel(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatClient
                     ],
                     "instructions": str(options.get("instructions") or ""),
                     "tools": sorted(getattr(tool, "name", "") for tool in options.get("tools") or []),
+                    # What a real chat client would serialize for this call.
+                    "raw_messages": list(messages),
                 }
             )
             if not self.script:
@@ -103,7 +105,10 @@ class ScriptedModel(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatClient
             if "result" in step:
                 contents.append(Content.from_text(json.dumps(step["result"], ensure_ascii=False)))
             for call_id, name, arguments in step.get("calls", []):
-                contents.append(Content.from_function_call(call_id=call_id, name=name, arguments=arguments))
+                # A real model always sends the arguments as a JSON string.
+                contents.append(
+                    Content.from_function_call(call_id=call_id, name=name, arguments=json.dumps(arguments))
+                )
             return ChatResponse(messages=[Message(role="assistant", contents=contents)])
 
         return respond()
