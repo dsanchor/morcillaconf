@@ -28,8 +28,7 @@ RUN uv sync --frozen --no-dev \
     && mkdir -p /data \
     && chown bff /data
 ENV BFF_PORT=8000 \
-    BFF_DATABASE_PATH=/data/bff.db \
-    MEMORY_DATABASE_PATH=/data/memory.db
+    BFF_DATABASE_PATH=/data/bff.db
 USER bff
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \

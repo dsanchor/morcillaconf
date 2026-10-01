@@ -156,7 +156,8 @@ async def test_preferences_and_allergies_become_visible_memories() -> None:
     assert all(m.source == arrival.conversation_id and m.requires_reconfirmation for m in memories)
     assert snapshot.customer.preferences == ["agua con gas"]
     assert snapshot.customer.restrictions == ["frutos secos"]
-    assert {Action.CORRECT_MEMORY, Action.DELETE_MEMORY} <= set(snapshot.allowed_actions)
+    assert Action.CORRECT_MEMORY not in snapshot.allowed_actions
+    assert Action.DELETE_MEMORY not in snapshot.allowed_actions
 
 
 @pytest.mark.parametrize(

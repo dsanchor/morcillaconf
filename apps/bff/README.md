@@ -69,9 +69,7 @@ La imagen se ejecuta como usuario no root, guarda SQLite en `/data` y expone un
 | `WAITER_AGENT_URL` | URL base obligatoria del agente remoto | – |
 | `WAITER_AGENT_TIMEOUT_SECONDS` | Tiempo máximo de una invocación remota | `60` |
 | `BFF_DATABASE_PATH` | SQLite del BFF: sesiones, visitas, eventos y resultados | `data/bff.db` |
-| `MEMORY_DATABASE_PATH` | SQLite de la memoria del camarero | `data/memory.db` |
 | `BFF_SQLITE_JOURNAL_MODE` | `WAL` local o `DELETE` sobre Azure Files | `WAL` |
-| `MEMORY_MAX_ITEMS` | Límite de recuerdos por tipo | `20` |
 | `WAITER_MAX_TURNS` | Mensajes por visita | `20` |
 | `APP_ENVIRONMENT` | `development`, `test` o `production` | `development` |
 | `BFF_SESSION_TTL_HOURS` | Duración de la sesión de demo | `12` |
@@ -128,10 +126,11 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
 - **Idempotencia.** Clave `(actor, event_id)` con huella del comando: repetirlo
   devuelve el mismo resultado; otro contenido con la misma clave es
   `idempotency_conflict`.
-- **Memoria.** Automática en el `SQLiteMemoryStore` del camarero. Consultar,
-  corregir, borrar y olvidar todo actúan sobre la identidad de la sesión. Los
-  recuerdos se muestran con ids cortos por cliente (`m1`, `m2`…) que no se
-  reutilizan.
+- **Memoria.** Pertenece exclusivamente al agente camarero y a su Memory
+  Context Provider. El BFF solo transmite la identidad normalizada al agente:
+  no lee, crea, modifica, proyecta ni persiste preferencias. Los
+  recuerdos se administran conversando con el camarero y no se exponen como
+  comandos propios del BFF.
 - **Continuidad.** Estado, borrador, historial del camarero (sesión de Agent
   Framework en JSON), eventos y resultados viven en SQLite y sobreviven a un
   reinicio. Un turno interrumpido por un reinicio se marca como fallido al

@@ -41,7 +41,8 @@ show_logs() {
   done
 }
 
-SEATING_DATABASE_PATH="$work/seating.db" MCP_HOST=127.0.0.1 MCP_PORT="$mcp_port" \
+UV_PROJECT_ENVIRONMENT="$work/mcp-venv" \
+  SEATING_DATABASE_PATH="$work/seating.db" MCP_HOST=127.0.0.1 MCP_PORT="$mcp_port" \
   "$repo_root/scripts/run-mcp.sh" >"$work/mcp.log" 2>&1 &
 pids+=("$!")
 wait_for "http://127.0.0.1:$mcp_port/mcp" "El MCP de asientos" "$work/mcp.log"
@@ -49,7 +50,7 @@ wait_for "http://127.0.0.1:$mcp_port/mcp" "El MCP de asientos" "$work/mcp.log"
 (
   cd "$repo_root/agents/restaurant/src/restaurant_agent"
   # No knowledge base: empty values override a developer's .env.
-  PORT="$agent_port" \
+  UV_PROJECT_ENVIRONMENT="$work/agent-venv" PORT="$agent_port" \
     FOUNDRY_PROJECT_ENDPOINT="https://scripted.invalid/api/projects/scripted" \
     AZURE_AI_MODEL_DEPLOYMENT_NAME="scripted" \
     MEMORY_DATABASE_PATH="$work/agent-memory.db" \
@@ -66,8 +67,9 @@ wait_for "http://127.0.0.1:$agent_port/readiness" "El camarero" "$work/agent.log
   cd "$repo_root/apps/bff"
   # No SEATING_MCP_URL: the waiter is the only client of the seating MCP.
   exec env -u SEATING_MCP_URL \
+    UV_PROJECT_ENVIRONMENT="$work/bff-venv" \
     WAITER_AGENT_URL="http://127.0.0.1:$agent_port" \
-    BFF_DATABASE_PATH="$work/bff.db" MEMORY_DATABASE_PATH="$work/memory.db" \
+    BFF_DATABASE_PATH="$work/bff.db" \
     uv run --frozen uvicorn bff.main:create_app --factory \
       --host 127.0.0.1 --port "$bff_port" --workers 1
 ) >"$work/bff.log" 2>&1 &
@@ -76,6 +78,7 @@ wait_for "http://127.0.0.1:$bff_port/healthz" "El BFF" "$work/bff.log"
 
 cd "$repo_root/apps/frontend"
 if ! env -u SEATING_MCP_URL E2E_BFF_URL="http://127.0.0.1:$bff_port" \
+  UV_PROJECT_ENVIRONMENT="$work/frontend-venv" \
   uv run --frozen pytest -p no:cacheprovider "$repo_root/tests/end_to_end" "$@"; then
   show_logs
   exit 1

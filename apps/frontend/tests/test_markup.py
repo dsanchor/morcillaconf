@@ -2,8 +2,7 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 
-from restaurant_contracts.application import ChatMessage, VisibleMemory
-from restaurant_contracts.memory import MemoryKind
+from restaurant_contracts.application import ChatMessage
 
 from frontend.markup import (
     DOOR_HINT,
@@ -32,12 +31,6 @@ QUESTION = ChatMessage(
     message_id="msg_2", role="user", text='<b>hola</b> & "adiós"\n$5 :smile:',
     occurred_at=AT, command_event_id="cmd_message",
 )
-MEMORY = VisibleMemory(
-    memory_id="m2", kind=MemoryKind.RESTRICTION, value="frutos secos",
-    source="conv_1", recorded_at=AT,
-)
-
-
 def _parse(markup: str) -> ET.Element:
     return ET.fromstring(re.sub(r"<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ', markup))
 
@@ -56,7 +49,7 @@ def test_text_is_escaped_for_raw_html_markdown_blocks() -> None:
 def test_every_fragment_is_a_single_html_block() -> None:
     fragments = [
         facade_markup("cerrada"), facade_markup("llama", 1), facade_markup("abriendo"),
-        door_hint_markup(), identity_markup("Ana"), command_row_markup("/memory delete <id>"),
+        door_hint_markup(), identity_markup("Ana"), command_row_markup("/new"),
         simulated_markup(), plan_markup("Ana", "llegando", entering=True),
         conversation_markup(ConversationView(messages=(GREETING, QUESTION), waiting=True)),
     ]
@@ -76,21 +69,13 @@ def test_conversation_renders_escaped_bubbles_from_the_snapshot() -> None:
     assert root.find(".//div[@class='msg camarero']/*[@class='icono']") is not None
 
 
-def test_memory_card_follows_its_message_with_ids_and_kinds() -> None:
-    card = Card(after_message_id="msg_1", title="Lo que recuerdo de ti:", memories=(MEMORY,))
+def test_card_follows_its_message() -> None:
+    card = Card(after_message_id="msg_1", title="Aviso")
     markup = conversation_markup(ConversationView(messages=(GREETING, QUESTION), cards=(card,)))
     root = _parse(markup)
     hilo = root.find("div[@class='hilo']")
     assert [child.get("class") for child in hilo] == ["msg camarero", "tarjeta", "msg cliente"]
-    item = hilo.find("div[@class='tarjeta']/ul/li")
-    assert item.find("code").text == "m2"
-    assert _text(item) == "m2 Alergia o restricción: frutos secos"
-
-
-def test_clear_card_explains_that_memory_keeps_learning() -> None:
-    card = Card(after_message_id=None, title="He olvidado todo lo que sabía de ti.", note="Lo que me cuentes a partir de ahora lo volveré a recordar.")
-    root = _parse(conversation_markup(ConversationView(cards=(card,))))
-    assert root.find(".//p[@class='nota']") is not None
+    assert _text(hilo.find("div[@class='tarjeta']/p")) == "Aviso"
 
 
 def test_sending_provisional_and_typing_states_are_visible() -> None:
@@ -116,9 +101,9 @@ def test_greeting_reveal_stacks_typing_and_text() -> None:
 
 def test_sidebar_fragments_escape_and_dim_arguments() -> None:
     assert _text(_parse(identity_markup("<Ana>"))) == "<Ana>"
-    row = _parse(command_row_markup("/memory correct <id> <texto>"))
+    row = _parse(command_row_markup("/acción <id> <texto>"))
     assert [arg.text for arg in row.iter("span")] == ["<id>", "<texto>"]
-    assert _text(row) == "/memory correct <id> <texto>"
+    assert _text(row) == "/acción <id> <texto>"
 
 
 def test_door_hint_and_simulated_label() -> None:

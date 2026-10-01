@@ -182,10 +182,10 @@ Particularidades de Streamlit:
    envía `customer.arrived` y guarda el snapshot. Una sola ejecución muestra la
    puerta abriéndose, la ventana, el saludo y el camarero acercándose; la
    siguiente ya pinta la sala sin repetir la animación.
-3. **Dentro:** lateral con el nombre y los comandos (`/new`, `/memory`,
-   `/memory clear` y `/exit` se pulsan; los que llevan argumentos se escriben en
-   la conversación), ventana de conversación, «Camarero simulado» y el plano.
-   `/exit` vuelve a la puerta cerrada.
+3. **Dentro:** lateral con el nombre y los comandos `/new` y `/exit`, ventana
+   de conversación, «Camarero simulado» y el plano. Las preferencias se
+   consultan o cambian conversando con el agente; el frontend no ofrece un
+   panel de memoria. `/exit` vuelve a la puerta cerrada.
 
 El camarero simulado adapta el saludo: «¿Has venido sola o acompañada?» tras
 «maja» y «¿Has venido solo o acompañado?» tras «majo». Responde frases breves y convierte «prefiero …» y «soy

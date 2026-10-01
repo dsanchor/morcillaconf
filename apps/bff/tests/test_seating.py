@@ -395,7 +395,12 @@ async def test_without_seating_the_room_is_decorative(make_service, commands) ->
 def test_the_room_endpoint_is_owned_and_anonymous(settings, clock) -> None:
     seating = ScriptedSeating(clock)
 
-    def waiter_factory(config, memory_store):
+    def waiter_factory(config):
+        from restaurant_contracts.memory_store import SQLiteMemoryStore
+
+        memory_store = SQLiteMemoryStore(
+            config.bff_database_path.with_name("test-waiter-memory.db")
+        )
         return LocalWaiter(
             ScriptedWaiterAgent(seating=seating),
             mode="scripted",

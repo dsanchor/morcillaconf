@@ -38,16 +38,10 @@ PLAN_REFRESH_SECONDS = 3
 ENTRANCE_SECONDS = 4.5
 SIDEBAR_BUTTONS = {
     "new": ("/new", "Nueva visita", Action.ARRIVE),
-    "memory": ("/memory", "Lo que recuerdo de ti", Action.READ_MEMORY),
-    "memory-clear": ("/memory clear", "Olvidar todo", Action.CLEAR_MEMORY),
     "exit": ("/exit", "Salir", None),
 }
 SIDEBAR_ORDER = (
     "new",
-    "memory",
-    "/memory correct <id> <texto>",
-    "/memory delete <id>",
-    "memory-clear",
     "exit",
 )
 
@@ -245,16 +239,7 @@ def _apply_slash(visit: VisitSession, command: SlashCommand) -> str | None:
     if command.action == "new":
         visit.arrive()
         return "quick"
-    if command.action == "memory":
-        visit.read_memory()
-    elif command.action == "memory-clear":
-        visit.clear_memory()
-    elif command.action == "memory-delete" and command.memory_id:
-        visit.delete_memory(command.memory_id)
-    elif command.action == "memory-correct" and command.memory_id and command.value:
-        visit.correct_memory(command.memory_id, command.value)
-    else:
-        visit.reject_unknown_command()
+    visit.reject_unknown_command()
     return None
 
 
@@ -305,10 +290,6 @@ def _run_command(action: str) -> None:
     elif action == "new":
         visit.arrive()
         state.reveal = "quick"
-    elif action == "memory":
-        visit.read_memory()
-    elif action == "memory-clear":
-        visit.clear_memory()
 
 
 def _leave() -> None:

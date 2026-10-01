@@ -5,12 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shlex
 from collections.abc import AsyncIterator, Awaitable
-from contextlib import AbstractContextManager, asynccontextmanager, suppress
-from contextvars import ContextVar, Token
-from datetime import UTC, datetime
+from contextlib import asynccontextmanager, suppress
 from typing import Any, Callable, TypeVar
-from uuid import uuid4
 
 from agent_framework import AgentSession
 from azure.ai.agentserver.responses import (
@@ -20,12 +18,6 @@ from azure.ai.agentserver.responses import (
 )
 from azure.ai.agentserver.core import get_request_context
 
-from restaurant_contracts.memory import (
-    DurableMemoryRecord,
-    MemoryCandidate,
-    MemoryKind,
-    MemorySnapshot,
-)
 from restaurant_contracts.waiter import (
     WAITER_REQUEST_ADAPTER,
     SeatingReport,
@@ -50,7 +42,12 @@ from restaurant_agent.conversation import (
     SessionState,
     TurnLimitExceededError,
 )
-from restaurant_agent.memory.store import MemoryNotFoundError
+from restaurant_agent.memory import create_memory_store
+from restaurant_agent.memory.store import (
+    DurableMemoryRepository,
+    MemoryConflictError,
+    MemoryNotFoundError,
+)
 from restaurant_agent.seating import bind_visit
 
 logger = logging.getLogger(__name__)
@@ -79,118 +76,6 @@ async def _cancel_when_signalled(
             await cancellation_task
 
 
-class _MemoryState:
-    def __init__(self, records: list[DurableMemoryRecord]) -> None:
-        self.records = [record.model_copy(deep=True) for record in records]
-        self.candidates: list[MemoryCandidate] = []
-
-
-class _MemoryBinding(AbstractContextManager["_MemoryState"]):
-    def __init__(
-        self,
-        variable: ContextVar[_MemoryState | None],
-        state: _MemoryState,
-    ) -> None:
-        self._variable = variable
-        self._state = state
-        self._token: Token[_MemoryState | None] | None = None
-
-    def __enter__(self) -> _MemoryState:
-        self._token = self._variable.set(self._state)
-        return self._state
-
-    def __exit__(self, *args: object) -> None:
-        assert self._token is not None
-        self._variable.reset(self._token)
-
-
-class RequestMemoryStore:
-    """Request-scoped memory snapshot used while the BFF remains its authority."""
-
-    def __init__(self) -> None:
-        self._state: ContextVar[_MemoryState | None] = ContextVar(
-            "remote_waiter_memory", default=None
-        )
-
-    def bind(self, records: list[DurableMemoryRecord]) -> _MemoryBinding:
-        return _MemoryBinding(self._state, _MemoryState(records))
-
-    def _current(self) -> _MemoryState:
-        state = self._state.get()
-        if state is None:
-            raise RuntimeError("Remote waiter memory is not bound to a request")
-        return state
-
-    def remember_memory(
-        self,
-        actor_id: str,
-        *,
-        kind: MemoryKind,
-        value: str,
-        source_conversation_id: str,
-    ) -> DurableMemoryRecord:
-        state = self._current()
-        normalized = value.casefold()
-        now = datetime.now(UTC)
-        existing = next(
-            (
-                record
-                for record in state.records
-                if record.actor_id == actor_id
-                and record.kind == kind
-                and record.value.casefold() == normalized
-            ),
-            None,
-        )
-        state.candidates.append(MemoryCandidate(kind=kind, value=value))
-        if existing is not None:
-            updated = existing.model_copy(
-                update={
-                    "value": value,
-                    "source_conversation_id": source_conversation_id,
-                    "updated_at": now,
-                    "occurrence_count": existing.occurrence_count + 1,
-                }
-            )
-            state.records[state.records.index(existing)] = updated
-            return updated
-        created = DurableMemoryRecord(
-            preference_id=f"remote_{uuid4().hex}",
-            actor_id=actor_id,
-            kind=kind,
-            value=value,
-            source_conversation_id=source_conversation_id,
-            created_at=now,
-            updated_at=now,
-        )
-        state.records.append(created)
-        return created
-
-    def list_memories(self, actor_id: str) -> list[DurableMemoryRecord]:
-        return [
-            record.model_copy(deep=True)
-            for record in self._current().records
-            if record.actor_id == actor_id
-        ]
-
-    def correct_memory(
-        self, actor_id: str, *, preference_id: str, value: str
-    ) -> DurableMemoryRecord:
-        raise MemoryNotFoundError(preference_id)
-
-    def delete_memory(self, actor_id: str, *, preference_id: str) -> None:
-        raise MemoryNotFoundError(preference_id)
-
-    def delete_memories(self, actor_id: str, *, preference_ids: list[str]) -> int:
-        return 0
-
-    def delete_all_memories(self, actor_id: str) -> int:
-        return 0
-
-    def snapshot(self, actor_id: str) -> MemorySnapshot:
-        return MemorySnapshot(memories=self.list_memories(actor_id))
-
-
 def _session_from_json(data: str | None) -> AgentSession | None:
     if not data:
         return None
@@ -210,6 +95,7 @@ class RemoteWaiterService:
         settings: Settings,
         *,
         agent_factory: Callable = create_waiter_agent,
+        memory_store: DurableMemoryRepository | None = None,
     ) -> None:
         self._settings = settings
         # Seating decisions and syncs never call the model, so they never
@@ -217,97 +103,112 @@ class RemoteWaiterService:
         self._seating_settings = settings.model_copy(
             update={"azure_search_endpoint": None, "knowledge_base_name": None}
         )
-        self._memory = RequestMemoryStore()
+        self._memory = memory_store or create_memory_store(settings)
         self._agent_factory = agent_factory
 
     async def take_turn(
         self, request: WaiterTurnRequest
     ) -> WaiterTurnSuccess | WaiterTurnFailure:
-        with self._memory.bind(request.memories) as memory:
-            try:
-                async with self._conversation(
-                    request,
-                    state=SessionState(
-                        customer=request.customer,
-                        order_draft=request.order_draft,
-                        turn_count=request.turn_count,
-                    ),
-                    persisted_order_preferences=request.persisted_order_preferences,
-                ) as manager:
-                    response = await manager.send_message(
-                        conversation_id=request.conversation_id,
-                        actor_id=request.actor.actor_id,
-                        message=request.message,
-                        correlation_id=request.correlation_id,
-                    )
+        try:
+            async with self._conversation(
+                request,
+                state=SessionState(
+                    customer=request.customer,
+                    order_draft=request.order_draft,
+                    turn_count=request.turn_count,
+                ),
+                persisted_order_preferences=request.persisted_order_preferences,
+            ) as manager:
+                memory_reply = _handle_memory_message(manager, request)
+                if memory_reply is not None:
                     exported = manager.export_conversation(
                         conversation_id=request.conversation_id,
                         actor_id=request.actor.actor_id,
                     )
                     return WaiterTurnSuccess(
-                        reply=response.reply,
+                        reply=memory_reply,
                         customer=exported.state.customer,
                         order_draft=exported.state.order_draft,
-                        turn_count=exported.state.turn_count,
+                        turn_count=exported.state.turn_count + 1,
                         persisted_order_preferences=exported.persisted_order_preferences,
                         session_json=_session_to_json(exported.agent_session),
                         seating=_report(manager, request),
-                        memory_candidates=memory.candidates,
                     )
-            except ConversationError as exc:
-                return _failure(exc)
+                response = await manager.send_message(
+                    conversation_id=request.conversation_id,
+                    actor_id=request.actor.actor_id,
+                    message=request.message,
+                    correlation_id=request.correlation_id,
+                )
+                exported = manager.export_conversation(
+                    conversation_id=request.conversation_id,
+                    actor_id=request.actor.actor_id,
+                )
+                return WaiterTurnSuccess(
+                    reply=response.reply,
+                    customer=exported.state.customer,
+                    order_draft=exported.state.order_draft,
+                    turn_count=exported.state.turn_count,
+                    persisted_order_preferences=exported.persisted_order_preferences,
+                    session_json=_session_to_json(exported.agent_session),
+                    seating=_report(manager, request),
+                )
+        except ConversationError as exc:
+            return _failure(exc)
 
     async def decide_seating(
         self, request: WaiterSeatingDecisionRequest
     ) -> WaiterSeatingSuccess | WaiterTurnFailure:
         """Resume the paused confirmation with the customer's button decision."""
 
-        with self._memory.bind([]):
-            try:
-                async with self._conversation(request, settings=self._seating_settings) as manager:
-                    decided = await manager.decide_seating(
-                        conversation_id=request.conversation_id,
-                        actor_id=request.actor.actor_id,
-                        approved=request.decision == "confirmed",
-                        proposal_token=request.proposal_token,
-                    )
-                    exported = manager.export_conversation(
-                        conversation_id=request.conversation_id,
-                        actor_id=request.actor.actor_id,
-                    )
-                    return WaiterSeatingSuccess(
-                        operation="decide_seating",
-                        reply=decided.reply,
-                        outcome=decided.outcome,
-                        session_json=_session_to_json(exported.agent_session),
-                        seating=_report(manager, request),
-                    )
-            except ConversationError as exc:
-                return _failure(exc)
+        try:
+            async with self._conversation(
+                request, settings=self._seating_settings
+            ) as manager:
+                decided = await manager.decide_seating(
+                    conversation_id=request.conversation_id,
+                    actor_id=request.actor.actor_id,
+                    approved=request.decision == "confirmed",
+                    proposal_token=request.proposal_token,
+                )
+                exported = manager.export_conversation(
+                    conversation_id=request.conversation_id,
+                    actor_id=request.actor.actor_id,
+                )
+                return WaiterSeatingSuccess(
+                    operation="decide_seating",
+                    reply=decided.reply,
+                    outcome=decided.outcome,
+                    session_json=_session_to_json(exported.agent_session),
+                    seating=_report(manager, request),
+                )
+        except ConversationError as exc:
+            return _failure(exc)
 
     async def sync_seating(
         self, request: WaiterSeatingSyncRequest
     ) -> WaiterSeatingSuccess | WaiterTurnFailure:
         """Read the visit's seating and the room from the MCP, without the model."""
 
-        with self._memory.bind([]):
-            try:
-                async with self._conversation(request, settings=self._seating_settings) as manager:
-                    await manager.sync_seating(
-                        conversation_id=request.conversation_id,
-                        actor_id=request.actor.actor_id,
-                    )
-                    exported = manager.export_conversation(
-                        conversation_id=request.conversation_id,
-                        actor_id=request.actor.actor_id,
-                    )
-                    return WaiterSeatingSuccess(
-                        operation="sync_seating",
-                        session_json=_session_to_json(exported.agent_session),
-                        seating=_report(manager, request),
-                    )
-            except ConversationError as exc:
-                return _failure(exc)
+        try:
+            async with self._conversation(
+                request, settings=self._seating_settings
+            ) as manager:
+                await manager.sync_seating(
+                    conversation_id=request.conversation_id,
+                    actor_id=request.actor.actor_id,
+                )
+                exported = manager.export_conversation(
+                    conversation_id=request.conversation_id,
+                    actor_id=request.actor.actor_id,
+                )
+                return WaiterSeatingSuccess(
+                    operation="sync_seating",
+                    session_json=_session_to_json(exported.agent_session),
+                    seating=_report(manager, request),
+                )
+        except ConversationError as exc:
+            return _failure(exc)
 
     @asynccontextmanager
     async def _conversation(
@@ -356,6 +257,58 @@ def _report(
         conversation_id=request.conversation_id, actor_id=request.actor.actor_id
     )
     return SeatingReport.model_validate(report) if report is not None else None
+
+
+def _handle_memory_message(
+    manager: ConversationManager,
+    request: WaiterTurnRequest,
+) -> str | None:
+    try:
+        parts = shlex.split(request.message)
+    except ValueError:
+        return "No entiendo ese comando de memoria."
+    if not parts or parts[0].casefold() != "/memory":
+        return None
+    action = parts[1].casefold() if len(parts) > 1 else "list"
+    try:
+        if action == "list" and len(parts) in (1, 2):
+            snapshot = manager.memory_snapshot(
+                conversation_id=request.conversation_id,
+                actor_id=request.actor.actor_id,
+            )
+            if not snapshot.memories:
+                return "Aún no recuerdo ninguna preferencia tuya."
+            rendered = "; ".join(
+                f"{memory.preference_id}: {memory.kind.value}, {memory.value}"
+                for memory in snapshot.memories
+            )
+            return f"Esto es lo que recuerdo: {rendered}."
+        if action == "correct" and len(parts) >= 4:
+            manager.correct_memory(
+                conversation_id=request.conversation_id,
+                actor_id=request.actor.actor_id,
+                preference_id=parts[2],
+                value=" ".join(parts[3:]),
+            )
+            return "He corregido ese recuerdo."
+        if action == "delete" and len(parts) == 3:
+            manager.delete_memory(
+                conversation_id=request.conversation_id,
+                actor_id=request.actor.actor_id,
+                preference_id=parts[2],
+            )
+            return "He eliminado ese recuerdo."
+        if action == "clear" and len(parts) == 2:
+            manager.clear_memories(
+                conversation_id=request.conversation_id,
+                actor_id=request.actor.actor_id,
+            )
+            return "He olvidado tus preferencias y restricciones guardadas."
+    except MemoryNotFoundError:
+        return "No encuentro ese recuerdo."
+    except MemoryConflictError:
+        return "Ese recuerdo ya existe."
+    return "Uso: /memory list|correct <id> <texto>|delete <id>|clear"
 
 
 def _failure(exc: ConversationError) -> WaiterTurnFailure:

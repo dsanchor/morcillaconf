@@ -31,17 +31,14 @@ def test_remote_waiter_settings_are_transport_only() -> None:
 
 
 def test_the_remote_waiter_is_built_without_constructing_an_agent(tmp_path) -> None:
-    from restaurant_contracts.memory_store import SQLiteMemoryStore
-
     from bff.adapters import create_waiter
     from bff.waiter import RemoteWaiter
 
     settings = BffSettings(
         _env_file=None,
         waiter_agent_url="http://restaurant-agent:8088",
-        memory_database_path=tmp_path / "memory.db",
     )
 
-    waiter = create_waiter(settings, SQLiteMemoryStore(settings.memory_database_path))
+    waiter = create_waiter(settings)
     assert isinstance(waiter, RemoteWaiter)
     assert waiter.mode == "remote"

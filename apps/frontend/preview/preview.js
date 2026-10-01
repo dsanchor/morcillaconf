@@ -16,8 +16,6 @@
   const waiter = $(".planta .camarero");
   const waiterIcon = $("#icono-camarero").innerHTML;
   let customer = "";
-  let memories = [];
-  let nextId = 1;
   let turn = 0;
 
   const FEMININE = new Set(("abigail amparo ane asuncion beatriz belen carmen carol consuelo dolores " +
@@ -66,24 +64,12 @@
     scrollDown();
   }
 
-  function card(title, items) {
+  function card(title) {
     const box = document.createElement("div");
     box.className = "tarjeta";
     const heading = document.createElement("p");
     heading.textContent = title;
     box.append(heading);
-    if (items.length) {
-      const list = document.createElement("ul");
-      for (const item of items) {
-        const entry = document.createElement("li");
-        const id = document.createElement("code");
-        id.textContent = item.id;
-        const kind = item.kind === "restriction" ? "Alergia o restricción" : "Preferencia";
-        entry.append(id, ` ${kind}: ${item.value}`);
-        list.append(entry);
-      }
-      box.append(list);
-    }
     messages.append(box);
     scrollDown();
   }
@@ -94,33 +80,14 @@
     const found = allergy || preference;
     if (!found) return ["Tomo nota.", `Entendido, ${customer}.`, "Te escucho."][turn++ % 3];
     const value = found[1].replace(/[.!]+$/, "");
-    memories.push({ id: `m${nextId++}`, kind: allergy ? "restriction" : "preference", value });
     return allergy ? `Apuntado: ${value}. Te lo preguntaré en cada visita.` : `Apuntado: ${value}.`;
   }
 
   function command(text) {
-    const [name, action, id, ...rest] = text.split(/\s+/);
+    const [name] = text.split(/\s+/);
     if (name === "/new") { messages.replaceChildren(); waiterSays(greeting(customer)); return; }
     if (name === "/exit") { leave(); return; }
-    if (name === "/memory") {
-      const item = memories.find((memory) => memory.id === id);
-      if (!action || action === "list") {
-        card(memories.length ? "Lo que recuerdo de ti:" : "Aún no recuerdo nada de ti.", memories);
-        return;
-      }
-      if (action === "clear") { memories = []; card("He olvidado todo lo que sabía de ti.", []); return; }
-      if (action === "delete" && item) {
-        memories = memories.filter((memory) => memory !== item);
-        card(`He borrado ${id}.`, memories);
-        return;
-      }
-      if (action === "correct" && item && rest.length) {
-        item.value = rest.join(" ");
-        card(`He corregido ${id}.`, memories);
-        return;
-      }
-    }
-    card("Ese comando no lo conozco: mira la lista de la izquierda.", []);
+    card("Ese comando no lo conozco: mira la lista de la izquierda.");
   }
 
   function settleWaiter() {
@@ -215,12 +182,6 @@
     if (params.get("muestra")) {
       add("cliente", "Prefiero el agua con gas y soy alérgica a los frutos secos");
       add("camarero", "Apuntado: agua con gas. Y tu alergia a los frutos secos, te la preguntaré en cada visita.");
-      memories = [
-        { id: "m1", kind: "preference", value: "agua con gas" },
-        { id: "m2", kind: "restriction", value: "frutos secos" },
-      ];
-      nextId = 3;
-      command("/memory");
     }
   } else if (state === "llama") {
     scene.className = "escena llama";

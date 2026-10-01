@@ -45,8 +45,9 @@ cambia cuando el sistema confirma un hecho.
   fase 9).
 - El camarero saluda con «Hombre [nombre], ¿qué tal majo?» o «maja», deducido
   del nombre. Cuando se conecte el camarero real, lo decidirá el modelo.
-- Comandos de la conversación: `/new`, `/memory`, `/memory correct <id> <texto>`,
-  `/memory delete <id>`, `/memory clear` y salir.
+- Comandos de la conversación: `/new` y `/exit`. La memoria se consulta y
+  administra conversando con el camarero, sin panel ni comandos propios del
+  frontend.
 - Plano cenital del restaurante: cliente en la entrada, camarero, mesas con las
   sillas vacías por defecto y una barra con taburetes para fases posteriores.
 - El frontal solo habla con el contrato del BFF (`packages/contracts`); nunca

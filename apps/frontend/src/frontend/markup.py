@@ -12,17 +12,13 @@ from dataclasses import dataclass
 from html import escape
 from typing import Literal
 
-from restaurant_contracts.memory import MemoryKind
 from restaurant_contracts.seating import RoomView, SeatingProposal, SeatingView
 
 from frontend.facade import facade_html
 from frontend.floor_plan import floor_plan_svg, waiter_icon_svg
 from frontend.visit import Card, ConversationView
 
-KIND_LABELS = {
-    MemoryKind.PREFERENCE: "Preferencia",
-    MemoryKind.RESTRICTION: "Alergia o restricción",
-}
+
 DOOR_HINT = "Dinos tu nombre y te abrimos."
 SIMULATED_LABEL = "Camarero simulado"
 TYPING_LABEL = "El camarero está escribiendo"
@@ -170,13 +166,6 @@ def _revealed_greeting(text: str, pace: str) -> str:
 
 def _card(card: Card) -> str:
     parts = [f"<p>{text_html(card.title)}</p>"]
-    if card.memories:
-        items = "".join(
-            f"<li><code>{text_html(memory.memory_id)}</code> "
-            f"{KIND_LABELS[memory.kind]}: {text_html(memory.value)}</li>"
-            for memory in card.memories
-        )
-        parts.append(f"<ul>{items}</ul>")
     if card.note:
         parts.append(f'<p class="nota">{text_html(card.note)}</p>')
     return f'<div class="tarjeta">{"".join(parts)}</div>'

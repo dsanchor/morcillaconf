@@ -228,10 +228,11 @@ no la recupera.
   pedidos. No guardar un borrador como pedido efectivamente realizado.
 - [x] Implementar adaptador SQLite y context provider de Agent Framework,
   desacoplados del transporte y preparados para un almacen gestionado.
-- [x] Leer y guardar recuerdos automaticamente para la identidad autenticada
-  resuelta por el servidor, incluida la falsa local, con procedencia y fecha.
-  Ofrecer consulta, correccion, borrado individual y `/memory clear` para olvidar
-  todos los recuerdos; no crear perfiles duraderos de invitados.
+- [x] Leer y guardar recuerdos automaticamente en el Memory Context Provider
+  del agente para la identidad autenticada resuelta por el servidor, incluida
+  la falsa local, con procedencia y fecha. El BFF no transporta ni persiste
+  preferencias y el frontend no ofrece panel de memoria; la interacción se
+  realiza conversando con el camarero. No crear perfiles duraderos de invitados.
 - [x] Eliminar APIs, comandos y campos de consentimiento, tanto de `MemoryView`
   como del snapshot interno. Rechazar entradas antiguas de alta/revocacion,
   sin aceptarlas silenciosamente ni reinterpretarlas.

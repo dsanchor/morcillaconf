@@ -118,7 +118,7 @@ def test_replay_heartbeat_and_live_events(serve) -> None:
     assert [int(x["id"]) for x in live] == [3, 4, 5, 6]
     assert [x["data"]["cursor"] for x in live] == [3, 4, 5, 6]
     assert live[1]["data"]["snapshot"]["process_status"] == "processing"
-    assert live[2]["data"]["snapshot"]["memory"]["memories"][0]["memory_id"] == "m1"
+    assert live[2]["data"]["snapshot"]["memory"]["memories"] == []
 
 
 def test_last_event_id_resumes_after_that_cursor(serve) -> None:

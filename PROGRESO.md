@@ -35,10 +35,13 @@ indicadas en el propio plan.
   invoca siempre el endpoint Responses 2.0 del contenedor del agente mediante
   `WAITER_AGENT_URL`. Los dobles guionizados quedan solo como infraestructura
   interna de pruebas y no son un modo configurable.
-- El contrato remoto tipado transporta estado confirmado, sesión opaca,
-  informe de asientos y candidatos de memoria. El BFF sigue siendo la
-  autoridad de identidad, visita, snapshots, SSE y memoria persistida, y
-  persiste y presenta las decisiones explícitas; el camarero las ejecuta en el MCP.
+- El contrato remoto tipado transporta estado confirmado, sesión opaca e
+  informe de asientos, pero no recuerdos ni candidatos de memoria. El agente
+  es la única autoridad de preferencias mediante su Memory Context Provider.
+  El BFF conserva identidad, visita, snapshots y SSE, pero no abre una base de
+  memoria ni lee, crea o modifica preferencias.
+- Se retiró del frontend el panel y los comandos `/memory`; la memoria se
+  utiliza y administra conversando con el camarero.
 - El agente valida `x-agent-user-id`, ejecuta `ConversationManager`, llama al
   modelo de Foundry y a las tools MCP, y devuelve el resultado estructurado
   dentro de una respuesta estándar.
@@ -375,11 +378,10 @@ BFF resolverá desde el nombre de entrada; la configuración local actual usa el
 mismo criterio. Se mantienen aislamiento, procedencia, límites, contexto no
 vincante y reconfirmación de restricciones.
 
-Se eliminan APIs, comandos, configuración y campos de consentimiento, tanto en
-`MemoryView` como en el snapshot interno. Consulta, corrección y borrado siguen
-disponibles. `/memory clear` olvida todos los recuerdos existentes, pero no
-revoca permanentemente la memoria: las interacciones futuras vuelven a guardarse
-automáticamente. Las entradas antiguas de alta/revocación se rechazan.
+Se eliminaron APIs, configuración y campos de consentimiento. Posteriormente,
+la autoridad completa se movió al agente y se retiraron del BFF/frontend la
+consulta, corrección y borrado mediante panel. La CLI local del agente conserva
+operaciones administrativas para desarrollo.
 El borrado afecta solo a preferencias y restricciones, no a visita, borrador
 ni `completed_order_history`. La gestión explícita se realiza mediante las
 operaciones disponibles de CLI/administración y los contratos públicos;
@@ -515,8 +517,8 @@ Revisión manual en un Codespace con `gpt-5.6-luna`. Funcionaron:
 - guardado automático y recuperación después de reiniciar;
 - aislamiento entre identidades y para invitados;
 - «lo de siempre» con uno y con varios pedidos recordados;
-- corrección, borrado y `/memory clear`;
-- rechazo de `/memory consent`.
+- persistencia y aislamiento dentro del agente;
+- rechazo de los comandos de memoria retirados en el frontend.
 
 Se encontró un fallo: el resumen del pedido se contaba por turno, no por
 conversación. En una sola conversación, «Hola, soy Ana. Quiero una tortilla de
@@ -755,7 +757,8 @@ Jesús validó la rama integrada con `main` (56321d6) en su Codespace, con
   - recarga sin duplicados ni visita nueva;
   - aislamiento entre dos nombres;
   - límite de turnos;
-  - reinicio del BFF conservando conversación, historial y memoria.
+  - reinicio del BFF conservando conversación e historial; la memoria pertenece
+    al ciclo de vida del agente.
 
 La validación cubre también las comprobaciones de 3D acordadas en el sync:
 recarga, memoria, SSE y no duplicación. Revisión conjunta pendiente; no se

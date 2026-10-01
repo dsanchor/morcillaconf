@@ -136,9 +136,10 @@ La imagen Docker se construye desde la raíz e incorpora ese paquete. El script
 de Container Apps despliega la imagen pública de GHCR como aplicación
 independiente.
 
-En el recorrido web, el BFF conserva la memoria duradera y envía al agente una
-instantánea por turno; el agente devuelve únicamente los candidatos nuevos
-para que el BFF los persista. La CLI independiente mantiene su SQLite local.
+En el recorrido web, el agente conserva la memoria duradera mediante su Memory
+Context Provider. El BFF solo envía la identidad autenticada: no transporta,
+persiste ni administra recuerdos. La CLI independiente utiliza el mismo
+repositorio con su SQLite local.
 
 Las alergias y restricciones se guardan en una categoría separada. Todos los
 recuerdos son contexto no vinculante, llevan procedencia y fecha, y requieren

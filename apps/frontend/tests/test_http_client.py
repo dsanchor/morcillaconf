@@ -28,7 +28,7 @@ from restaurant_contracts.client import BffClientError
 from frontend.config import FrontendSettings, client_connector
 from frontend.fake_client import FakeRestaurant
 from frontend.http_client import UNREACHABLE, HttpBffClient
-from frontend.visit import NOTHING_REMEMBERED, VisitSession
+from frontend.visit import VisitSession
 
 STATUS = {
     ErrorCode.INVALID_COMMAND: 422,
@@ -208,10 +208,8 @@ def test_a_visit_runs_over_http_and_is_resumed_by_name(bff) -> None:
     visit = VisitSession(client)
     visit.arrive(client.active_visit_id)
     visit.send_message("Prefiero la terraza")
-    visit.read_memory()
 
     assert [m.role for m in visit.view().messages] == ["assistant", "user", "assistant"]
-    assert [memory.value for memory in visit.snapshot.memory.memories] == ["terraza"]
     assert visit.pending is None
     assert any("/events?after_cursor=" in path for _, path, _, _ in bff.requests)
 
@@ -283,14 +281,6 @@ def test_server_errors_without_a_public_error_are_unavailable(bff) -> None:
     with pytest.raises(BffClientError) as error:
         HttpBffClient.open(bff.url, "boom")
     assert error.value.error.code == ErrorCode.UNAVAILABLE
-
-
-def test_the_visit_reports_nothing_remembered_over_http(bff) -> None:
-    client = HttpBffClient.open(bff.url, "Ana")
-    visit = VisitSession(client)
-    visit.arrive()
-    visit.read_memory()
-    assert visit.cards[-1].title == NOTHING_REMEMBERED
 
 
 def test_the_room_and_the_table_decision_travel_over_http(bff) -> None:

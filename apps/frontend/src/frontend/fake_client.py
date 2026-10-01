@@ -574,17 +574,13 @@ class FakeRestaurant:
     def _allowed_actions(
         self,
         conversation: _Conversation,
-        memories: list[VisibleMemory],
+        _memories: list[VisibleMemory],
         process_status: ProcessStatus = "idle",
     ) -> list[Action]:
         actions = [Action.ARRIVE]
         if conversation.turns < self.max_turns:
             actions.append(Action.SEND_MESSAGE)
         if conversation.owner.authenticated:
-            actions.append(Action.READ_MEMORY)
-            if memories:
-                actions.extend((Action.CORRECT_MEMORY, Action.DELETE_MEMORY))
-            actions.append(Action.CLEAR_MEMORY)
             if (
                 process_status == "idle"
                 and self.room.seating(conversation.conversation_id).status == "proposed"

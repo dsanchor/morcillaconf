@@ -146,15 +146,11 @@ async def test_one_message_at_a_time_per_conversation(make_service, commands) ->
 
     busy = await service.submit(session, commands.say(arrival.conversation_id, "¿Hola?"))
     snapshot = service.get_snapshot(session, arrival.conversation_id)
-    blocked = await service.submit(session, commands.clear_memory(arrival.conversation_id))
-    read = await service.submit(session, commands.read_memory(arrival.conversation_id))
 
     assert busy.status == "failed" and busy.error.code == ErrorCode.CONFLICT
     assert busy.error.message == BUSY
-    assert blocked.status == "failed" and blocked.error.code == ErrorCode.CONFLICT
-    assert read.status == "completed"
     assert snapshot.process_status == "processing"
-    assert snapshot.allowed_actions == [Action.ARRIVE, Action.READ_MEMORY]
+    assert snapshot.allowed_actions == [Action.ARRIVE]
     agent.gate.set()
     await service.drain()
     assert service.get_result(session, first.event_id).status == "completed"
@@ -326,7 +322,12 @@ async def test_stream_cursor_validation(make_service, commands) -> None:
     for _ in range(2):
         await service.submit(session, commands.read_memory(arrival.conversation_id))
 
-    cases = {-1: ErrorCode.INVALID_COMMAND, 99: ErrorCode.CONFLICT, 0: ErrorCode.CURSOR_EXPIRED}
+    current = service.get_snapshot(session, arrival.conversation_id).cursor
+    cases = {
+        -1: ErrorCode.INVALID_COMMAND,
+        current + 1: ErrorCode.CONFLICT,
+        0: ErrorCode.CURSOR_EXPIRED,
+    }
     for cursor, code in cases.items():
         with pytest.raises(PublicFailure) as error:
             service.check_stream(session, arrival.conversation_id, cursor)
@@ -334,8 +335,7 @@ async def test_stream_cursor_validation(make_service, commands) -> None:
     with pytest.raises(PublicFailure) as error:
         service.check_stream(session, arrival.conversation_id, 0)
     assert error.value.to_error().recovery == "fetch_snapshot"
-    service.check_stream(session, arrival.conversation_id, 5)
-    service.check_stream(session, arrival.conversation_id, 6)
+    service.check_stream(session, arrival.conversation_id, current)
 
 
 async def test_a_failure_after_the_waiter_still_ends_the_turn(make_service, commands) -> None:

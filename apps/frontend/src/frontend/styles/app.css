@@ -7,13 +7,10 @@
   --lumbre: #ffd27a;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
 }
-/* The longest command, /memory correct plus its two arguments, is 28 characters.
-   Monospace fonts measure up to .602em per character, so at 16px it needs 269.7px,
-   plus 2 x 12px of row padding and 2 x 18px of sidebar padding: 329.7px fits in
-   336px. Narrower drawers scale the command size with 28 x .61em per character. */
+/* The longest command is five characters; retain room for identity and controls. */
 .stApp {
-  --lateral: 336px;
-  --comando: min(1rem, calc((var(--lateral) - 60px) / (28 * .61)));
+  --lateral: 240px;
+  --comando: min(1rem, calc((var(--lateral) - 60px) / (5 * .61)));
   --fila: 45px;
   --alto-plano: min(33vh, calc((100vw - var(--lateral) - 64px) * .34));
   background: var(--nogal);
@@ -266,7 +263,7 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 /* Mobile: the sidebar becomes a drawer opened from «/comandos». */
 @media (max-width: 768px) {
   .stApp {
-    --lateral: min(336px, calc(100vw - 40px));
+    --lateral: min(240px, calc(100vw - 40px));
     --alto-plano: min(24vh, calc((100vw - 24px) * .34));
     font-size: 17px;
   }

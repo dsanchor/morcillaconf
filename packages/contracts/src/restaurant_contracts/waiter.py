@@ -6,7 +6,6 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter
 
 from .application import ActorContext
 from .customer import CustomerSnapshot, OrderDraft
-from .memory import DurableMemoryRecord, MemoryCandidate
 from .seating import PlaceKind, PlaceState, SeatingPlace
 
 
@@ -27,7 +26,6 @@ class WaiterTurnRequest(WireModel):
     session_json: str | None = None
     correlation_id: str = Field(min_length=1, max_length=200)
     visit_id: str | None = None
-    memories: list[DurableMemoryRecord] = Field(default_factory=list)
 
 
 class WaiterSeatingRequest(WireModel):
@@ -111,7 +109,6 @@ class WaiterTurnSuccess(WireModel):
     persisted_order_preferences: list[str] = Field(default_factory=list)
     session_json: str | None = None
     seating: SeatingReport | None = None
-    memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
 
 
 class WaiterSeatingSuccess(WireModel):

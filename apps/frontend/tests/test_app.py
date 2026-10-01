@@ -55,37 +55,26 @@ def test_a_name_opens_the_door_and_the_waiter_greets(app) -> None:
     assert "escena" not in markup
     assert 'class="planta atendiendo"' in markup
     assert GREETING in markup and "revelar-" not in markup
-    assert at.button(key="cmd-memory").label == "/memory"
+    assert at.button(key="cmd-new").label == "/new"
+    assert at.button(key="cmd-exit").label == "/exit"
 
 
-def test_messages_and_memory_commands(app) -> None:
+def test_messages_and_unknown_commands(app) -> None:
     at = _enter(app, "Ana").run()
-    at = _say(at, "/memory")
-    assert "Aún no recuerdo nada de ti." in _markup(at)
     at = _say(at, "Prefiero el agua con gas y soy alérgica a los frutos secos")
     assert not at.exception
     assert "Apuntado&#58; agua con gas." in _markup(at)
-    at = at.button(key="cmd-memory").click().run()
-    markup = _markup(at)
-    assert "Lo que recuerdo de ti&#58;" in markup
-    assert "<code>m1</code> Preferencia: agua con gas" in markup
-    assert "<code>m2</code> Alergia o restricción: frutos secos" in markup
-    at = _say(at, "/memory delete m1")
-    assert "He borrado m1." in _markup(at)
-    at = at.button(key="cmd-memory-clear").click().run()
-    assert "He olvidado todo lo que sabía de ti." in _markup(at)
     at = _say(at, "/pedir")
     assert "Ese comando no lo conozco" in _markup(at)
 
 
-def test_new_visit_greets_again_and_keeps_memories(app) -> None:
+def test_new_visit_greets_again(app) -> None:
     at = _enter(app, "Ana").run()
     at = _say(at, "Prefiero la tortilla")
     at = at.button(key="cmd-new").click().run()
     markup = _markup(at)
     assert "revelar-quick" in markup and "Prefiero la tortilla" not in markup
-    at = _say(at, "/memory")
-    assert "tortilla" in _markup(at)
+    assert GREETING in markup
 
 
 def test_exit_returns_to_the_closed_door(app) -> None:

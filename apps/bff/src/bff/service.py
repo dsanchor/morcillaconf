@@ -27,25 +27,20 @@ from restaurant_contracts.application import (
     ActorContext,
     ArriveCommand,
     ChatMessage,
-    ClearMemoryCommand,
     Command,
     CommandResult,
     CommandStatusChanged,
     CompletedCommandResult,
-    CorrectMemoryCommand,
     DecideTableCommand,
-    DeleteMemoryCommand,
     ErrorCode,
     FailedCommandResult,
     MemoryView,
     PendingCommandResult,
     PublicError,
-    ReadMemoryCommand,
     RestaurantSnapshot,
     SendMessageCommand,
     SnapshotUpdated,
     StreamEvent,
-    VisibleMemory,
 )
 from restaurant_contracts.customer import CustomerSnapshot, missing_customer_fields
 from restaurant_contracts.seating import (
@@ -57,11 +52,6 @@ from restaurant_contracts.seating import (
     SeatingView,
 )
 
-from restaurant_contracts.memory_store import (
-    DurableMemoryRepository,
-    MemoryConflictError,
-    MemoryNotFoundError,
-)
 from restaurant_contracts.waiter import SeatingReport
 
 from bff.greeting import greeting
@@ -100,8 +90,6 @@ WAITER_UNAVAILABLE = (
 WAITER_CONFUSED = "El camarero se ha liado con la respuesta. Vuelve a intentarlo."
 WAITER_FAILED = "Algo ha fallado mientras el camarero te atendía. Vuelve a intentarlo."
 INTERRUPTED = "El camarero se interrumpió. Vuelve a escribir tu mensaje."
-UNKNOWN_MEMORY = "No recuerdo nada con el identificador {memory_id}."
-DUPLICATE_MEMORY = "Ya recuerdo eso."
 IDEMPOTENCY_CONFLICT = "Ese identificador de comando ya se usó con otro contenido."
 UNKNOWN_COMMAND = "No conozco ese comando."
 UNAUTHENTICATED = "Tu sesión no es válida o ha caducado. Vuelve a entrar por la puerta."
@@ -219,7 +207,6 @@ class RestaurantService:
         self,
         *,
         database: Database,
-        memory_store: DurableMemoryRepository,
         waiter: WaiterPort,
         max_turns: int = 20,
         session_ttl: timedelta = timedelta(hours=12),
@@ -228,7 +215,6 @@ class RestaurantService:
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._db = database
-        self._memory = memory_store
         self._waiter = waiter
         self._max_turns = max_turns
         self._session_ttl = session_ttl
@@ -475,7 +461,14 @@ class RestaurantService:
             )
         if isinstance(command, SendMessageCommand):
             return self._accept_message(tx, session, row, command, correlation_id)
-        return self._memory_command(tx, row, command, correlation_id)
+        return self._fail_in(
+            tx,
+            row,
+            command,
+            correlation_id,
+            ErrorCode.INVALID_COMMAND,
+            "La memoria se gestiona conversando con el camarero.",
+        )
 
     def _arrive(
         self,
@@ -588,43 +581,6 @@ class RestaurantService:
             ),
         )
 
-    def _memory_command(
-        self,
-        tx: Transaction,
-        row: ConversationRow,
-        command: ReadMemoryCommand
-        | CorrectMemoryCommand
-        | DeleteMemoryCommand
-        | ClearMemoryCommand,
-        correlation_id: str,
-    ) -> _Outcome:
-        if isinstance(command, ReadMemoryCommand):
-            return self._complete(tx, row, command, correlation_id)
-        if row.process_status == "processing":
-            return self._fail_in(tx, row, command, correlation_id, ErrorCode.CONFLICT, BUSY)
-        if isinstance(command, ClearMemoryCommand):
-            self._memory.delete_all_memories(row.actor_id)
-            return self._complete(tx, row, command, correlation_id)
-        alias = command.payload.memory_id
-        memory_id = tx.memory_for_alias(row.actor_id, alias)
-        unknown = UNKNOWN_MEMORY.format(memory_id=alias)
-        if memory_id is None:
-            return self._fail_in(tx, row, command, correlation_id, ErrorCode.NOT_FOUND, unknown)
-        try:
-            if isinstance(command, CorrectMemoryCommand):
-                self._memory.correct_memory(
-                    row.actor_id, preference_id=memory_id, value=command.payload.value
-                )
-            else:
-                self._memory.delete_memory(row.actor_id, preference_id=memory_id)
-        except MemoryNotFoundError:
-            return self._fail_in(tx, row, command, correlation_id, ErrorCode.NOT_FOUND, unknown)
-        except MemoryConflictError:
-            return self._fail_in(
-                tx, row, command, correlation_id, ErrorCode.CONFLICT, DUPLICATE_MEMORY
-            )
-        return self._complete(tx, row, command, correlation_id)
-
     # Waiter turns
 
     async def _run_turn(self, job: _TurnJob) -> None:
@@ -679,7 +635,6 @@ class RestaurantService:
             persisted_order_preferences=tuple(row.persisted_order_preferences),
             session_json=row.agent_session_json,
             correlation_id=job.correlation_id,
-            memories=tuple(self._memory.list_memories(row.actor_id)),
             visit_id=row.visit_id,
         )
         outcome: WaiterTurnResult | tuple[ErrorCode, str]
@@ -732,13 +687,7 @@ class RestaurantService:
                 row.order_draft = outcome.order_draft
                 row.turn_count = outcome.turn_count
                 row.persisted_order_preferences = list(outcome.persisted_order_preferences)
-                for candidate in outcome.memory_candidates:
-                    self._memory.remember_memory(
-                        row.actor_id,
-                        kind=candidate.kind,
-                        value=candidate.value,
-                        source_conversation_id=row.conversation_id,
-                    )
+
                 if outcome.session_json is not None:
                     row.agent_session_json = outcome.session_json
                 tx.add_message(
@@ -1277,7 +1226,6 @@ class RestaurantService:
     def _snapshot(
         self, tx: Transaction, row: ConversationRow, cursor: int
     ) -> RestaurantSnapshot:
-        memories = self._visible_memories(tx, row.actor_id)
         seat = tx.get_seating(row.conversation_id)
         return RestaurantSnapshot(
             schema_version=1,
@@ -1289,45 +1237,22 @@ class RestaurantService:
             customer=row.customer,
             order_draft=row.order_draft,
             pending_fields=missing_customer_fields(row.customer),
-            memory=MemoryView(memories=memories),
+            memory=MemoryView(memories=[]),
             process_status="processing" if row.process_status == "processing" else "idle",
-            allowed_actions=self._allowed_actions(row, memories, seat),
+            allowed_actions=self._allowed_actions(row, seat),
             seating=self._seating_view(seat),
         )
-
-    def _visible_memories(self, tx: Transaction, actor_id: str) -> list[VisibleMemory]:
-        records = sorted(
-            self._memory.list_memories(actor_id),
-            key=lambda record: (record.created_at, record.preference_id),
-        )
-        aliases = tx.memory_aliases(actor_id, [record.preference_id for record in records])
-        memories = [
-            VisibleMemory(
-                memory_id=aliases[record.preference_id],
-                kind=record.kind,
-                value=record.value,
-                source=record.source_conversation_id,
-                recorded_at=record.updated_at,
-            )
-            for record in records
-        ]
-        return sorted(memories, key=lambda memory: int(memory.memory_id[1:]))
 
     def _allowed_actions(
         self,
         row: ConversationRow,
-        memories: list[VisibleMemory],
         seat: SeatingRow | None = None,
     ) -> list[Action]:
         idle = row.process_status != "processing"
         actions = [Action.ARRIVE]
         if idle and row.turn_count < self._max_turns:
             actions.append(Action.SEND_MESSAGE)
-        actions.append(Action.READ_MEMORY)
-        if idle and memories:
-            actions.extend((Action.CORRECT_MEMORY, Action.DELETE_MEMORY))
-        if idle:
-            actions.append(Action.CLEAR_MEMORY)
+
         if idle and seat is not None and seat.status == "proposed":
             actions.append(Action.DECIDE_TABLE)
         return actions

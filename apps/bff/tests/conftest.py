@@ -125,7 +125,6 @@ def settings(tmp_path: Path) -> BffSettings:
         _env_file=None,
         waiter_agent_url="http://test-waiter.invalid",
         bff_database_path=tmp_path / "bff.db",
-        memory_database_path=tmp_path / "memory.db",
         bff_sse_heartbeat_seconds=0.2,
     )
 
@@ -135,7 +134,10 @@ ServiceFactory = Callable[..., RestaurantService]
 
 @pytest.fixture
 def waiter_factory():
-    def build(config, memory_store):
+    def build(config):
+        memory_store = SQLiteMemoryStore(
+            config.bff_database_path.with_name("test-waiter-memory.db")
+        )
         return LocalWaiter(
             ScriptedWaiterAgent(),
             mode="scripted",
@@ -155,7 +157,9 @@ def make_service(settings: BffSettings, clock: Clock) -> ServiceFactory:
         retention: int = 500,
         seating: ScriptedSeating | None = None,
     ) -> RestaurantService:
-        memory_store = SQLiteMemoryStore(settings.memory_database_path)
+        memory_store = SQLiteMemoryStore(
+            settings.bff_database_path.with_name("test-waiter-memory.db")
+        )
         waiter = LocalWaiter(
             agent or ScriptedWaiterAgent(seating=seating),
             mode="scripted",
@@ -165,7 +169,6 @@ def make_service(settings: BffSettings, clock: Clock) -> ServiceFactory:
         )
         return RestaurantService(
             database=Database(settings.bff_database_path, event_retention=retention),
-            memory_store=memory_store,
             waiter=waiter,
             max_turns=max_turns,
             heartbeat_seconds=0.2,

@@ -13,9 +13,7 @@ class BffSettings(BaseSettings):
     """Everything the BFF needs; no local environment has to be sourced."""
 
     bff_database_path: Path = Path("data/bff.db")
-    memory_database_path: Path = Path("data/memory.db")
     bff_sqlite_journal_mode: Literal["WAL", "DELETE"] = "WAL"
-    memory_max_items: int = Field(default=20, ge=1, le=100)
     waiter_max_turns: int = Field(default=20, ge=1, le=100)
     waiter_agent_url: HttpUrl | None = None
     waiter_agent_timeout_seconds: int = Field(default=60, ge=1, le=300)

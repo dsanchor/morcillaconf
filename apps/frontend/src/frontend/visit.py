@@ -22,25 +22,17 @@ from restaurant_contracts.application import (
     ArriveCommand,
     ArrivePayload,
     ChatMessage,
-    ClearMemoryCommand,
     Command,
     CommandResult,
     CommandStatusChanged,
-    CorrectMemoryCommand,
-    CorrectMemoryPayload,
     DecideTableCommand,
-    DeleteMemoryCommand,
-    DeleteMemoryPayload,
-    EmptyPayload,
     ErrorCode,
-    ReadMemoryCommand,
     ResponseTextDelta,
     RestaurantSnapshot,
     SendMessageCommand,
     SendMessagePayload,
     SnapshotUpdated,
     TableDecisionPayload,
-    VisibleMemory,
 )
 from restaurant_contracts.client import BffClient, BffClientError
 from restaurant_contracts.seating import RoomView
@@ -48,12 +40,7 @@ from restaurant_contracts.seating import RoomView
 Updater = Callable[[], None]
 CommandFactory = Callable[[str, datetime, str], Command]
 
-REMEMBERED = "Lo que recuerdo de ti:"
-NOTHING_REMEMBERED = "Aún no recuerdo nada de ti."
-FORGOTTEN = "He olvidado todo lo que sabía de ti."
-KEEPS_REMEMBERING = "Lo que me cuentes a partir de ahora lo volveré a recordar."
 UNKNOWN_COMMAND = "Ese comando no lo conozco: mira la lista de la izquierda."
-TOO_LONG_MEMORY = "Eso es demasiado largo para un recuerdo."
 NOT_ALLOWED = "Ahora mismo no puedo hacer eso."
 MESSAGES_CLOSED = "Ahora mismo no puedo recibir más mensajes."
 TRY_NEW_VISIT = "Prueba con /new."
@@ -65,7 +52,6 @@ class Card:
 
     after_message_id: str | None
     title: str
-    memories: tuple[VisibleMemory, ...] = ()
     note: str | None = None
 
 
@@ -182,65 +168,6 @@ class VisitSession:
         finally:
             self.outgoing = None
         _notify(on_update)
-
-    def read_memory(self, on_update: Updater | None = None) -> None:
-        self._send(
-            lambda event_id, at, conversation_id: ReadMemoryCommand(
-                schema_version=1,
-                event_id=event_id,
-                occurred_at=at,
-                event_type="memory.read_requested",
-                conversation_id=conversation_id,
-                payload=EmptyPayload(),
-            ),
-            on_update,
-            action=Action.READ_MEMORY,
-        )
-
-    def correct_memory(
-        self, memory_id: str, value: str, on_update: Updater | None = None
-    ) -> None:
-        self._send(
-            lambda event_id, at, conversation_id: CorrectMemoryCommand(
-                schema_version=1,
-                event_id=event_id,
-                occurred_at=at,
-                event_type="memory.correction_requested",
-                conversation_id=conversation_id,
-                payload=CorrectMemoryPayload(memory_id=memory_id, value=value),
-            ),
-            on_update,
-            action=Action.CORRECT_MEMORY,
-            invalid=TOO_LONG_MEMORY,
-        )
-
-    def delete_memory(self, memory_id: str, on_update: Updater | None = None) -> None:
-        self._send(
-            lambda event_id, at, conversation_id: DeleteMemoryCommand(
-                schema_version=1,
-                event_id=event_id,
-                occurred_at=at,
-                event_type="memory.deletion_requested",
-                conversation_id=conversation_id,
-                payload=DeleteMemoryPayload(memory_id=memory_id),
-            ),
-            on_update,
-            action=Action.DELETE_MEMORY,
-        )
-
-    def clear_memory(self, on_update: Updater | None = None) -> None:
-        self._send(
-            lambda event_id, at, conversation_id: ClearMemoryCommand(
-                schema_version=1,
-                event_id=event_id,
-                occurred_at=at,
-                event_type="memory.clear_requested",
-                conversation_id=conversation_id,
-                payload=EmptyPayload(),
-            ),
-            on_update,
-            action=Action.CLEAR_MEMORY,
-        )
 
     def decide_table(self, decision: str, on_update: Updater | None = None) -> None:
         """Confirm or reject the pending proposal with its id and version."""
@@ -492,15 +419,6 @@ class VisitSession:
             and self.snapshot.seating.status == "seated"
         ):
             self.seated_since = self._monotonic()
-        memories = tuple(self.snapshot.memory.memories) if self.snapshot else ()
-        if isinstance(command, ReadMemoryCommand):
-            self._card(REMEMBERED if memories else NOTHING_REMEMBERED, memories)
-        elif isinstance(command, ClearMemoryCommand):
-            self._card(FORGOTTEN, note=KEEPS_REMEMBERING)
-        elif isinstance(command, DeleteMemoryCommand):
-            self._card(f"He borrado {command.payload.memory_id}.", memories)
-        elif isinstance(command, CorrectMemoryCommand):
-            self._card(f"He corregido {command.payload.memory_id}.", memories)
 
     def _fail_in_transport(self, exc: BffClientError) -> None:
         if exc.error.recovery != "retry_same_command":
@@ -515,15 +433,13 @@ class VisitSession:
     def _notice(self, message: str) -> None:
         self._card(message)
 
-    def _card(
-        self, title: str, memories: tuple[VisibleMemory, ...] = (), note: str | None = None
-    ) -> None:
+    def _card(self, title: str, note: str | None = None) -> None:
         last = (
             self.snapshot.messages[-1].message_id
             if self.snapshot is not None and self.snapshot.messages
             else None
         )
-        self.cards.append(Card(last, title, memories, note))
+        self.cards.append(Card(last, title, note))
 
     @staticmethod
     def _run(work: Coroutine[Any, Any, None]) -> None:

@@ -9,13 +9,7 @@ from restaurant_contracts.client import BffClientError
 
 from frontend.fake_client import FakeRestaurant
 from frontend.visit import (
-    FORGOTTEN,
-    KEEPS_REMEMBERING,
     MESSAGES_CLOSED,
-    NOT_ALLOWED,
-    NOTHING_REMEMBERED,
-    REMEMBERED,
-    TOO_LONG_MEMORY,
     TRY_NEW_VISIT,
     UNKNOWN_COMMAND,
     VisitSession,
@@ -54,35 +48,8 @@ def test_message_shows_sending_waiting_provisional_and_confirmed_states() -> Non
     assert visit.cursor >= visit.snapshot.cursor
 
 
-def test_memory_cards_come_from_the_confirmed_memory_view() -> None:
-    visit = _visit()
-    visit.read_memory()
-    assert visit.cards[-1].title == NOTHING_REMEMBERED
-    visit.send_message("Prefiero el agua con gas y soy alérgica a los frutos secos")
-    visit.read_memory()
-    card = visit.cards[-1]
-    assert card.title == REMEMBERED
-    assert [m.memory_id for m in card.memories] == ["m1", "m2"]
-    assert card.after_message_id == visit.snapshot.messages[-1].message_id
-    visit.correct_memory("m1", "agua sin gas")
-    assert visit.cards[-1].title == "He corregido m1."
-    assert visit.cards[-1].memories[0].value == "agua sin gas"
-    visit.delete_memory("m2")
-    assert [m.memory_id for m in visit.cards[-1].memories] == ["m1"]
-    visit.clear_memory()
-    assert (visit.cards[-1].title, visit.cards[-1].note) == (FORGOTTEN, KEEPS_REMEMBERING)
-    assert visit.snapshot.memory.memories == []
-
-
 def test_failures_and_invalid_commands_become_notices() -> None:
     visit = _visit()
-    visit.delete_memory("m1")
-    assert visit.cards[-1].title == NOT_ALLOWED
-    visit.send_message("Prefiero el vino tinto")
-    visit.delete_memory("m9")
-    assert visit.cards[-1].title == "No recuerdo nada con el identificador m9."
-    visit.correct_memory("m1", "x" * 201)
-    assert visit.cards[-1].title == TOO_LONG_MEMORY
     visit.reject_unknown_command()
     assert visit.cards[-1].title == UNKNOWN_COMMAND
     assert visit.pending is None
@@ -94,20 +61,15 @@ def test_actions_follow_allowed_actions_after_the_turn_limit() -> None:
     visit.send_message("¿Y de postre?")
     assert visit.cards[-1].title == f"{MESSAGES_CLOSED} {TRY_NEW_VISIT}"
     assert [m.role for m in visit.snapshot.messages].count("user") == 1
-    visit.delete_memory("m1")
-    assert visit.cards[-1].title == "He borrado m1."
 
 
-def test_new_visit_starts_a_clean_conversation_and_keeps_memories() -> None:
+def test_new_visit_starts_a_clean_conversation() -> None:
     visit = _visit()
     first = visit.snapshot.conversation_id
-    visit.send_message("Prefiero la tortilla")
-    visit.read_memory()
     visit.arrive()
     assert visit.snapshot.conversation_id != first
     assert visit.cards == []
     assert len(visit.snapshot.messages) == 1
-    assert [m.value for m in visit.snapshot.memory.memories] == ["tortilla"]
 
 
 def test_interrupted_command_is_resolved_without_resending() -> None:
@@ -136,10 +98,9 @@ def test_interrupted_command_is_resolved_without_resending() -> None:
 def test_expired_cursor_recovers_with_a_new_snapshot() -> None:
     visit = _visit(restaurant=FakeRestaurant(retained_events=2))
     visit.cursor = 0
-    visit.read_memory()
+    visit.send_message("Hola")
     assert visit.pending is None
     assert visit.cursor == visit.snapshot.cursor
-    assert visit.cards[-1].title == NOTHING_REMEMBERED
 
 
 def test_transport_errors_are_explicit_and_keep_retryable_commands() -> None:
@@ -156,7 +117,7 @@ def test_transport_errors_are_explicit_and_keep_retryable_commands() -> None:
 
     visit = _visit()
     visit._client = Unavailable()
-    visit.read_memory()
+    visit.send_message("Hola")
     assert visit.pending is not None
     assert visit.cards[-1].title == "El BFF no responde."
 
@@ -211,9 +172,8 @@ def test_completed_command_stops_reading_an_open_stream() -> None:
     visit = VisitSession(OpenStream())
     visit.arrive()
     visit.send_message("Hola")
-    visit.read_memory()
+    visit.send_message("Otra cosa")
     assert visit.pending is None
-    assert visit.cards[-1].title == NOTHING_REMEMBERED
 
 
 def test_retryable_transport_error_is_reported_once() -> None:
@@ -233,7 +193,7 @@ def test_retryable_transport_error_is_reported_once() -> None:
 
     visit = _visit()
     visit._client = Down()
-    visit.read_memory()
+    visit.send_message("Hola")
     for _ in range(3):
         visit.resolve_pending()
     assert [card.title for card in visit.cards].count("El BFF no responde.") == 1

@@ -31,10 +31,6 @@ FORM: fijada por el brief, sin tirada. Puesta en escena: llamar, abrir, entrar.
 
 COMMANDS = (
     ("/new", "Nueva visita"),
-    ("/memory", "Lo que recuerdo de ti"),
-    ("/memory correct <id> <texto>", "Corregir un recuerdo"),
-    ("/memory delete <id>", "Borrar un recuerdo"),
-    ("/memory clear", "Olvidar todo"),
     ("/exit", "Salir"),
 )
 

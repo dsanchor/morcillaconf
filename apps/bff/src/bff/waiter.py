@@ -9,7 +9,6 @@ import httpx
 
 from restaurant_contracts.application import ActorContext
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
-from restaurant_contracts.memory import DurableMemoryRecord, MemoryCandidate
 from restaurant_contracts.waiter import (
     WAITER_SEATING_RESPONSE_ADAPTER,
     WAITER_TURN_RESPONSE_ADAPTER,
@@ -36,7 +35,6 @@ class WaiterTurn:
     session_json: str | None
     correlation_id: str
     visit_id: str | None = None
-    memories: tuple[DurableMemoryRecord, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -48,7 +46,6 @@ class WaiterTurnResult:
     persisted_order_preferences: tuple[str, ...]
     session_json: str | None
     seating: SeatingReport | None = None
-    memory_candidates: tuple[MemoryCandidate, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -134,7 +131,6 @@ class RemoteWaiter:
             session_json=turn.session_json,
             correlation_id=turn.correlation_id,
             visit_id=turn.visit_id,
-            memories=list(turn.memories),
         )
         result = await self._post(
             request, turn.conversation_id, turn.actor.actor_id, WAITER_TURN_RESPONSE_ADAPTER
@@ -150,7 +146,6 @@ class RemoteWaiter:
             ),
             session_json=result.session_json,
             seating=result.seating,
-            memory_candidates=tuple(result.memory_candidates),
         )
 
     async def decide_seating(

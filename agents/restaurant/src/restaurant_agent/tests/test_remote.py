@@ -11,6 +11,7 @@ from restaurant_contracts.waiter import WaiterTurnRequest, WaiterTurnSuccess
 from restaurant_agent.config import Settings
 from restaurant_agent.contracts import WaiterModelResult
 from restaurant_agent.memory.contracts import MemoryCandidate, MemoryIntent, MemoryKind
+from restaurant_agent.memory.store import SQLiteMemoryStore
 from restaurant_agent.remote import RemoteWaiterService, _cancel_when_signalled, create_server
 
 
@@ -49,9 +50,11 @@ def _settings(tmp_path) -> Settings:
 
 
 async def test_remote_service_preserves_the_application_context(tmp_path) -> None:
+    memory_store = SQLiteMemoryStore(tmp_path / "memory.db")
     service = RemoteWaiterService(
         _settings(tmp_path),
         agent_factory=lambda settings, memory_store: FakeAgent(),
+        memory_store=memory_store,
     )
     request = WaiterTurnRequest(
         conversation_id="conv_1",
@@ -71,10 +74,48 @@ async def test_remote_service_preserves_the_application_context(tmp_path) -> Non
     assert result.customer.presented_name == "Ana"
     assert result.customer.party_size == 2
     assert result.turn_count == 1
-    assert [(item.kind, item.value) for item in result.memory_candidates] == [
+    assert [(item.kind, item.value) for item in memory_store.list_memories("ana")] == [
         (MemoryKind.PREFERENCE, "agua con gas")
     ]
     assert '"visit_id": "visit_1"' in result.session_json
+
+
+async def test_remote_service_manages_memory_without_the_bff(tmp_path) -> None:
+    memory_store = SQLiteMemoryStore(tmp_path / "memory.db")
+    memory = memory_store.remember_memory(
+        "ana",
+        kind=MemoryKind.PREFERENCE,
+        value="agua con gas",
+        source_conversation_id="conv_old",
+    )
+    service = RemoteWaiterService(
+        _settings(tmp_path),
+        agent_factory=lambda settings, memory_store: FakeAgent(),
+        memory_store=memory_store,
+    )
+
+    def request(message: str) -> WaiterTurnRequest:
+        return WaiterTurnRequest(
+            conversation_id="conv_1",
+            actor=ActorContext(actor_id="ana", authenticated=True),
+            presented_name="Ana",
+            message=message,
+            customer=CustomerSnapshot(presented_name="Ana"),
+            order_draft=OrderDraft(),
+            turn_count=0,
+            correlation_id="corr_1",
+        )
+
+    listed = await service.take_turn(request("/memory"))
+    assert memory.preference_id in listed.reply
+    corrected = await service.take_turn(
+        request(f"/memory correct {memory.preference_id} agua sin gas")
+    )
+    assert corrected.reply == "He corregido ese recuerdo."
+    assert memory_store.list_memories("ana")[0].value == "agua sin gas"
+    cleared = await service.take_turn(request("/memory clear"))
+    assert cleared.reply.startswith("He olvidado")
+    assert memory_store.list_memories("ana") == []
 
 
 def test_responses_endpoint_returns_the_typed_result(tmp_path, monkeypatch) -> None:

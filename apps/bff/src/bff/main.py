@@ -9,8 +9,6 @@ from datetime import datetime, timedelta
 
 from fastapi import FastAPI
 
-from restaurant_contracts.memory_store import DurableMemoryRepository, SQLiteMemoryStore
-
 from bff import api
 from bff.adapters import create_waiter
 from bff.config import BffSettings
@@ -20,7 +18,7 @@ from bff.waiter import WaiterPort
 
 logger = logging.getLogger(__name__)
 
-WaiterFactory = Callable[[BffSettings, DurableMemoryRepository], WaiterPort]
+WaiterFactory = Callable[[BffSettings], WaiterPort]
 
 
 def create_app(
@@ -32,19 +30,13 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         config = settings or BffSettings()
-        memory_store = SQLiteMemoryStore(
-            config.memory_database_path,
-            max_memories=config.memory_max_items,
-            journal_mode=config.bff_sqlite_journal_mode,
-        )
         service = RestaurantService(
             database=Database(
                 config.bff_database_path,
                 event_retention=config.bff_event_retention,
                 journal_mode=config.bff_sqlite_journal_mode,
             ),
-            memory_store=memory_store,
-            waiter=waiter_factory(config, memory_store),
+            waiter=waiter_factory(config),
             max_turns=config.waiter_max_turns,
             session_ttl=timedelta(hours=config.bff_session_ttl_hours),
             heartbeat_seconds=config.bff_sse_heartbeat_seconds,
