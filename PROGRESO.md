@@ -1,6 +1,6 @@
 # Progreso de implementación
 
-Última actualización: **2026-09-30**
+Última actualización: **2026-10-01**
 
 Este documento ofrece una vista compartida del estado real del repositorio. No
 sustituye a [SPECS.md](SPECS.md) ni a
@@ -22,8 +22,8 @@ indicadas en el propio plan.
 | 2. Memoria persistente automática | Completada | Validada conjuntamente el 28/09 | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
 | 3. Vista única, BFF y continuidad | Implementada: 3A, 3B, 3C y 3D validadas en el Codespace el 28/09 | Pendiente; validada por Jesús el 28/09 ([revisión de 3A](docs/revision-fase-3a-jesus.md), [validación de 3C y 3D](#validación-en-el-codespace-28092026)) | 3A: 133 pruebas y 15 reglas del contrato. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) e imagen Docker publicada. 3C/3D: [BFF](#fase-3c-bff) con el camarero en Foundry; 146 + 8, 123 y 96 pruebas, smoke real y recorrido manual superados |
 | 4. Mesas y recorrido local con control de caja | Parcial: flujo de asientos integrado en `main`; pedido, caja, pago y liberación pendientes | Revisión conjunta del alcance completo pendiente | Bloqueo temporal, confirmación/rechazo, concurrencia, plano y recorrido E2E implementados |
-| 5. Conocimiento compartido con Foundry IQ y MCP | Implementada en PR, fuera de `main`: base de conocimiento con carta, recetario en PDF con ficha de ingredientes y web de respaldo; el camarero la consulta por su endpoint MCP | Pendiente | [Fase 5](#fase-5-carta-con-foundry-iq-30092026): base aprovisionada y consultada por REST y MCP; camarero local con Foundry respondiendo desde cada fuente con su cita; 263 + 30 pruebas locales y recorrido E2E de asientos |
-| 6. Chef líder y especialistas | Diseño por detallar | Pendiente | Se prioriza después de conectar la carta |
+| 5. Conocimiento compartido con Foundry IQ y MCP | Implementada en `main` (PR #10): base de conocimiento con carta, recetario en PDF con ficha de ingredientes y web de respaldo; el camarero la consulta por su endpoint MCP | Pendiente | [Fase 5](#fase-5-carta-con-foundry-iq-30092026): base aprovisionada y consultada por REST y MCP; camarero local con Foundry respondiendo desde cada fuente con su cita; 263 + 30 pruebas locales y recorrido E2E de asientos |
+| 6. Chef líder y especialistas | Parcial: cocina v1 en `main`, con el chef que revisa el pedido con la carta y el recetario y lo reparte por partidas; pinches, despensa, tiempos y confirmación del pedido pendientes | Pendiente | [Cocina v1](#cocina-v1-el-chef-01102026): chef con salida validada, burbuja propia en la vista y tres pedidos reales contra Foundry y la base |
 | 7. Validación de Hosted Agent | Pospuesta hasta disponer de carta y orquestación representativas | Pendiente | El agente actual se ha ejecutado localmente y como contenedor remoto, pero no acredita el workflow objetivo completo |
 | 8. Proveedor mediante A2A | Pendiente | Pendiente | Sin implementación |
 | 9. Integración duradera en Azure | Pendiente | Pendiente | Sin implementación |
@@ -54,6 +54,83 @@ indicadas en el propio plan.
   todas las aplicaciones quedan limitadas a una réplica. Los datos se pierden al
   reiniciar la réplica o desplegar una revisión nueva. Es una topología inicial
   de demo, no el diseño de persistencia duradera de fase 9 (Cosmos DB).
+
+## Acuerdos del sync del 01/10/2026
+
+- Empezar ya con el chef; los especialistas (pinches) llegan después.
+- Todavía sin despensa ni inventario.
+- Todo en el mismo contenedor del agente, con la orquestación dentro de él.
+- Jesús y dsanchor acuerdan dejar los PR: el trabajo va en una rama, se
+  publica para que pase la CI de cada componente y, con la CI en verde, se
+  integra en `main` con un commit de merge. La evidencia de CI queda en esas
+  ejecuciones.
+
+## Cocina v1: el chef (01/10/2026)
+
+Primera porción de la fase 6, más estrecha que la fase completa. No se marca
+ninguna casilla del plan: queda pendiente de la revisión conjunta.
+
+### Implementado
+
+- **Contratos** (`restaurant_contracts.kitchen`): `KitchenOrder`, solo con el
+  pedido; `KitchenPlan`, con lo aceptado, lo rechazado, los avisos, las
+  partidas con sus tareas, las fuentes y la versión; `KitchenFailure`;
+  `KitchenReport`, y el puerto `KitchenPort`. `ChatMessage` admite el rol
+  `kitchen` y `WaiterTurnSuccess` lleva el informe de cocina del turno.
+- **Camarero:** la tool tipada `pedir_a_cocina`, como mucho una vez por turno,
+  y sus instrucciones: enviar solo el pedido, resumir el veredicto del chef
+  sin alterarlo y no inventar nunca un resultado de cocina.
+- **Chef** (`kitchen-lead`): un agente de Agent Framework sin sesión, memoria
+  ni contacto con el cliente, con salida estructurada y la base de
+  conocimiento como única herramienta. Comprueba la carta, consulta el
+  recetario, aplica modificaciones y alergias sin deducir alérgenos, reparte el
+  trabajo por partidas y cita sus fuentes. Usa el mismo proyecto Foundry y,
+  si se configura, su propio deployment.
+- **Validación determinista** del plan contra lo que devolvió la base:
+  partidas fijas, platos aceptados que aparecen en la carta consultada, cada
+  línea decidida una sola vez con la cantidad pedida, ninguna alergia ni
+  modificación «sin X» de un alérgeno servida con un plato que lo contiene,
+  puede contenerlo o no lo ha verificado, y ninguna modificación pedida que
+  desaparezca en silencio.
+- **Fallos explícitos:** sin base configurada, base caída, chef sin consultar
+  la carta, respuesta inválida, error del modelo o más de
+  `KITCHEN_TIMEOUT_SECONDS` (30 s). El plazo corta el plan entero.
+- **BFF:** guarda la respuesta del chef como un mensaje propio entre el pedido
+  y la respuesta del camarero, y la publica en el snapshot y los eventos.
+- **Vista:** la burbuja del chef, azul con texto blanco y un gorro de cocinero,
+  en la misma conversación. El falso tiene un chef simulado para «Pido…».
+- **Despliegue:** `KITCHEN_MODEL_DEPLOYMENT_NAME` y `KITCHEN_TIMEOUT_SECONDS`,
+  opcionales; los ficheros de entorno anteriores siguen sirviendo.
+
+### Evidencia
+
+- **Pruebas:** 311 del camarero, los contratos y la carta, y 30 del MCP
+  (`./scripts/test.sh`); 144 del BFF; 144 del frontend, incluida una AppTest
+  de la burbuja; 8 del recorrido E2E, incluido un pedido que llega a cocina
+  sin base y vuelve como fallo explícito antes de la respuesta del camarero.
+- **Foundry real** (`gpt-5.6-luna`), con la base `conocimiento-restaurante` y el
+  MCP de asientos, por el camino desplegado (`RemoteWaiterService`), después
+  de sentar al grupo con «Confirmar»:
+  - «Una morcilla a la brasa y unas croquetas de morcilla sin cebolla, y soy
+    celíaco»: acepta la morcilla (brasa, ninguno de los 14 alérgenos) y
+    rechaza las croquetas, que llevan gluten y cuya cebolla va dentro de la
+    morcilla. Reparte la morcilla a la brasa con sus pasos y cita la carta y
+    la receta R02.
+  - «Una hamburguesa sin queso»: la rechaza porque no está en la carta y cita
+    la carta consultada sin resultados.
+  - «Un chorizo a la brasa, por favor»: lo acepta con los alérgenos
+    pendientes de verificar y lo avisa.
+
+  El camarero resume cada veredicto sin cambiarlo. El chef tarda entre 9 y
+  17 s y el turno completo, entre 18 y 24 s; con el pedido como primer mensaje
+  de la visita, 28 s. Caben en los 60 s de `WAITER_AGENT_TIMEOUT_SECONDS`.
+
+### Límites y pendientes
+
+- No hay pinches, tiempos, despensa ni confirmación del pedido: el plan de
+  cocina no compromete nada y cada cambio es un pedido nuevo.
+- Sin base de conocimiento, cocina responde que no puede consultar la carta.
+- Pendientes: la revisión conjunta, redesplegar y probar en el navegador.
 
 ## Acuerdos del sync del 30/09/2026
 
@@ -858,10 +935,10 @@ botones y el plano muestra la sala.
 
 ## Próximo trabajo previsto
 
-1. Revisar conjuntamente la fase 5 y redesplegar el camarero con la base de
-   conocimiento de Foundry IQ.
-2. Documentar y construir el scaffolding del chef y sus especialistas usando
-   esa misma base; el chef contrasta ingredientes con inventario.
+1. Revisar conjuntamente la fase 5 y la cocina v1, y redesplegar el camarero
+   con la base de conocimiento y el chef.
+2. Añadir los pinches de brasa, fritos y pinchos fríos y la despensa por MCP:
+   el chef contrastará los ingredientes con el inventario.
 3. Definir el contrato y la superficie mínima del HITL de caja antes de
    implementar cuenta y pago.
 4. Validar el Hosted Agent después de que carta y orquestación formen un flujo

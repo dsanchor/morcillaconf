@@ -133,9 +133,10 @@ proyecto Foundry (`gpt-4.1-mini`), con esfuerzo `low` y salida extractiva, y
 tiene sus instrucciones de recuperación en español: la carta y el recetario
 primero, la web nunca para precios, existencias ni lo que ofrece el
 restaurante. El camarero la consulta por el **endpoint MCP propio de la base**
-(versión `2026-08-01-preview`), sin servidores intermedios; el chef de la fase
-6 usará la misma base y la despensa seguirá siendo un MCP operacional aparte.
-Detalles del camarero en [su README](agents/restaurant/README.md#carta-y-base-de-conocimiento-foundry-iq).
+(versión `2026-08-01-preview`), sin servidores intermedios; el
+[chef](#cocina-chef-v1) usa la misma base y la despensa seguirá siendo un MCP
+operacional aparte. Detalles del camarero en
+[su README](agents/restaurant/README.md#carta-y-base-de-conocimiento-foundry-iq).
 
 Como Foundry y el grupo de recursos, la base de conocimiento es un
 prerrequisito del despliegue. Requisitos: Bash, Python 3, curl, Azure CLI con
@@ -204,6 +205,35 @@ Para dejar de pagar, borra el servicio de búsqueda y la cuenta de
 almacenamiento (`az search service delete` y `az storage account delete`); el
 servicio Basic no se puede pausar.
 
+## Cocina: chef v1
+
+Cuando el pedido está claro, el camarero se lo pasa al chef con la tool
+`pedir_a_cocina`: platos, cantidades, modificaciones («sin cebolla») y las
+alergias o intolerancias declaradas, nada más. El chef es un agente de Agent
+Framework sin sesión ni memoria que vive en el mismo contenedor que el
+camarero y cuya única herramienta es la misma base de conocimiento:
+
+- comprueba cada plato en la carta y rechaza, con su motivo, lo que no está;
+- consulta el recetario: partida, ingredientes y alérgenos;
+- aplica las modificaciones solo si la receta lo permite;
+- aplica las alergias e intolerancias con los alérgenos declarados, sin
+  deducirlos, y avisa de la información pendiente de verificar;
+- reparte el trabajo por partidas (brasa, fritos, pinchos fríos y barra) para
+  los futuros pinches y cita sus fuentes.
+
+Nuestro código valida su respuesta antes de que llegue al camarero: cada línea
+se acepta o se rechaza una sola vez y con la cantidad pedida, un plato aceptado
+tiene que aparecer en la carta que devolvió la base, y su partida y sus
+alérgenos son los de esa carta. Si la base no está configurada o no responde,
+si el chef falla o si se pasa de tiempo, el resultado es un fallo explícito de
+cocina, nunca un plan inventado.
+
+En la vista, el plan del chef aparece en la misma conversación como una burbuja
+propia, azul con texto blanco y un gorro de cocinero, entre el mensaje del
+cliente y la respuesta del camarero, que resume el veredicto sin cambiarlo.
+Todavía no hay pinches, tiempos, despensa ni confirmación del pedido. Detalles
+en el [README del agente](agents/restaurant/README.md#cocina-chef-v1).
+
 ## Despliegue en Azure Container Apps
 
 El script [`scripts/deploy-container-apps.sh`](scripts/deploy-container-apps.sh)
@@ -247,6 +277,15 @@ valores que imprime `provision-knowledge.sh`: `AZURE_SEARCH_RESOURCE_ID`,
 identidad del agente recibe además `Search Index Data Reader` sobre el servicio
 de búsqueda y el agente recibe la configuración de la base. Sin ellos, el
 despliegue no cambia y los ficheros de entorno existentes siguen sirviendo.
+
+El chef va en el mismo contenedor del agente y usa la misma base: sin ella,
+cocina responde que no puede consultar la carta. Tiene dos variables opcionales
+que también pueden faltar en ficheros anteriores:
+`KITCHEN_MODEL_DEPLOYMENT_NAME`, un deployment propio del mismo proyecto
+Foundry (vacío, el del camarero), y `KITCHEN_TIMEOUT_SECONDS`, el tiempo máximo
+de todo el plan de cocina (30 por defecto). Ese tiempo debe dejar margen dentro
+de `WAITER_AGENT_TIMEOUT_SECONDS` para las llamadas del propio camarero; el
+script avisa si queda menos de 20 s.
 
 El despliegue es idempotente y no construye ni publica imágenes, pero no realiza
 una previsualización: revisa el fichero de entorno antes de ejecutarlo. Para
