@@ -27,6 +27,12 @@ class Settings(BaseSettings):
         default=None, pattern=r"^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$"
     )
     knowledge_base_timeout_seconds: int = Field(default=20, ge=1, le=60)
+    # The chef (kitchen-lead) uses the same Foundry project; its own model
+    # deployment when set, otherwise the waiter's. Its whole plan, knowledge
+    # base lookups included, must fit in this budget so the waiter's turn
+    # stays within the BFF's waiter timeout.
+    kitchen_model_deployment_name: str | None = None
+    kitchen_timeout_seconds: int = Field(default=30, ge=1, le=120)
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -34,7 +40,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    @field_validator("azure_search_endpoint", "knowledge_base_name", mode="before")
+    @field_validator(
+        "azure_search_endpoint",
+        "knowledge_base_name",
+        "kitchen_model_deployment_name",
+        mode="before",
+    )
     @classmethod
     def empty_is_unset(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value
@@ -65,3 +76,9 @@ class Settings(BaseSettings):
                 "AZURE_SEARCH_ENDPOINT and KNOWLEDGE_BASE_NAME must be set together"
             )
         return self
+
+    @property
+    def kitchen_model(self) -> str:
+        """The chef's model deployment: its own when configured, else the waiter's."""
+
+        return self.kitchen_model_deployment_name or str(self.azure_ai_model_deployment_name)

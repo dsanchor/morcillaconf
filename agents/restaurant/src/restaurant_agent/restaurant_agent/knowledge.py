@@ -18,6 +18,7 @@ import functools
 import json
 import logging
 import os
+import re
 import threading
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, MutableMapping
@@ -61,6 +62,8 @@ NO_RESULTS = (
 HOUSE = "documento de la casa"
 WEB = "fuente externa (web)"
 UNKNOWN = "origen no indicado; trátalo como fuente externa"
+# The start of a passage in the summarized result, «[ref] Origen: …».
+PASSAGE_MARKER = re.compile(r"^(\[[^\]\n]*\] Origen: )", re.MULTILINE)
 
 # When each knowledge base last failed to connect. The remote waiter builds a
 # new agent, and so a new tool, for every request: the pause is per process.
@@ -305,7 +308,9 @@ def _summarize(result: types.CallToolResult) -> str:
     blocks = []
     for passage in passages:
         reference = references.get(str(passage.get("ref_id")), {})
-        content = str(passage.get("content") or "").strip()
+        # A passage, such as a web page, cannot pass itself off as another
+        # source by containing a line that looks like a passage start.
+        content = PASSAGE_MARKER.sub(r"> \1", str(passage.get("content") or "").strip())
         blocks.append(f"[{passage.get('ref_id')}] Origen: {source_label(passage, reference)}\n{content}")
     return "\n\n".join(blocks)
 
