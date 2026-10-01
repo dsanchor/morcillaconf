@@ -7,8 +7,8 @@ from bff.main import create_app
 
 
 @pytest.fixture
-def client(settings):
-    with TestClient(create_app(settings)) as client:
+def client(settings, waiter_factory):
+    with TestClient(create_app(settings, waiter_factory=waiter_factory)) as client:
         yield client
 
 
@@ -180,8 +180,13 @@ def test_unknown_routes_answer_with_a_public_error(client) -> None:
     assert_public_error(client.get("/v1/nada"), 404, "not_found")
 
 
-def test_unexpected_errors_are_public_and_not_re_raised(settings, caplog) -> None:
-    with TestClient(create_app(settings), raise_server_exceptions=True) as client:
+def test_unexpected_errors_are_public_and_not_re_raised(
+    settings, waiter_factory, caplog
+) -> None:
+    with TestClient(
+        create_app(settings, waiter_factory=waiter_factory),
+        raise_server_exceptions=True,
+    ) as client:
         session = enter(client)
 
         def explode(*args, **kwargs):

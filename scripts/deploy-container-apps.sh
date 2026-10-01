@@ -302,7 +302,6 @@ AGENT_FQDN="$(az containerapp show --name "$RESTAURANT_AGENT_APP_NAME" \
 
 log "Creating or updating BFF (internal ingress)"
 apply_app "$BFF_APP_NAME" "$BFF_IMAGE" internal 8000 false \
-  "BFF_WAITER=remote" \
   "WAITER_AGENT_URL=https://$AGENT_FQDN" \
   "WAITER_AGENT_TIMEOUT_SECONDS=$WAITER_AGENT_TIMEOUT_SECONDS" \
   "BFF_DATABASE_PATH=/data/bff.db" \

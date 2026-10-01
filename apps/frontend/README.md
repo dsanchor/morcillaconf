@@ -84,8 +84,8 @@ El cliente HTTP (`http_client.py`) usa solo la biblioteca estándar (`urllib`
 en hilos con `asyncio.to_thread`), así que no cambia `uv.lock`. El nombre de la
 puerta se envía una sola vez para abrir la sesión de demo; después solo viaja
 un token opaco. Si el BFF no responde, la puerta sigue cerrada con un aviso.
-«Camarero simulado» solo aparece con el falso o con el camarero simulado del
-BFF (`BFF_WAITER=scripted`); con el camarero real el BFF informa `remote`.
+«Camarero simulado» solo aparece con el falso del frontend o los dobles
+inyectados por las pruebas; el BFF en ejecución informa siempre `remote`.
 
 ## Imagen de contenedor y despliegue en Container Apps
 

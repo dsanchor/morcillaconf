@@ -1,4 +1,4 @@
-"""Deterministic scripted waiter for tests, CI and offline development.
+"""Deterministic scripted waiter used only as an internal test double.
 
 It never calls a model. It reads the prompt that ConversationManager builds,
 so the whole application path (turn limit, memory, order guard, presented

@@ -1,8 +1,8 @@
 """Seating end to end without Foundry; the waiter is the only client of the MCP.
 
 ./scripts/test-e2e-seating.sh starts the seating MCP, the standalone waiter
-(dsanchor's create_server with a scripted model) and the BFF with
-BFF_WAITER=remote and no SEATING_MCP_URL, on fresh databases with the demo
+(dsanchor's create_server with a scripted model) and the remote-only BFF with
+no SEATING_MCP_URL, on fresh databases with the demo
 layout (Mesa 1 y 2 de 2, Mesa 3 y 4 de 4, Mesa 5 de 6, barra de 8). The view's
 HTTP client drives them. The tests run in order and share that room.
 """

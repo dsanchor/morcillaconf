@@ -31,10 +31,10 @@ indicadas en el propio plan.
 
 ## Separación de procesos y primer despliegue en Container Apps
 
-- El BFF ya no construye el camarero de Foundry en su proceso productivo.
-  `BFF_WAITER=remote` invoca el endpoint Responses 2.0 del contenedor del
-  agente mediante `WAITER_AGENT_URL`; `scripted` queda como adaptador local de
-  pruebas.
+- El BFF ya no construye el camarero de Foundry en su proceso productivo e
+  invoca siempre el endpoint Responses 2.0 del contenedor del agente mediante
+  `WAITER_AGENT_URL`. Los dobles guionizados quedan solo como infraestructura
+  interna de pruebas y no son un modo configurable.
 - El contrato remoto tipado transporta estado confirmado, sesión opaca,
   informe de asientos y candidatos de memoria. El BFF sigue siendo la
   autoridad de identidad, visita, snapshots, SSE y memoria persistida, y
@@ -589,8 +589,8 @@ davía no se ha ejecutado.
 - El camarero se ejecuta en el proceso mediante `ConversationManager`
   (adaptador local de fase 3), con memoria automática, guarda del resumen de
   pedido por conversación y su historial de Agent Framework guardado en
-  SQLite. Camarero simulado determinista (`BFF_WAITER=scripted`) para pruebas,
-  CI y desarrollo sin conexión.
+  SQLite. Los tests inyectan directamente un camarero determinista, sin
+  ofrecerlo como modo de ejecución del BFF.
 - Comandos de memoria contra el almacén del camarero, con ids cortos por
   cliente (`m1`, `m2`…) que no se reutilizan.
 - Cliente HTTP/SSE del frontend (`FRONTEND_BFF_CLIENT=http`,

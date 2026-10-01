@@ -73,7 +73,7 @@ class _Hold:
 
 
 class ScriptedSeating:
-    """The seating side of the scripted waiter, shared by every conversation."""
+    """In-memory seating authority used only by internal tests."""
 
     def __init__(
         self,

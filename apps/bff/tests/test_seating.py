@@ -14,7 +14,9 @@ from fastapi.testclient import TestClient
 
 from restaurant_contracts.application import Action, ErrorCode
 
+from bff.local_waiter import LocalWaiter
 from bff.main import create_app
+from bff.scripted import ScriptedWaiterAgent
 from bff.scripted_seating import ScriptedSeating
 from bff.service import SEATING_UNAVAILABLE
 from conftest import Commands
@@ -391,8 +393,18 @@ async def test_without_seating_the_room_is_decorative(make_service, commands) ->
 
 
 def test_the_room_endpoint_is_owned_and_anonymous(settings, clock) -> None:
-    config = settings.model_copy(update={"bff_scripted_seating": True})
-    app = create_app(config, clock=clock)
+    seating = ScriptedSeating(clock)
+
+    def waiter_factory(config, memory_store):
+        return LocalWaiter(
+            ScriptedWaiterAgent(seating=seating),
+            mode="scripted",
+            max_turns=config.waiter_max_turns,
+            memory_store=memory_store,
+            seating=seating,
+        )
+
+    app = create_app(settings, waiter_factory=waiter_factory, clock=clock)
     with TestClient(app) as client:
         ana = client.post("/v1/sessions", json={"name": "Ana"}).json()
         luis = client.post("/v1/sessions", json={"name": "Luis"}).json()
