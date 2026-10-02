@@ -138,7 +138,7 @@ fi
 
 # The external kitchen and the waiter share the Foundry project and model, but
 # run in separate Container Apps connected through A2A.
-KITCHEN_TIMEOUT_SECONDS="${KITCHEN_TIMEOUT_SECONDS:-30}"
+KITCHEN_TIMEOUT_SECONDS="${KITCHEN_TIMEOUT_SECONDS:-60}"
 export KITCHEN_TIMEOUT_SECONDS
 validate_match KITCHEN_TIMEOUT_SECONDS '^([1-9]|[1-9][0-9]|1[01][0-9]|120)$' "a whole number of seconds from 1 to 120"
 validate_match WAITER_AGENT_TIMEOUT_SECONDS '^[1-9][0-9]*$' "a whole number of seconds"

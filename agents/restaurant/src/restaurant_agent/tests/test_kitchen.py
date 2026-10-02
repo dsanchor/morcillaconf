@@ -378,8 +378,8 @@ def test_the_text_lists_the_verdict_the_partidas_and_the_sources() -> None:
     )
     text = render_text(plan)
     assert text.splitlines()[:5] == [
-        "Plan de cocina",
-        "Aceptado:",
+        "Platos cocinados",
+        "Listos para servir:",
         "- 1 × Morcilla de Burgos a la brasa, sin pimiento asado (brasa; alérgenos: ninguno de los 14)",
         "Rechazado:",
         "- 1 × hamburguesa: No está en la carta.",
@@ -387,7 +387,7 @@ def test_the_text_lists_the_verdict_the_partidas_and_the_sources() -> None:
     assert "- Brasa:\n  · 1 × Morcilla de Burgos a la brasa. Pasos: Marcar a la brasa." in text
     assert text.endswith("Fuentes: carta de la casa (versión 1); recetario de la casa (versión 1, receta R02).")
     failure = KitchenFailure(order_id="ko_test", code=KitchenFailureCode.TIMEOUT, message="Cocina no ha respondido a tiempo.")
-    assert render_text(failure) == "Cocina no ha podido preparar el plan del pedido. Cocina no ha respondido a tiempo."
+    assert render_text(failure) == "Cocina no ha podido preparar el pedido. Cocina no ha respondido a tiempo."
 
 
 # The chef against the knowledge base stub
@@ -475,10 +475,28 @@ CELIAC_DRAFT = {
 }
 
 
+async def no_preparation_wait(_: float) -> None:
+    pass
+
+
 def kitchen(
-    configured: KitchenSettings, chef: ScriptedModel
+    configured: KitchenSettings,
+    chef: ScriptedModel,
+    *,
+    sleeper=no_preparation_wait,
 ) -> KitchenService:
-    return KitchenService(configured, client_factory=lambda _: chef)
+    class AcceptingCoordination:
+        async def review(
+            self, order: KitchenOrder, plan: KitchenPlan
+        ) -> KitchenPlan:
+            return plan
+
+    return KitchenService(
+        configured,
+        client_factory=lambda _: chef,
+        coordination=AcceptingCoordination(),  # type: ignore[arg-type]
+        sleeper=sleeper,
+    )
 
 
 async def test_the_chef_plans_from_the_knowledge_base_with_only_the_order(kb_server) -> None:
@@ -497,6 +515,22 @@ async def test_the_chef_plans_from_the_knowledge_base_with_only_the_order(kb_ser
     assert role == "user" and '"plato": "croquetas de morcilla"' in prompt and "celiaquía" in prompt
     # Only the order: the chef never learns who the customer is.
     assert set(json.loads(prompt.split("\n")[1])) == {"lineas", "alergias_e_intolerancias"}
+
+
+async def test_the_kitchen_returns_only_after_the_longest_dish_is_cooked(kb_server) -> None:
+    delays: list[float] = []
+
+    async def record_delay(seconds: float) -> None:
+        delays.append(seconds)
+
+    chef = ScriptedModel([lookup(), {"result": CELIAC_DRAFT}])
+    result = await kitchen(
+        kitchen_settings(kb_server.port), chef, sleeper=record_delay
+    ).plan(CELIAC_ORDER)
+
+    assert isinstance(result, KitchenPlan)
+    assert result.status == "cooked"
+    assert delays == [10]
 
 
 async def test_without_a_knowledge_base_the_kitchen_says_it_cannot_consult_the_carta() -> None:
@@ -765,7 +799,7 @@ async def test_the_waiter_sends_only_the_order_and_returns_the_kitchen_report() 
     assert response.kitchen is not None and response.kitchen.order == sent
     assert isinstance(response.kitchen.result, KitchenPlan)
     [answer] = function_results(model, 1)
-    assert answer.startswith("kitchen_plan: partial\nPlan de cocina")
+    assert answer.startswith("kitchen_cooked: partial\nPlatos cocinados")
     assert response.kitchen.text in answer and "sin alterarlo" in answer
     assert KITCHEN_TOOL in model.calls[0]["tools"]
     state = manager.export_conversation(conversation_id="conv_1", actor_id="ana").agent_session.state
@@ -799,7 +833,7 @@ async def test_without_an_a2a_endpoint_the_waiter_gets_an_explicit_kitchen_failu
     [answer] = function_results(model, 1)
     assert answer.startswith(
         "kitchen_failed: kitchen_not_configured\n"
-        "Cocina no ha podido preparar el plan"
+        "Cocina no ha podido preparar el pedido"
     )
 
 

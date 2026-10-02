@@ -74,11 +74,11 @@ class KitchenAgentExecutor(AgentExecutor):
         await updater.submit()
         await updater.start_work()
         try:
-            order = KitchenOrder.model_validate_json(request_text(context))
-            result = await self._service.plan(order)
+            request = KitchenOrder.model_validate_json(request_text(context))
+            result = await self._service.plan(request)
             await updater.add_artifact(
                 parts=[Part(text=result.model_dump_json())],
-                artifact_id=f"kitchen-{order.order_id}",
+                artifact_id=f"kitchen-{request.order_id}",
             )
             await updater.complete()
         except (ValidationError, ValueError) as exc:

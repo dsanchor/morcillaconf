@@ -146,10 +146,10 @@ def test_the_chefs_plan_appears_between_the_order_and_the_waiters_reply(app) -> 
     markup = _markup(at)
     order = markup.index("Pido una morcilla a la brasa")
     chef = markup.index('class="msg cocina"')
-    reply = markup.index("Cocina acepta 1 × Morcilla de Burgos a la brasa.")
+    reply = markup.index("Cocina ha terminado 1 × Morcilla de Burgos a la brasa.")
     assert order < chef < reply
-    assert 'aria-label="Plan de cocina"' in markup
-    assert "Cocina acepta parte del pedido." in markup and "No está en la carta." in markup
+    assert 'aria-label="Platos cocinados"' in markup
+    assert "Los platos posibles ya están cocinados." in markup and "No está en la carta." in markup
     # The toque, not the waiter seen from above.
     assert markup[chef:].split("</svg>", 1)[0].count("<path") == 3
 

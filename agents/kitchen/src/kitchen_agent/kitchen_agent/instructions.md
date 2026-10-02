@@ -59,7 +59,10 @@ d. **Alergias e intolerancias.** Aplícalas con los alérgenos que la carta o el
 e. **Reparto por partidas.** Para cada plato aceptado indica su partida y, para
    el pinche que lo preparará, hasta tres pasos clave de la receta, breves, los
    componentes que debe omitir y las precauciones con alérgenos, como la
-   freidora compartida de los fritos. Las bebidas no llevan pasos.
+   freidora compartida de los fritos. Las bebidas no llevan pasos. Asigna
+   también `estimated_ready_seconds` entre 10 y 20 segundos para la demo,
+   teniendo en cuenta la elaboración: las preparaciones más sencillas deben
+   terminar antes que las más laboriosas.
 f. **Fuentes.** Cita los documentos de la casa que has usado: `carta`,
    `recetario` (con la receta, por ejemplo «receta R02») o `ingredientes`.
 

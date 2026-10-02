@@ -15,10 +15,10 @@ from restaurant_contracts.kitchen import (
 
 def render_text(result: KitchenPlan | KitchenFailure) -> str:
     if isinstance(result, KitchenFailure):
-        return f"Cocina no ha podido preparar el plan del pedido. {result.message}"
-    lines = ["Plan de cocina"]
+        return f"Cocina no ha podido preparar el pedido. {result.message}"
+    lines = ["Platos cocinados"]
     if result.accepted:
-        lines.append("Aceptado:")
+        lines.append("Listos para servir:")
         lines.extend(_accepted(item) for item in result.accepted)
     if result.rejected:
         lines.append("Rechazado:")

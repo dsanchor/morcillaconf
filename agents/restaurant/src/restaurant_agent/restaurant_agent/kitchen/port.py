@@ -56,9 +56,7 @@ TERMINAL_FAILURES = {
 }
 
 
-def kitchen_failure(
-    order: KitchenOrder, code: KitchenFailureCode
-) -> KitchenFailure:
+def kitchen_failure(order: KitchenOrder, code: KitchenFailureCode) -> KitchenFailure:
     return KitchenFailure(
         order_id=order.order_id,
         code=code,
@@ -67,7 +65,7 @@ def kitchen_failure(
 
 
 class KitchenA2ATransport(Protocol):
-    async def send(self, order: KitchenOrder) -> str:
+    async def send(self, request: KitchenOrder) -> str:
         """Return the external kitchen's serialized result."""
 
 
@@ -83,7 +81,7 @@ class SdkKitchenA2ATransport:
         self._timeout_seconds = timeout_seconds
         self._token_provider = token_provider
 
-    async def send(self, order: KitchenOrder) -> str:
+    async def send(self, request: KitchenOrder) -> str:
         headers: dict[str, str] = {}
         if self._token_provider is not None:
             token = await asyncio.to_thread(self._token_provider)
@@ -107,7 +105,7 @@ class SdkKitchenA2ATransport:
                     message=Message(
                         message_id=str(uuid.uuid4()),
                         role=Role.ROLE_USER,
-                        parts=[Part(text=order.model_dump_json())],
+                        parts=[Part(text=request.model_dump_json())],
                     ),
                     configuration=SendMessageConfiguration(
                         accepted_output_modes=["text"],
@@ -116,40 +114,27 @@ class SdkKitchenA2ATransport:
                 async for event in client.send_message(request):
                     payload_type = event.WhichOneof("payload")
                     if payload_type == "artifact_update":
-                        chunks.extend(
-                            _text_parts(event.artifact_update.artifact.parts)
-                        )
+                        chunks.extend(_text_parts(event.artifact_update.artifact.parts))
                     elif payload_type == "status_update":
-                        failed = (
-                            event.status_update.status.state
-                            in TERMINAL_FAILURES
-                        )
+                        failed = event.status_update.status.state in TERMINAL_FAILURES
                     elif payload_type == "task":
                         failed = event.task.status.state in TERMINAL_FAILURES
             finally:
                 await client.close()
         if failed or not chunks:
-            raise A2AClientError(
-                "Kitchen A2A task did not produce a result"
-            )
+            raise A2AClientError("Kitchen A2A task did not produce a result")
         return "".join(chunks)
 
 
 def _text_parts(parts: Sequence[Part]) -> list[str]:
-    return [
-        part.text
-        for part in parts
-        if part.WhichOneof("content") == "text"
-    ]
+    return [part.text for part in parts if part.WhichOneof("content") == "text"]
 
 
 def _token_provider(settings: Settings) -> Callable[[], str] | None:
     if not settings.kitchen_a2a_token_scope:
         return None
     credential = (
-        ManagedIdentityCredential(
-            client_id=os.environ.get("AZURE_CLIENT_ID") or None
-        )
+        ManagedIdentityCredential(client_id=os.environ.get("AZURE_CLIENT_ID") or None)
         if settings.app_environment == "production"
         else DefaultAzureCredential()
     )
@@ -175,13 +160,9 @@ class A2AKitchen:
                 token_provider=_token_provider(settings),
             )
 
-    async def plan(
-        self, order: KitchenOrder
-    ) -> KitchenPlan | KitchenFailure:
+    async def plan(self, order: KitchenOrder) -> KitchenPlan | KitchenFailure:
         if self._transport is None:
-            return kitchen_failure(
-                order, KitchenFailureCode.KITCHEN_NOT_CONFIGURED
-            )
+            return kitchen_failure(order, KitchenFailureCode.KITCHEN_NOT_CONFIGURED)
         try:
             async with asyncio.timeout(self._timeout_seconds):
                 payload = await self._transport.send(order)
@@ -197,15 +178,11 @@ class A2AKitchen:
                 order.order_id,
                 type(exc).__name__,
             )
-            return kitchen_failure(
-                order, KitchenFailureCode.INVALID_PLAN
-            )
+            return kitchen_failure(order, KitchenFailureCode.INVALID_PLAN)
         except (A2AClientError, httpx.HTTPError) as exc:
             logger.warning(
                 "Kitchen A2A unavailable for %s: %s",
                 order.order_id,
                 type(exc).__name__,
             )
-            return kitchen_failure(
-                order, KitchenFailureCode.CHEF_UNAVAILABLE
-            )
+            return kitchen_failure(order, KitchenFailureCode.CHEF_UNAVAILABLE)

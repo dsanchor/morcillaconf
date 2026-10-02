@@ -1,11 +1,13 @@
-"""Chef-coordinated group chat and deterministic specialist consolidation."""
+"""Chef-led concurrent specialist review and deterministic consolidation."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import json
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from agent_framework import AgentResponse, Message
-from agent_framework.orchestrations import GroupChatBuilder, GroupChatState
+from agent_framework.orchestrations import ConcurrentBuilder
 from pydantic import ValidationError
 
 from restaurant_contracts.kitchen import (
@@ -41,42 +43,44 @@ def required_specialists(plan: KitchenPlan) -> list[SpecialistName]:
     ]
 
 
-def group_chat_payload(plan: KitchenPlan) -> str:
-    return plan.model_dump_json(
-        include={"order_id", "stations"},
+def coordination_payload(plan: KitchenPlan) -> str:
+    assignments = {
+        specialist: [
+            station.model_dump(mode="json")
+            for station in plan.stations
+            if station.station in owned
+        ]
+        for specialist, owned in SPECIALIST_STATIONS.items()
+        if any(station.station in owned for station in plan.stations)
+    }
+    return json.dumps(
+        {
+            "order_id": plan.order_id,
+            "assignments": assignments,
+        },
+        ensure_ascii=False,
     )
 
 
-class ChefGroupChat:
-    """The chef selects each relevant specialist and consolidates its verdict."""
+class ChefCoordination:
+    """Run the chef's selected station reviewers concurrently and collect their OKs."""
+
+    def __init__(
+        self,
+        client_factory: Callable[[SpecialistName], Any],
+    ) -> None:
+        self._client_factory = client_factory
 
     async def review(self, order: KitchenOrder, plan: KitchenPlan) -> KitchenPlan:
         required = required_specialists(plan)
         if not required:
             return plan
-        specialists = create_specialists()
-
-        def select(state: GroupChatState) -> str:
-            return required[min(state.current_round, len(required) - 1)]
-
-        def complete(conversation: list[Message]) -> bool:
-            answered = {
-                message.author_name
-                for message in conversation
-                if message.role == "assistant" and message.author_name in required
-            }
-            return len(answered) == len(required)
-
-        workflow = GroupChatBuilder(
+        specialists = create_specialists(self._client_factory)
+        workflow = ConcurrentBuilder(
             name=f"kitchen-{order.order_id}",
             participants=[specialists[name] for name in required],
-            selection_func=select,
-            orchestrator_name="Chef",
-            termination_condition=complete,
-            max_rounds=len(required),
-            output_from="all",
         ).build()
-        result = await workflow.run(group_chat_payload(plan))
+        result = await workflow.run(coordination_payload(plan))
         outputs = result.get_outputs()
         responses = [
             output for output in outputs if isinstance(output, AgentResponse)

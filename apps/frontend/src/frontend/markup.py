@@ -26,17 +26,18 @@ from restaurant_contracts.seating import RoomView, SeatingProposal, SeatingView
 
 from frontend.facade import facade_html
 from frontend.floor_plan import floor_plan_svg, waiter_icon_svg
+from frontend.kitchen_plan import kitchen_plan_svg
 from frontend.visit import Card, ConversationView
 
 
 DOOR_HINT = "Dinos tu nombre y te abrimos."
 SIMULATED_LABEL = "Camarero simulado"
 TYPING_LABEL = "El camarero está escribiendo"
-KITCHEN_LABEL = "Plan de cocina"
+KITCHEN_LABEL = "Platos cocinados"
 KITCHEN_VERDICTS = {
-    "accepted": "Cocina acepta el pedido.",
-    "partial": "Cocina acepta parte del pedido.",
-    "rejected": "Cocina no puede aceptar el pedido.",
+    "accepted": "Pedido cocinado y listo para servir.",
+    "partial": "Los platos posibles ya están cocinados.",
+    "rejected": "Cocina no ha podido preparar el pedido.",
 }
 KITCHEN_FAILED = "Cocina no ha podido revisar el pedido."
 
@@ -96,10 +97,13 @@ def plan_markup(
     room: RoomView | None = None,
     seating: SeatingView | None = None,
     walk_elapsed: float | None = None,
+    kitchen_active: bool = False,
+    kitchen_plan: KitchenPlan | None = None,
 ) -> str:
     classes = "planta-marco entrando" if entering else "planta-marco"
     svg = floor_plan_svg(name, waiter, room=room, seating=seating, walk_elapsed=walk_elapsed)
-    return f'<div class="{classes}">{_one_line(svg)}</div>'
+    kitchen = kitchen_plan_svg(kitchen_active, kitchen_plan)
+    return f'<div class="{classes}">{_one_line(svg)}{_one_line(kitchen)}</div>'
 
 
 def proposal_markup(proposal: SeatingProposal) -> str:
@@ -198,7 +202,7 @@ def kitchen_row(message: ChatMessage) -> str:
 def _plan_body(plan: KitchenPlan) -> str:
     parts = [f'<p class="titular">{KITCHEN_VERDICTS[plan.verdict]}</p>']
     if plan.accepted:
-        parts.append(_section("Aceptado", [_accepted(item) for item in plan.accepted]))
+        parts.append(_section("Listo para servir", [_accepted(item) for item in plan.accepted]))
     if plan.rejected:
         parts.append(
             _section(

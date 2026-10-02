@@ -2,24 +2,28 @@
 
 Proyecto independiente que publica la cocina mediante A2A JSON-RPC. El
 camarero no importa ni ejecuta al chef: su tool `pedir_a_cocina` envía un
-`KitchenOrder` a este servicio y valida el `KitchenPlan` o `KitchenFailure`
-devuelto.
+`KitchenOrder` a este servicio y valida el resultado final `KitchenPlan` con
+estado `cooked`, o el `KitchenFailure` devuelto. No existe una aceptación
+intermedia ni una operación de consulta de estado.
 
 ## Orquestación
 
 1. El chef consulta carta y recetario mediante Foundry IQ.
 2. La aplicación valida de forma determinista platos, partidas, cantidades,
    modificaciones y alergias.
-3. El chef abre un group chat acotado únicamente con las partidas necesarias:
-   `Parrilla`, `Fritos` y `General` —esta última cubre pinchos fríos y barra—.
-4. Temporalmente los tres especialistas aceptan siempre sus tareas mediante un
-   cliente determinista. Siguen siendo participantes `Agent` de Agent Framework,
-   por lo que su razonamiento puede sustituirse sin cambiar los contratos.
+3. El chef asigna únicamente las partidas necesarias a `Parrilla`, `Fritos` y
+   `General` —esta última cubre pinchos fríos y barra—.
+4. Los especialistas son agentes Foundry con instrucciones propias y revisan
+   sus tareas en paralelo mediante `ConcurrentBuilder`.
 5. El chef consolida las decisiones. Una negativa o una respuesta ausente
    rechaza esa línea; nunca puede revivir una línea rechazada por carta o
    seguridad alimentaria.
+6. Cada plato aceptado recibe una duración de demo de 10 a 20 segundos. La
+   llamada A2A permanece abierta hasta la duración máxima y sólo entonces
+   devuelve los platos como cocinados y listos para servir.
 
-No hay inventario ni preparación real en este incremento.
+No hay inventario ni cocción física; la espera representa la preparación de la
+demo. El camarero no hace polling a cocina.
 
 ## A2A
 

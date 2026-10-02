@@ -197,6 +197,19 @@ def _live_plan(opening: bool) -> None:
     entering = opening and time.monotonic() - state.get("opened_at", 0.0) < ENTRANCE_SECONDS
     seating = visit.snapshot.seating
     waiter = "llegando" if entering else "barra" if seating.status == "seated" else "atendiendo"
+    cooking = (
+        visit.snapshot.process_status == "processing"
+        and bool(visit.snapshot.order_draft.items)
+    )
+    cooked = next(
+        (
+            message.kitchen.result
+            for message in reversed(visit.snapshot.messages)
+            if message.kitchen is not None
+            and message.kitchen.result.status == "cooked"
+        ),
+        None,
+    )
     st.markdown(
         plan_markup(
             visit.name,
@@ -205,6 +218,8 @@ def _live_plan(opening: bool) -> None:
             room=visit.room,
             seating=seating,
             walk_elapsed=visit.walk_elapsed(),
+            kitchen_active=cooking,
+            kitchen_plan=None if cooking else cooked,
         ),
         unsafe_allow_html=True,
     )

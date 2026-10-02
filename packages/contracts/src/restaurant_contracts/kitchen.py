@@ -40,7 +40,9 @@ Quantity = Annotated[int, Field(ge=1, le=20)]
 RENDERED_TEXT_LIMIT = 6_000
 RenderedText = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=1, max_length=RENDERED_TEXT_LIMIT),
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=RENDERED_TEXT_LIMIT
+    ),
 ]
 
 
@@ -105,6 +107,7 @@ class AcceptedItem(KitchenModel):
     allergens: list[KitchenText] = Field(default_factory=list, max_length=14)
     traces: list[KitchenText] = Field(default_factory=list, max_length=14)
     allergens_verified: bool = True
+    estimated_ready_seconds: int = Field(default=15, ge=10, le=20)
 
 
 class RejectedItem(KitchenModel):
@@ -138,22 +141,27 @@ class KitchenSource(KitchenModel):
     """A restaurant document the plan is based on."""
 
     document: KitchenText
-    version: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)
-    ] | None = None
+    version: (
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)
+        ]
+        | None
+    ) = None
     detail: KitchenText | None = None
 
 
 class KitchenPlan(KitchenModel):
-    """The chef's validated answer: every line accepted or rejected, never both."""
+    """The kitchen's final answer: cooked dishes and justified rejections."""
 
-    status: Literal["planned"] = "planned"
+    status: Literal["cooked"] = "cooked"
     order_id: KitchenIdentifier
     version: Annotated[int, Field(ge=1)] = 1
     accepted: list[AcceptedItem] = Field(default_factory=list, max_length=20)
     rejected: list[RejectedItem] = Field(default_factory=list, max_length=20)
     warnings: list[KitchenText] = Field(default_factory=list, max_length=20)
-    stations: list[StationPlan] = Field(default_factory=list, max_length=len(STATION_ORDER))
+    stations: list[StationPlan] = Field(
+        default_factory=list, max_length=len(STATION_ORDER)
+    )
     sources: list[KitchenSource] = Field(default_factory=list, max_length=10)
 
     @model_validator(mode="after")
@@ -212,7 +220,9 @@ class KitchenFailure(KitchenModel):
 
 
 KitchenResult = Annotated[KitchenPlan | KitchenFailure, Field(discriminator="status")]
-KITCHEN_RESULT_ADAPTER: TypeAdapter[KitchenPlan | KitchenFailure] = TypeAdapter(KitchenResult)
+KITCHEN_RESULT_ADAPTER: TypeAdapter[KitchenPlan | KitchenFailure] = TypeAdapter(
+    KitchenResult
+)
 
 
 class KitchenReport(KitchenModel):
@@ -227,7 +237,9 @@ class KitchenReport(KitchenModel):
         if self.result.order_id != self.order.order_id:
             raise ValueError("The kitchen result answers this order")
         if isinstance(self.result, KitchenPlan):
-            decided = [item.line for item in (*self.result.accepted, *self.result.rejected)]
+            decided = [
+                item.line for item in (*self.result.accepted, *self.result.rejected)
+            ]
             if sorted(decided) != [line.line for line in self.order.lines]:
                 raise ValueError("The plan decides every order line")
             for item in (*self.result.accepted, *self.result.rejected):

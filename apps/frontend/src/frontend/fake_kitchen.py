@@ -112,8 +112,8 @@ def fake_kitchen_report(message: str, order_id: str) -> KitchenReport | None:
         stations=stations,
         sources=[KitchenSource(document="carta de la casa", version="1")],
     )
-    text = "Plan de cocina (simulado)\n" + "\n".join(
-        [f"- Aceptado: {item.quantity} × {item.name}" for item in accepted]
+    text = "Platos cocinados (simulado)\n" + "\n".join(
+        [f"- Listo: {item.quantity} × {item.name}" for item in accepted]
         + [f"- Rechazado: {item.quantity} × {item.requested}: {item.reason}" for item in rejected]
     )
     return KitchenReport(order=order, result=plan, text=text)
@@ -127,7 +127,7 @@ def kitchen_reply(report: KitchenReport) -> str:
         return "Cocina no ha podido revisar el pedido ahora mismo."
     parts = []
     if plan.accepted:
-        parts.append("Cocina acepta " + ", ".join(f"{item.quantity} × {item.name}" for item in plan.accepted) + ".")
+        parts.append("Cocina ha terminado " + ", ".join(f"{item.quantity} × {item.name}" for item in plan.accepted) + ".")
     if plan.rejected:
         parts.append(
             "No puede preparar "

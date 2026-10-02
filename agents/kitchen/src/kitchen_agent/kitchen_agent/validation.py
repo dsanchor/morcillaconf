@@ -130,6 +130,11 @@ def build_plan(order: KitchenOrder, draft: ChefDraft, evidence: Evidence) -> Kit
                 allergens=allergens,
                 traces=traces,
                 allergens_verified=verified,
+                estimated_ready_seconds=(
+                    decision.estimated_ready_seconds
+                    if decision.estimated_ready_seconds is not None
+                    else 10 + ((line.line - 1) % 3) * 5
+                ),
             )
         )
         if not verified and not _warned_pending(name, warnings):

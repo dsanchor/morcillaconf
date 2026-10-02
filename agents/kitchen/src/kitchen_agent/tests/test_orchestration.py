@@ -1,5 +1,17 @@
 from __future__ import annotations
 
+import json
+from typing import Any
+
+from agent_framework import (
+    BaseChatClient,
+    ChatMiddlewareLayer,
+    ChatResponse,
+    Content,
+    FunctionInvocationLayer,
+    Message,
+)
+
 from restaurant_contracts.kitchen import (
     AcceptedItem,
     KitchenOrder,
@@ -10,8 +22,59 @@ from restaurant_contracts.kitchen import (
     StationTask,
 )
 
-from kitchen_agent.orchestration import ChefGroupChat, consolidate
-from kitchen_agent.specialists import SpecialistDecision, SpecialistReply
+from kitchen_agent.orchestration import ChefCoordination, consolidate
+from kitchen_agent.specialists import (
+    SPECIALIST_STATIONS,
+    SpecialistDecision,
+    SpecialistName,
+    SpecialistReply,
+)
+
+
+class AcceptingSpecialistClient(
+    FunctionInvocationLayer,
+    ChatMiddlewareLayer,
+    BaseChatClient,
+):
+    def __init__(self, name: SpecialistName) -> None:
+        super().__init__()
+        self._name = name
+
+    def _inner_get_response(
+        self,
+        *,
+        messages: list[Message],
+        stream: bool,
+        options: dict[str, Any],
+        **kwargs: Any,
+    ):
+        async def respond() -> ChatResponse:
+            payload = json.loads(messages[-1].text)
+            decisions = [
+                SpecialistDecision(
+                    line=task["line"],
+                    station=station["station"],
+                    accepted=True,
+                    reason="Aceptado.",
+                )
+                for station in payload["assignments"][self._name]
+                for task in station["tasks"]
+            ]
+            reply = SpecialistReply(
+                specialist=self._name,
+                decisions=decisions,
+            )
+            return ChatResponse(
+                messages=[
+                    Message(
+                        role="assistant",
+                        author_name=self._name,
+                        contents=[Content.from_text(reply.model_dump_json())],
+                    )
+                ]
+            )
+
+        return respond()
 
 
 def order() -> KitchenOrder:
@@ -61,7 +124,9 @@ def plan() -> KitchenPlan:
 
 
 async def test_group_chat_routes_to_all_required_specialists_and_they_accept() -> None:
-    result = await ChefGroupChat().review(order(), plan())
+    result = await ChefCoordination(
+        lambda name: AcceptingSpecialistClient(name)
+    ).review(order(), plan())
 
     assert result.verdict == "accepted"
     assert [item.line for item in result.accepted] == [1, 2, 3]

@@ -346,7 +346,7 @@ def test_the_simulated_chef_answers_orders_with_a_valid_report() -> None:
         (2, "Contiene cereales con gluten y has indicado celiaquía."),
         (3, "No está en la carta."),
     ]
-    assert kitchen_reply(report).startswith("Cocina acepta 1 × Morcilla de Burgos a la brasa.")
+    assert kitchen_reply(report).startswith("Cocina ha terminado 1 × Morcilla de Burgos a la brasa.")
 
 
 async def test_an_order_shows_the_chef_between_the_customer_and_the_waiter() -> None:
@@ -358,7 +358,7 @@ async def test_an_order_shows_the_chef_between_the_customer_and_the_waiter() -> 
     snapshot = await client.get_snapshot(arrival.conversation_id)
     assert [message.role for message in snapshot.messages] == ["assistant", "user", "kitchen", "assistant"]
     assert snapshot.messages[2].kitchen.result.accepted[0].station == "barra"
-    assert snapshot.messages[3].text == "Cocina acepta 1 × Agua con gas."
+    assert snapshot.messages[3].text == "Cocina ha terminado 1 × Agua con gas."
     assert SNAPSHOT_ADAPTER.validate_json(SNAPSHOT_ADAPTER.dump_json(snapshot)) == snapshot
 
 

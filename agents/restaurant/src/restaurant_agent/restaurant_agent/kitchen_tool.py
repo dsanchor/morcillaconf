@@ -43,12 +43,12 @@ ALREADY_ANSWERED = (
     "kitchen_already_answered: cocina ya ha respondido a un pedido en este turno. "
     "Comunica ese resultado; si el cliente cambia el pedido, envíalo en su próximo mensaje."
 )
-PLAN_GUIDANCE = (
-    "La aplicación ya muestra este plan al cliente, en su propia burbuja, antes de tu "
-    "respuesta. Resume el veredicto de cocina sin alterarlo: lo aceptado con sus "
+COOKED_GUIDANCE = (
+    "La aplicación ya muestra los platos cocinados al cliente, en su propia burbuja, "
+    "antes de tu respuesta. Resume el resultado sin alterarlo: lo listo con sus "
     "adaptaciones, lo rechazado con su motivo y los avisos, con las mismas cantidades. "
-    "No añadas platos, tiempos, existencias ni precios, y no digas que el pedido está "
-    "confirmado o en preparación."
+    "No añadas platos, existencias ni precios. Los platos listados ya están cocinados "
+    "y listos para servir."
 )
 FAILURE_GUIDANCE = (
     "Díselo al cliente con claridad. No inventes el resultado de cocina ni vuelvas a "
@@ -87,7 +87,7 @@ def tool_answer(report: KitchenReport) -> str:
 
     if isinstance(report.result, KitchenFailure):
         return f"kitchen_failed: {report.result.code.value}\n{report.text}\n\n{FAILURE_GUIDANCE}"
-    return f"kitchen_plan: {report.result.verdict}\n{report.text}\n\n{PLAN_GUIDANCE}"
+    return f"kitchen_cooked: {report.result.verdict}\n{report.text}\n\n{COOKED_GUIDANCE}"
 
 
 def take_kitchen_report(state: dict[str, Any]) -> KitchenReport | None:

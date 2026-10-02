@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pydantic import ValidationError
@@ -30,7 +30,8 @@ from kitchen_agent.knowledge import (
     create_knowledge_tool,
     knowledge_base_mcp_url,
 )
-from kitchen_agent.orchestration import ChefGroupChat, InvalidSpecialistAnswer
+from kitchen_agent.orchestration import ChefCoordination, InvalidSpecialistAnswer
+from kitchen_agent.specialists import SpecialistName
 from kitchen_agent.validation import build_plan
 
 logger = logging.getLogger(__name__)
@@ -90,21 +91,32 @@ class KitchenService:
         settings: Settings,
         *,
         client_factory: Callable[[Settings], Any] = create_chef_client,
+        specialist_client_factory: Callable[[Settings, SpecialistName], Any]
+        | None = None,
         knowledge_tool_factory: Callable[[Settings], Any] = create_knowledge_tool,
-        group_chat: ChefGroupChat | None = None,
+        coordination: ChefCoordination | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        sleeper: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._settings = settings
         self._client_factory = client_factory
         self._knowledge_tool_factory = knowledge_tool_factory
-        self._group_chat = group_chat or ChefGroupChat()
+        self._clock = clock
+        self._sleeper = sleeper
+        create_specialist_client = specialist_client_factory or (
+            lambda configured, _: create_chef_client(configured)
+        )
+        self._coordination = coordination or ChefCoordination(
+            lambda specialist: create_specialist_client(settings, specialist)
+        )
 
     async def plan(
         self, order: KitchenOrder
     ) -> KitchenPlan | KitchenFailure:
         if knowledge_base_mcp_url(self._settings) is None:
             return kitchen_failure(order, KitchenFailureCode.NOT_CONFIGURED)
-        started = time.monotonic()
-        task = asyncio.create_task(self._plan(order))
+        started = self._clock()
+        task = asyncio.create_task(self._cook(order))
         try:
             result = await asyncio.wait_for(
                 asyncio.shield(task),
@@ -135,8 +147,18 @@ class KitchenService:
             "Kitchen order %s: %s in %.1f s",
             order.order_id,
             outcome,
-            time.monotonic() - started,
+            self._clock() - started,
         )
+        return result
+
+    async def _cook(
+        self, order: KitchenOrder
+    ) -> KitchenPlan | KitchenFailure:
+        result = await self._plan(order)
+        if isinstance(result, KitchenPlan) and result.accepted:
+            await self._sleeper(
+                max(item.estimated_ready_seconds for item in result.accepted)
+            )
         return result
 
     async def _plan(
@@ -175,4 +197,4 @@ class KitchenService:
             raise InvalidChefAnswer(
                 f"{exc.error_count()} validation errors"
             ) from exc
-        return await self._group_chat.review(order, plan)
+        return await self._coordination.review(order, plan)

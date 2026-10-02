@@ -47,6 +47,12 @@ class ChefLine(BaseModel):
     steps: list[str] = Field(default_factory=list, description="Hasta tres pasos clave de la receta.")
     omit: list[str] = Field(default_factory=list, description="Componentes que la partida debe omitir.")
     precautions: list[str] = Field(default_factory=list, description="Precauciones con alérgenos.")
+    estimated_ready_seconds: int | None = Field(
+        default=None,
+        ge=10,
+        le=20,
+        description="Tiempo de preparación para la demo, entre 10 y 20 segundos.",
+    )
 
 
 class ChefSource(BaseModel):

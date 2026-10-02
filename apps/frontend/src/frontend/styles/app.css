@@ -273,8 +273,22 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   font: 400 .92rem/1.5 var(--sans); letter-spacing: .04em; color: var(--piedra-tenue);
 }
 .stApp .simulado::before { content: "●"; margin-right: .5em; color: var(--luz); }
-.stApp .planta-marco { display: flex; justify-content: center; margin-top: 8px; }
-.stApp .planta-marco .planta { max-height: 33vh; }
+.stApp .planta-marco {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: stretch; gap: 12px; width: min(100%, 1040px); margin: 8px auto 0;
+}
+.stApp .planta-marco .planta { width: 100%; max-height: 33vh; }
+.stApp .cocina-plano .titulo-cocina { font-size: 22px; font-weight: 700; }
+.stApp .cocina-plano .estado-cocina { font-family: var(--sans); font-size: 13px; fill: var(--piedra-tenue); }
+.stApp .cocina-plano .nombre-partida { font-family: var(--sans); font-size: 15px; font-weight: 500; }
+.stApp .cocina-plano .plato-cocina { font-family: var(--sans); font-size: 11px; fill: var(--piedra); }
+.stApp .cocina-plano .agente-cocina text { font-family: var(--serif); font-size: 15px; }
+.stApp .cocina-plano .toque { fill: #f1e8d6; stroke: #6b5a4a; stroke-width: 1; }
+.stApp .cocina-plano .halo-agente { opacity: 0; }
+.stApp .cocina-plano .estado-agente { fill: var(--piedra-tenue); stroke: var(--nogal); stroke-width: 2; }
+.stApp .cocina-plano.activa .especialista .halo-agente { opacity: 1; animation: pulso-cocina 1.4s ease-in-out infinite; }
+.stApp .cocina-plano.activa .estado-agente { fill: var(--luz); }
+.stApp .cocina-plano.lista .estado-agente { fill: var(--vino); }
 .stApp .planta-marco.entrando { animation: aparecer .9s var(--ease-salida) 2.5s both; }
 
 /* Desktop: the sidebar is locked open. */
@@ -319,11 +333,14 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   .stApp .msg.cliente .burbuja { font-size: 1.05rem; }
   .stApp .msg.cocina { max-width: 100%; }
   .stApp .msg.cocina .burbuja { font-size: 1rem; }
+  .stApp .planta-marco { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 5px; }
   .stApp .planta-marco .planta { max-height: 24vh; }
+  .stApp .cocina-plano .plato-cocina { display: none; }
   .stApp .simulado { margin: 0 2px; }
 }
 
 @keyframes pensar { 0%, 70%, 100% { opacity: .25; transform: none; } 35% { opacity: 1; transform: translateY(-4px); } }
+@keyframes pulso-cocina { 0%, 100% { opacity: .18; } 50% { opacity: 1; } }
 @keyframes abrir-ventana {
   from { clip-path: inset(0 50% 0 50% round 6px); opacity: .35; }
   to { clip-path: inset(0 0 0 0 round 6px); opacity: 1; }

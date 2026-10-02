@@ -196,7 +196,7 @@ def test_sidebar_is_sized_for_the_longest_command_on_one_line() -> None:
     assert "white-space: nowrap" in css
 
 
-def test_the_kitchen_plan_is_its_own_bubble_between_the_order_and_the_reply() -> None:
+def test_the_cooked_dishes_are_their_own_bubble_between_the_order_and_the_reply() -> None:
     root = _parse(conversation_markup(ConversationView(messages=(GREETING, QUESTION, KITCHEN, REPLY))))
     hilo = root.find("div[@class='hilo']")
     assert [child.get("class") for child in hilo] == [
@@ -208,7 +208,7 @@ def test_the_kitchen_plan_is_its_own_bubble_between_the_order_and_the_reply() ->
     assert (bubble.get("role"), bubble.get("aria-label")) == ("group", KITCHEN_LABEL)
     lines = [_text(element) for element in bubble if element.tag == "p"]
     assert lines == [
-        "Cocina acepta parte del pedido.", "Aceptado", "Rechazado", "Avisos", "Partidas",
+        "Los platos posibles ya están cocinados.", "Listo para servir", "Rechazado", "Avisos", "Partidas",
         "Fuentes: carta de la casa (versión 1)",
     ]
     items = [_text(item) for item in bubble.iter("li")]
@@ -218,6 +218,27 @@ def test_the_kitchen_plan_is_its_own_bubble_between_the_order_and_the_reply() ->
         "La casa no ofrece platos certificados sin gluten.",
         "Brasa1 × Morcilla de Burgos a la brasa. Marcar a la brasa. Omitir: pimiento asado. Precauciones: Pinzas limpias.",
     ]
+
+
+def test_the_kitchen_scene_matches_the_floor_plan_and_shows_the_agents() -> None:
+    active = _parse(plan_markup("Ana", "atendiendo", kitchen_active=True))
+    scenes = [element for element in active.iter() if element.tag.endswith("svg")]
+    assert [scene.get("viewBox") for scene in scenes] == ["0 0 1000 340", "0 0 500 340"]
+    kitchen = next(scene for scene in scenes if "cocina-plano activa" in scene.get("class"))
+    assert kitchen.get("aria-label") == "Cocina: en preparación"
+    assert all(name in _text(kitchen) for name in ("Chef", "Parrilla", "Fritos", "General"))
+
+    cooked = _parse(plan_markup("Ana", "atendiendo", kitchen_plan=PLAN))
+    kitchen = next(
+        element
+        for element in cooked.iter()
+        if element.tag.endswith("svg") and "cocina-plano lista" in element.get("class")
+    )
+    kitchen_text = _text(kitchen)
+    assert "LISTA PARA SERVIR" in kitchen_text
+    assert "Morcilla de Burg… · 15 s" in kitchen_text
+    css = base_stylesheet()
+    assert "grid-template-columns: minmax(0, 2fr) minmax(0, 1fr)" in css
 
 
 def test_a_kitchen_failure_is_said_in_the_chefs_bubble() -> None:

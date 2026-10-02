@@ -767,7 +767,7 @@ class RestaurantService:
                 result = outcome.kitchen.result
                 span.set_attribute(
                     "bff.kitchen.outcome",
-                    result.verdict if result.status == "planned" else result.code.value,
+                    result.verdict if result.status == "cooked" else result.code.value,
                 )
         self._finish_turn(job, outcome)
 
