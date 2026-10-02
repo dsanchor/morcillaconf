@@ -42,6 +42,7 @@ CARTA_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 NOT_EVALUATED = "Cocina no ha evaluado esta línea; vuelve a pedirla."
 NOT_IN_CARTA = "No está en la carta consultada."
 NO_STATION = "Cocina no ha podido asignarlo a una partida."
+DRINK_NOT_FOR_KITCHEN = "Las bebidas no pasan por cocina: las sirve el camarero desde la barra."
 DEFAULT_REJECTION = "Cocina no puede prepararlo."
 UNCHECKED_ALLERGENS = (
     "Has indicado {restriction} y cocina no ha podido comprobar sus alérgenos en la carta."
@@ -108,6 +109,9 @@ def build_plan(order: KitchenOrder, draft: ChefDraft, evidence: Evidence) -> Kit
         if station is None:
             rejected.append(_reject(line, NO_STATION, carta_id))
             continue
+        if station is KitchenStation.BARRA:
+            rejected.append(_reject(line, DRINK_NOT_FOR_KITCHEN, carta_id))
+            continue
         conflict = _allergen_conflict(entry, excluded) or _modification_conflict(entry, line)
         if conflict is not None:
             rejected.append(_reject(line, conflict, carta_id))
@@ -145,7 +149,7 @@ def build_plan(order: KitchenOrder, draft: ChefDraft, evidence: Evidence) -> Kit
                 carta_id=carta_id,
                 name=name,
                 quantity=line.quantity,
-                steps=[] if station is KitchenStation.BARRA else clip_all(decision.steps, 6),
+                steps=clip_all(decision.steps, 6),
                 omit=clip_all(decision.omit, 10),
                 precautions=clip_all(decision.precautions, 10),
             )

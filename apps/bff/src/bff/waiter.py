@@ -12,11 +12,13 @@ from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 from restaurant_contracts.kitchen import KitchenReport
 from restaurant_contracts.waiter import (
     WAITER_SEATING_RESPONSE_ADAPTER,
+    WAITER_SERVE_RESPONSE_ADAPTER,
     WAITER_TURN_RESPONSE_ADAPTER,
     SeatingReport,
     WaiterSeatingDecisionRequest,
     WaiterSeatingReleaseRequest,
     WaiterSeatingSyncRequest,
+    WaiterServeRequest,
     WaiterTurnFailure,
     WaiterTurnRequest,
 )
@@ -72,6 +74,17 @@ class WaiterSeatingResult:
     seating: SeatingReport | None
 
 
+@dataclass(frozen=True)
+class WaiterServeCall:
+    """Cooked dishes the waiter takes from the pass to the customer."""
+
+    conversation_id: str
+    actor: ActorContext
+    correlation_id: str
+    order_id: str
+    dishes: tuple[str, ...]
+
+
 class WaiterError(RuntimeError):
     pass
 
@@ -108,6 +121,8 @@ class WaiterPort(Protocol):
     async def sync_seating(self, call: WaiterSeatingCall) -> WaiterSeatingResult: ...
 
     async def release_seating(self, call: WaiterSeatingCall) -> WaiterSeatingResult: ...
+
+    async def serve_order(self, call: WaiterServeCall) -> str: ...
 
     async def aclose(self) -> None: ...
 
@@ -174,6 +189,20 @@ class RemoteWaiter:
         return await self._seating(
             WaiterSeatingReleaseRequest(**_seating_fields(call)), call
         )
+
+    async def serve_order(self, call: WaiterServeCall) -> str:
+        request = WaiterServeRequest(
+            conversation_id=call.conversation_id,
+            actor=call.actor,
+            correlation_id=call.correlation_id,
+            order_id=call.order_id,
+            dishes=list(call.dishes),
+        )
+        result = await self._post(
+            request, call.conversation_id, call.actor.actor_id, WAITER_SERVE_RESPONSE_ADAPTER
+        )
+        _raise_failure(result)
+        return result.reply
 
     async def _seating(
         self,

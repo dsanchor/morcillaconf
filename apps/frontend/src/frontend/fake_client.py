@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any, Literal
 
 from restaurant_contracts.application import (
@@ -43,11 +45,11 @@ from restaurant_contracts.application import (
 )
 from restaurant_contracts.client import BffClientError
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
-from restaurant_contracts.kitchen import KitchenReport
+from restaurant_contracts.kitchen import KitchenPlan, KitchenReport
 from restaurant_contracts.memory import MemoryKind
 from restaurant_contracts.seating import RoomView
 
-from frontend.fake_kitchen import fake_kitchen_report, kitchen_reply
+from frontend.fake_kitchen import fake_kitchen_report, kitchen_reply, served_reply, served_reply
 from frontend.fake_seating import FakeRoom, party_size
 from frontend.greeting import greeting
 
@@ -155,6 +157,9 @@ class _Conversation:
     turns: int = 0
     party_size: int = 1
     party_known: bool = False
+    # Cooked orders at the pass: order id, dishes and when they left the kitchen.
+    at_pass: list[tuple[str, list[str], float]] = field(default_factory=list)
+    served_orders: list[str] = field(default_factory=list)
 
 
 class FakeRestaurant:
@@ -171,6 +176,8 @@ class FakeRestaurant:
         max_turns: int = 20,
         retained_events: int | None = None,
         clock: Callable[[], datetime] | None = None,
+        serve_seconds: float = 3.0,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         if pause_seconds < 0:
             raise ValueError("pause_seconds cannot be negative")
@@ -181,6 +188,8 @@ class FakeRestaurant:
         self.pause_seconds = pause_seconds
         self.max_turns = max_turns
         self.retained_events = retained_events
+        self.serve_seconds = serve_seconds
+        self._monotonic = monotonic
         self._clock = clock or (lambda: datetime.now(UTC))
         self._conversations: dict[str, _Conversation] = {}
         self._visits: dict[str, str] = {}
@@ -222,7 +231,21 @@ class FakeRestaurant:
 
     def get_snapshot(self, identity: ActorContext, conversation_id: str) -> RestaurantSnapshot:
         conversation = self._owned(identity, conversation_id)
+        self._serve_due(conversation)
         return self._snapshot(conversation, conversation.cursor, conversation.process_status)
+
+    def _serve_due(self, conversation: _Conversation) -> None:
+        """The simulated waiter takes the dishes that waited long enough at the pass."""
+
+        now = self._monotonic()
+        for order_id, dishes, cooked_at in list(conversation.at_pass):
+            if now - cooked_at < self.serve_seconds:
+                continue
+            conversation.at_pass.remove((order_id, dishes, cooked_at))
+            conversation.served_orders.append(order_id)
+            serving = SimpleNamespace(event_id=self._next_id("serve"))
+            self._add_message(conversation, "assistant", served_reply(dishes), serving.event_id)
+            self._publish_snapshot(conversation, serving, self._next_id("corr"), conversation.process_status)
 
     def get_room(self, identity: ActorContext, conversation_id: str) -> RoomView:
         self._owned(identity, conversation_id)
@@ -377,6 +400,9 @@ class FakeRestaurant:
             # The simulated chef's bubble goes before the waiter's summary.
             self._add_message(conversation, "kitchen", kitchen.text, command.event_id, kitchen=kitchen)
             reply = kitchen_reply(kitchen)
+            if isinstance(kitchen.result, KitchenPlan) and kitchen.result.accepted:
+                dishes = [f"{item.quantity} × {item.name}" for item in kitchen.result.accepted]
+                conversation.at_pass.append((kitchen.result.order_id, dishes, self._monotonic()))
         self._say(conversation, command, correlation_id, reply, pause=self.pause_seconds)
         return None
 
@@ -583,6 +609,7 @@ class FakeRestaurant:
             process_status=process_status,
             allowed_actions=self._allowed_actions(conversation, memories, process_status),
             seating=self.room.seating(conversation.conversation_id),
+            served_orders=list(conversation.served_orders),
         )
 
     def _allowed_actions(

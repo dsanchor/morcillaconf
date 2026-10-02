@@ -99,10 +99,21 @@ def plan_markup(
     walk_elapsed: float | None = None,
     kitchen_active: bool = False,
     kitchen_plan: KitchenPlan | None = None,
+    kitchen_served: bool = False,
+    served_dishes: int = 0,
+    serve_elapsed: float | None = None,
 ) -> str:
     classes = "planta-marco entrando" if entering else "planta-marco"
-    svg = floor_plan_svg(name, waiter, room=room, seating=seating, walk_elapsed=walk_elapsed)
-    kitchen = kitchen_plan_svg(kitchen_active, kitchen_plan)
+    svg = floor_plan_svg(
+        name,
+        waiter,
+        room=room,
+        seating=seating,
+        walk_elapsed=walk_elapsed,
+        served_dishes=served_dishes,
+        serve_elapsed=serve_elapsed,
+    )
+    kitchen = kitchen_plan_svg(kitchen_active, kitchen_plan, kitchen_served)
     return f'<div class="{classes}">{_one_line(svg)}{_one_line(kitchen)}</div>'
 
 

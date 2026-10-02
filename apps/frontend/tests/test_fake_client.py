@@ -349,16 +349,41 @@ def test_the_simulated_chef_answers_orders_with_a_valid_report() -> None:
     assert kitchen_reply(report).startswith("Cocina ha terminado 1 × Morcilla de Burgos a la brasa.")
 
 
-async def test_an_order_shows_the_chef_between_the_customer_and_the_waiter() -> None:
+async def test_cooked_dishes_wait_at_the_pass_until_the_waiter_serves_them() -> None:
+    now = [0.0]
+    client = _client(serve_seconds=3.0, monotonic=lambda: now[0])
+    arrival = await _arrive(client)
+    await client.submit(
+        _command("conversation.message_sent", "cmd_pido", arrival.conversation_id, message="Pido una morcilla")
+    )
+    waiting = await client.get_snapshot(arrival.conversation_id)
+    assert waiting.served_orders == []
+    now[0] = 3.0
+    served = await client.get_snapshot(arrival.conversation_id)
+    order_id = waiting.messages[2].kitchen.result.order_id
+    assert served.served_orders == [order_id]
+    assert served.cursor > waiting.cursor
+    assert served.messages[-1].role == "assistant"
+    assert served.messages[-1].text == (
+        "Aquí tenéis, recién salido de cocina: 1 × Morcilla de Burgos a la brasa. ¡Que aproveche!"
+    )
+    again = await client.get_snapshot(arrival.conversation_id)
+    assert again.served_orders == [order_id] and len(again.messages) == len(served.messages)
+
+
+async def test_drinks_never_reach_the_kitchen() -> None:
+    assert fake_kitchen_report("Pido un agua con gas", "ko_1") is None
+    report = fake_kitchen_report("Pido una morcilla y un agua con gas", "ko_1")
+    assert [line.name for line in report.order.lines] == ["morcilla"]
     client = _client()
     arrival = await _arrive(client)
     await client.submit(
-        _command("conversation.message_sent", "cmd_pido", arrival.conversation_id, message="Pido un agua con gas")
+        _command("conversation.message_sent", "cmd_pido", arrival.conversation_id, message="Pido una morcilla")
     )
     snapshot = await client.get_snapshot(arrival.conversation_id)
     assert [message.role for message in snapshot.messages] == ["assistant", "user", "kitchen", "assistant"]
-    assert snapshot.messages[2].kitchen.result.accepted[0].station == "barra"
-    assert snapshot.messages[3].text == "Cocina ha terminado 1 × Agua con gas."
+    assert snapshot.messages[2].kitchen.result.accepted[0].station == "brasa"
+    assert snapshot.messages[3].text == "Cocina ha terminado 1 × Morcilla de Burgos a la brasa."
     assert SNAPSHOT_ADAPTER.validate_json(SNAPSHOT_ADAPTER.dump_json(snapshot)) == snapshot
 
 

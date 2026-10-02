@@ -32,9 +32,7 @@ class SpecialistReply(BaseModel):
 SPECIALIST_STATIONS: dict[SpecialistName, frozenset[KitchenStation]] = {
     "Parrilla": frozenset({KitchenStation.BRASA}),
     "Fritos": frozenset({KitchenStation.FRITOS}),
-    "General": frozenset(
-        {KitchenStation.PINCHOS_FRIOS, KitchenStation.BARRA}
-    ),
+    "General": frozenset({KitchenStation.PINCHOS_FRIOS}),
 }
 
 
@@ -44,7 +42,7 @@ def create_specialists(
     descriptions = {
         "Parrilla": "Revisa las tareas de parrilla y brasa.",
         "Fritos": "Revisa las tareas de fritura.",
-        "General": "Revisa pinchos fríos, barra y el resto de tareas generales.",
+        "General": "Revisa pinchos fríos y el resto de elaboraciones generales.",
     }
     return {
         name: Agent(

@@ -136,6 +136,21 @@ def _classes(root: ET.Element, name: str) -> list[ET.Element]:
     return [item for item in root.iter() if name in (item.get("class") or "").split()]
 
 
+def test_the_waiter_brings_the_tray_from_the_pass_and_then_the_dishes_rest_on_the_table() -> None:
+    walking = _parse(
+        floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED, served_dishes=2, serve_elapsed=0.5)
+    )
+    [waiter] = _classes(walking, "sirviendo")
+    assert "--x0:944px;--y0:258px" in waiter.get("style")
+    assert not _classes(walking, "plato-servido")
+
+    served = _parse(floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED, served_dishes=2))
+    assert not _classes(served, "sirviendo")
+    assert len(_classes(served, "plato-servido")) == 2
+    assert "Tu comida está servida en la mesa." in served.get("aria-label")
+    assert len(_classes(_parse(floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED)), "plato-servido")) == 0
+
+
 # Plan
 
 
@@ -191,7 +206,9 @@ def test_other_groups_are_anonymous_figures_and_holds_are_reserved() -> None:
     assert len(_classes(root, "grupo")) == 2 + 2  # Mesa 1 and two bar stools
     assert len(_classes(root, "asiento-reservado")) == 2 + 1  # Mesa 2 and one stool
     assert _classes(root, "reservada")
-    texts = [text.text for text in root.iter(f"{SVG}text") if text.get("class") != "numero-mesa"]
+    texts = [
+        text.text for text in root.iter(f"{SVG}text") if text.get("class") not in ("numero-mesa", "pase")
+    ]
     assert texts == ["Ana"]
     label = root.get("aria-label")
     assert "Mesa 1: ocupada por un grupo de 2" in label and "Mesa 2: reservada" in label

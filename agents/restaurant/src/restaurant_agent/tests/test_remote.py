@@ -6,7 +6,7 @@ from agent_framework import AgentSession
 
 from restaurant_contracts.application import ActorContext
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
-from restaurant_contracts.waiter import WaiterTurnRequest, WaiterTurnSuccess
+from restaurant_contracts.waiter import WaiterServeRequest, WaiterTurnRequest, WaiterTurnSuccess
 
 from restaurant_agent.config import Settings
 from restaurant_agent.contracts import WaiterModelResult
@@ -161,6 +161,31 @@ def test_responses_endpoint_returns_the_typed_result(tmp_path, monkeypatch) -> N
     body = response.json()
     output = body["output"][0]["content"][0]["text"]
     assert WaiterTurnSuccess.model_validate_json(output).reply == "Hola, Ana"
+
+
+async def test_the_waiter_serves_cooked_dishes_without_the_model(tmp_path) -> None:
+    def no_model(*args, **kwargs):
+        raise AssertionError("Serving never calls the model")
+
+    service = RemoteWaiterService(
+        _settings(tmp_path),
+        agent_factory=no_model,
+        memory_store=SQLiteMemoryStore(tmp_path / "memory.db"),
+    )
+    served = await service.serve_order(
+        WaiterServeRequest(
+            conversation_id="conv_1",
+            actor=ActorContext(actor_id="ana", authenticated=True),
+            correlation_id="corr_1",
+            order_id="ko_1",
+            dishes=["1 × Morcilla de Burgos a la brasa", "2 × Croquetas de morcilla"],
+        )
+    )
+    assert served.order_id == "ko_1"
+    assert served.reply == (
+        "Aquí tenéis, recién salido de cocina: 1 × Morcilla de Burgos a la brasa "
+        "y 2 × Croquetas de morcilla. ¡Que aproveche!"
+    )
 
 
 async def test_cancellation_signal_cancels_an_in_flight_turn() -> None:

@@ -91,6 +91,9 @@ class VisitSession:
         # Monotonic time when this browser saw its group sit down: the walk
         # to the seats plays once from here, never after a reload.
         self.seated_since: float | None = None
+        # Monotonic time when this browser saw the latest dishes served: the
+        # waiter's walk from the pass plays once from here.
+        self.served_since: float | None = None
         self._monotonic = time.monotonic
 
     @property
@@ -227,6 +230,35 @@ class VisitSession:
         if self.seated_since is None:
             return None
         return self._monotonic() - self.seated_since
+
+    def serve_elapsed(self) -> float | None:
+        """Seconds since this browser saw the latest dishes served, for the walk."""
+
+        if self.served_since is None:
+            return None
+        return self._monotonic() - self.served_since
+
+    def refresh_service(self) -> bool:
+        """Reload while cooked dishes wait at the pass; True once the waiter serves them."""
+
+        snapshot = self.snapshot
+        if snapshot is None or self.pending is not None or snapshot.process_status == "processing":
+            return False
+        served = set(snapshot.served_orders)
+        waiting = any(
+            message.kitchen is not None
+            and message.kitchen.result.status == "cooked"
+            and message.kitchen.result.accepted
+            and message.kitchen.result.order_id not in served
+            for message in snapshot.messages
+        )
+        if not waiting:
+            return False
+        try:
+            self._run(self._reload(snapshot.conversation_id))
+        except BffClientError:
+            return False
+        return self.snapshot is not None and set(self.snapshot.served_orders) != served
 
     def refresh_room(self) -> bool:
         """Read the room; returns True when it revealed a newer own seating."""
@@ -433,8 +465,13 @@ class VisitSession:
             self.cursor = 0
             self.room = None
             self.seated_since = None
+            self.served_since = None
         elif current is not None and snapshot.cursor < current.cursor:
             return
+        if current is not None and current.conversation_id == snapshot.conversation_id and (
+            set(snapshot.served_orders) - set(current.served_orders)
+        ):
+            self.served_since = self._monotonic()
         self.snapshot = snapshot
         self.cursor = max(self.cursor, snapshot.cursor)
         for message in snapshot.messages:

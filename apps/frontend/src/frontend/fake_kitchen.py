@@ -58,6 +58,12 @@ def _line(number: int, piece: str) -> KitchenOrderLine:
     )
 
 
+def _is_drink(piece: str) -> bool:
+    return any(
+        dish[0] in _plain(piece) and dish[3] is KitchenStation.BARRA for dish in _CARTA
+    )
+
+
 def fake_kitchen_report(message: str, order_id: str) -> KitchenReport | None:
     """The simulated chef's answer to an order, or None when the message is not one."""
 
@@ -67,7 +73,8 @@ def fake_kitchen_report(message: str, order_id: str) -> KitchenReport | None:
     items = match["items"]
     restrictions = ["celiaquía"] if _CELIAC.search(items) else []
     pieces = [piece.strip(" .;¡!¿?") for piece in _SPLIT.split(_CELIAC.sub("", items))]
-    lines = [_line(number, piece) for number, piece in enumerate((p for p in pieces if p), 1)][:20]
+    food = [piece for piece in pieces if piece and not _is_drink(piece)]
+    lines = [_line(number, piece) for number, piece in enumerate(food, 1)][:20]
     if not lines:
         return None
     order = KitchenOrder(order_id=order_id, lines=lines, restrictions=restrictions)
@@ -117,6 +124,13 @@ def fake_kitchen_report(message: str, order_id: str) -> KitchenReport | None:
         + [f"- Rechazado: {item.quantity} × {item.requested}: {item.reason}" for item in rejected]
     )
     return KitchenReport(order=order, result=plan, text=text)
+
+
+def served_reply(dishes: list[str]) -> str:
+    """The simulated waiter's words while leaving the cooked dishes on the table."""
+
+    listed = dishes[0] if len(dishes) == 1 else f"{', '.join(dishes[:-1])} y {dishes[-1]}"
+    return f"Aquí tenéis, recién salido de cocina: {listed}. ¡Que aproveche!"
 
 
 def kitchen_reply(report: KitchenReport) -> str:

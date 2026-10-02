@@ -44,6 +44,10 @@ COMPANION_OFFSETS = ((-26, 34), (26, 34), (-52, 14), (52, 14), (0, 56), (-52, 50
 # The group walks along the aisle between the left tables before sitting.
 AISLE_Y = 174
 WALK_SECONDS = 3.6
+SERVE_SECONDS = 2.6
+# The pass: the hatch in the right wall through which the kitchen hands out dishes.
+PASS = (944, 258)
+SERVE_MIDPOINT = (560, 140)
 ROUND_SLOTS = 4
 MAX_ROUND_CHAIRS = 6
 MAX_LONG_CHAIRS = 6
@@ -281,11 +285,14 @@ def _walking_group(walk: _Walk, name: str) -> str:
     return "".join(parts)
 
 
-def _room_layers(room: RoomView, seating: SeatingView | None) -> tuple[str, str, list[str], list[tuple[float, float, bool]]]:
-    """Places, other groups, aria descriptions and the customer's own seats."""
+def _room_layers(
+    room: RoomView, seating: SeatingView | None
+) -> tuple[str, str, list[str], list[tuple[float, float, bool]], _Slot | None]:
+    """Places, other groups, aria descriptions, the customer's own seats and their place."""
 
     places, groups, described = [], [], []
     own: list[tuple[float, float, bool]] = []
+    own_slot: _Slot | None = None
     proposal = seating.proposal if seating is not None and seating.status == "proposed" else None
     for slot in _slots(room):
         place = slot.place
@@ -295,6 +302,7 @@ def _room_layers(room: RoomView, seating: SeatingView | None) -> tuple[str, str,
                 continue
             if place.mine and place.state == "occupied":
                 own = _slot_seats(slot)
+                own_slot = slot
                 described.append(f"{place.label}: tu grupo")
             elif place.mine:
                 size = proposal.party_size if proposal and proposal.place.place_id == place.place_id else place.party_size
@@ -314,10 +322,46 @@ def _room_layers(room: RoomView, seating: SeatingView | None) -> tuple[str, str,
         groups.append(_seat_marks(others_held, "asiento-reservado"))
         groups.append(_figures(others, GUEST_BODY, "grupo"))
         groups.append(_seat_marks(mine_held, "asiento-propio"))
-        own = own or mine_seated
+        if mine_seated and not own:
+            own, own_slot = mine_seated, slot
         taken = len(others_held) + len(others) + len(mine_held) + len(mine_seated)
         described.append(f"{place.label}: {taken} de {place.capacity} puestos ocupados")
-    return "".join(places), "".join(groups), described, own
+    return "".join(places), "".join(groups), described, own, own_slot
+
+
+def _plate_spot(slot: _Slot, seat: tuple[float, float, bool]) -> tuple[float, float]:
+    """Where a dish rests in front of a seat: on the table or on the counter."""
+
+    x, y, _ = seat
+    if slot.outline[0] == "round":
+        cx, cy = int(slot.outline[1]), int(slot.outline[2])
+        return round(x + (cx - x) * 0.58, 1), round(y + (cy - y) * 0.58, 1)
+    if slot.outline[0] == "long":
+        _, top, _, height = LONG_TABLE
+        return x, top + 12 if y < top else top + height - 12
+    return x, 50
+
+
+def _plates(slot: _Slot, seats: list[tuple[float, float, bool]], count: int) -> str:
+    plates = []
+    for index in range(min(count, 2 * len(seats))):
+        x, y = _plate_spot(slot, seats[index % len(seats)])
+        x += 9 * (index // len(seats))
+        plates.append(
+            f'<g class="plato-servido" transform="translate({x},{y})">'
+            '<circle r="8" fill="#f1e8d6" stroke="#6f675d" stroke-width="1.5"/>'
+            '<circle r="4.5" fill="#8c1c2b"/></g>'
+        )
+    return "".join(plates)
+
+
+def _pass_hatch() -> str:
+    x, y = PASS
+    return (
+        f'<rect x="{x + 22}" y="{y - 30}" width="14" height="60" rx="2" fill="#4a3322" '
+        'stroke="#b08457" stroke-width="2"/>'
+        f'<text class="pase" x="{x - 2}" y="{y + 46}" text-anchor="middle" aria-hidden="true">pase</text>'
+    )
 
 
 def floor_plan_svg(
@@ -327,11 +371,15 @@ def floor_plan_svg(
     room: RoomView | None = None,
     seating: SeatingView | None = None,
     walk_elapsed: float | None = None,
+    served_dishes: int = 0,
+    serve_elapsed: float | None = None,
 ) -> str:
     """Plan with the customer, the waiter in the given state and, with a room, every group.
 
     ``walk_elapsed`` (seconds since the group was seated in this browser) plays
     the walk to the seats once; ``None`` draws the group already seated.
+    ``served_dishes`` rest on the customer's table; ``serve_elapsed`` plays the
+    waiter's walk from the pass with the tray once, before they appear.
     """
 
     if waiter not in WAITER_STATES:
@@ -343,8 +391,9 @@ def floor_plan_svg(
     tables = ""
     groups = ""
     own_seats: list[tuple[float, float, bool]] = []
+    own_slot: _Slot | None = None
     if live:
-        tables, groups, described, own_seats = _room_layers(room, seating)
+        tables, groups, described, own_seats, own_slot = _room_layers(room, seating)
         if described:
             label += ": " + "; ".join(escape(item) for item in described)
     else:
@@ -371,14 +420,40 @@ def floor_plan_svg(
         label += f"; {escape(customer_name)} en la entrada"
     label += f"; {WAITER_LABELS[waiter]}."
     bar = "" if live else _bar()
+    serving = (
+        seated
+        and own_slot is not None
+        and served_dishes > 0
+        and serve_elapsed is not None
+        and 0 <= serve_elapsed < SERVE_SECONDS
+    )
+    plates = ""
+    if seated and own_slot is not None and served_dishes and not serving:
+        plates = _plates(own_slot, own_seats, served_dishes)
+        label += " Tu comida está servida en la mesa."
+    if serving:
+        x1, y1, _ = own_seats[0]
+        x1, y1 = x1 + 30, y1 - 18
+        (x0, y0), (xm, ym) = PASS, SERVE_MIDPOINT
+        waiter_markup = (
+            f'<g class="camarero sirviendo" transform="translate({x1},{y1})" '
+            f'style="--x0:{x0}px;--y0:{y0}px;--xm:{xm}px;--ym:{ym}px;'
+            f'--x1:{x1}px;--y1:{y1}px;animation-delay:{-serve_elapsed:.2f}s">'
+            f"{_person('#15110f', tray=True, collar=True)}</g>"
+        )
+        label += " El camarero te trae la comida desde el pase."
+    else:
+        waiter_markup = (
+            f'<g class="camarero" transform="translate({waiter_x},{waiter_y})">'
+            f"{_person('#15110f', tray=True, collar=True)}</g>"
+        )
     return (
         f'<svg class="planta {waiter}" viewBox="0 0 {PLAN_W} {PLAN_H}" role="img" '
         f'aria-label="{label}">'
         f"{_defs()}"
         '<rect x="24" y="24" width="952" height="292" fill="url(#p-baldosa)"/>'
-        f"{bar}{tables}{groups}{_walls()}{customer}"
-        f'<g class="camarero" transform="translate({waiter_x},{waiter_y})">'
-        f"{_person('#15110f', tray=True, collar=True)}</g>"
+        f"{bar}{tables}{plates}{groups}{_walls()}{_pass_hatch()}{customer}"
+        f"{waiter_markup}"
         "</svg>"
     )
 

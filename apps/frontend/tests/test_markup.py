@@ -235,8 +235,14 @@ def test_the_kitchen_scene_matches_the_floor_plan_and_shows_the_agents() -> None
         if element.tag.endswith("svg") and "cocina-plano lista" in element.get("class")
     )
     kitchen_text = _text(kitchen)
-    assert "LISTA PARA SERVIR" in kitchen_text
+    assert "EN EL PASE" in kitchen_text
     assert "Morcilla de Burg… · 15 s" in kitchen_text
+    served = _parse(plan_markup("Ana", "atendiendo", kitchen_plan=PLAN, kitchen_served=True))
+    assert any(
+        element.tag.endswith("svg") and "cocina-plano servida" in element.get("class")
+        and "SERVIDO" in _text(element)
+        for element in served.iter()
+    )
     css = base_stylesheet()
     assert "grid-template-columns: minmax(0, 2fr) minmax(0, 1fr)" in css
 

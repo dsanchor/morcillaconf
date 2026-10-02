@@ -10,7 +10,7 @@ KITCHEN_W, KITCHEN_H = 500, 340
 STATIONS = (
     ("Parrilla", ("brasa",), 130),
     ("Fritos", ("fritos",), 250),
-    ("General", ("pinchos_frios", "barra"), 370),
+    ("General", ("pinchos_frios",), 370),
 )
 
 
@@ -84,11 +84,17 @@ def _station(
     )
 
 
-def kitchen_plan_svg(active: bool, plan: KitchenPlan | None) -> str:
+def kitchen_plan_svg(active: bool, plan: KitchenPlan | None, served: bool = False) -> str:
     """Kitchen agents and their cooked dishes in the restaurant's visual language."""
 
-    state = "activa" if active else "lista" if plan is not None else "espera"
-    status = "EN PREPARACIÓN" if active else "LISTA PARA SERVIR" if plan else "EN ESPERA"
+    if active:
+        state, status = "activa", "EN PREPARACIÓN"
+    elif plan is None:
+        state, status = "espera", "EN ESPERA"
+    elif served:
+        state, status = "servida", "SERVIDO"
+    else:
+        state, status = "lista", "EN EL PASE"
     stations = "".join(
         _station(label, station_ids, x, plan)
         for label, station_ids, x in STATIONS

@@ -192,7 +192,7 @@ def _live_plan(opening: bool) -> None:
     visit: VisitSession | None = state.get("visit")
     if visit is None or visit.snapshot is None:
         return
-    if visit.refresh_room():
+    if visit.refresh_room() or visit.refresh_service():
         st.rerun()
     entering = opening and time.monotonic() - state.get("opened_at", 0.0) < ENTRANCE_SECONDS
     seating = visit.snapshot.seating
@@ -201,14 +201,20 @@ def _live_plan(opening: bool) -> None:
         visit.snapshot.process_status == "processing"
         and bool(visit.snapshot.order_draft.items)
     )
-    cooked = next(
-        (
-            message.kitchen.result
-            for message in reversed(visit.snapshot.messages)
-            if message.kitchen is not None
-            and message.kitchen.result.status == "cooked"
-        ),
-        None,
+    cooked_plans = [
+        message.kitchen.result
+        for message in visit.snapshot.messages
+        if message.kitchen is not None
+        and message.kitchen.result.status == "cooked"
+        and message.kitchen.result.accepted
+    ]
+    cooked = cooked_plans[-1] if cooked_plans else None
+    served = set(visit.snapshot.served_orders)
+    served_dishes = sum(
+        item.quantity
+        for plan in cooked_plans
+        if plan.order_id in served
+        for item in plan.accepted
     )
     st.markdown(
         plan_markup(
@@ -220,6 +226,9 @@ def _live_plan(opening: bool) -> None:
             walk_elapsed=visit.walk_elapsed(),
             kitchen_active=cooking,
             kitchen_plan=None if cooking else cooked,
+            kitchen_served=cooked is not None and cooked.order_id in served,
+            served_dishes=served_dishes,
+            serve_elapsed=visit.serve_elapsed(),
         ),
         unsafe_allow_html=True,
     )

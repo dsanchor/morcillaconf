@@ -44,6 +44,7 @@ from restaurant_contracts.application import (
     StreamEvent,
 )
 from restaurant_contracts.customer import CustomerSnapshot, missing_customer_fields
+from restaurant_contracts.kitchen import KitchenPlan
 from restaurant_contracts.seating import (
     RoomPlace,
     RoomSeat,
@@ -68,6 +69,7 @@ from bff.waiter import (
     WaiterSeatingCall,
     WaiterSeatingResult,
     WaiterSeatingUnavailableError,
+    WaiterServeCall,
     WaiterTurn,
     WaiterTurnLimitError,
     WaiterTurnResult,
@@ -212,6 +214,7 @@ class RestaurantService:
         max_turns: int = 20,
         session_ttl: timedelta = timedelta(hours=12),
         heartbeat_seconds: float = 15.0,
+        serve_delay_seconds: float = 0.0,
         notifier: Notifier | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -220,6 +223,7 @@ class RestaurantService:
         self._max_turns = max_turns
         self._session_ttl = session_ttl
         self._heartbeat = heartbeat_seconds
+        self._serve_delay = serve_delay_seconds
         self._notifier = notifier or Notifier()
         self._clock = clock or (lambda: datetime.now(UTC))
         self._tasks: set[asyncio.Task[None]] = set()
@@ -521,6 +525,8 @@ class RestaurantService:
 
         while self._tasks:
             await asyncio.gather(*list(self._tasks), return_exceptions=True)
+            # Let the done callbacks drop finished tasks before checking again.
+            await asyncio.sleep(0)
 
     async def shutdown(self) -> None:
         for task in list(self._tasks):
@@ -770,6 +776,55 @@ class RestaurantService:
                     result.verdict if result.status == "cooked" else result.code.value,
                 )
         self._finish_turn(job, outcome)
+        if succeeded and outcome.kitchen is not None:
+            cooked = outcome.kitchen.result
+            if isinstance(cooked, KitchenPlan) and cooked.accepted:
+                self._start(self._serve(job.conversation_id, job.actor, cooked))
+
+    async def _serve(
+        self, conversation_id: str, actor: ActorContext, plan: KitchenPlan
+    ) -> None:
+        """The waiter takes the cooked dishes from the pass to the customer."""
+
+        try:
+            await asyncio.sleep(self._serve_delay)
+            async with self._lock(conversation_id):
+                with self._db.read() as tx:
+                    row = tx.get_conversation(conversation_id)
+                    if row is None or plan.order_id in tx.served_orders(conversation_id):
+                        return
+                correlation_id = new_id("corr")
+                reply = await self._waiter.serve_order(
+                    WaiterServeCall(
+                        conversation_id=conversation_id,
+                        actor=actor,
+                        correlation_id=correlation_id,
+                        order_id=plan.order_id,
+                        dishes=tuple(f"{item.quantity} × {item.name}" for item in plan.accepted),
+                    )
+                )
+                now = self._clock()
+                with self._db.write() as tx:
+                    current = tx.get_conversation(conversation_id)
+                    if current is None or not tx.mark_served(conversation_id, plan.order_id, now):
+                        return
+                    serve_event = new_id("serve")
+                    tx.add_message(
+                        conversation_id,
+                        ChatMessage(
+                            message_id=new_id("msg"),
+                            role="assistant",
+                            text=reply,
+                            occurred_at=now,
+                            command_event_id=serve_event,
+                        ),
+                    )
+                    self._emit_snapshot(tx, current, serve_event, correlation_id)
+            self._notifier.notify(conversation_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("Serving order %s failed: %s", plan.order_id, type(exc).__name__)
 
     def _finish_turn(
         self,
@@ -1355,6 +1410,7 @@ class RestaurantService:
             process_status="processing" if row.process_status == "processing" else "idle",
             allowed_actions=self._allowed_actions(row, seat),
             seating=self._seating_view(seat),
+            served_orders=tx.served_orders(row.conversation_id),
         )
 
     def _allowed_actions(

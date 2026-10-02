@@ -60,11 +60,23 @@ class WaiterSeatingReleaseRequest(WaiterSeatingRequest):
     operation: Literal["release_seating"] = "release_seating"
 
 
+class WaiterServeRequest(WireModel):
+    """The waiter takes cooked dishes from the pass to the customer, without the model."""
+
+    operation: Literal["serve_order"] = "serve_order"
+    conversation_id: str = Field(min_length=1, max_length=200)
+    actor: ActorContext
+    correlation_id: str = Field(min_length=1, max_length=200)
+    order_id: str = Field(min_length=1, max_length=200)
+    dishes: list[str] = Field(min_length=1, max_length=20)
+
+
 WaiterRequest = Annotated[
     WaiterTurnRequest
     | WaiterSeatingDecisionRequest
     | WaiterSeatingSyncRequest
-    | WaiterSeatingReleaseRequest,
+    | WaiterSeatingReleaseRequest
+    | WaiterServeRequest,
     Field(discriminator="operation"),
 ]
 WAITER_REQUEST_ADAPTER = TypeAdapter(WaiterRequest)
@@ -138,6 +150,13 @@ class WaiterSeatingSuccess(WireModel):
     seating: SeatingReport | None = None
 
 
+class WaiterServeSuccess(WireModel):
+    status: Literal["completed"] = "completed"
+    operation: Literal["serve_order"] = "serve_order"
+    order_id: str = Field(min_length=1, max_length=200)
+    reply: str = Field(min_length=1, max_length=2_000)
+
+
 class WaiterTurnFailure(WireModel):
     status: Literal["failed"] = "failed"
     code: Literal[
@@ -155,3 +174,5 @@ WaiterTurnResponse = WaiterTurnSuccess | WaiterTurnFailure
 WAITER_TURN_RESPONSE_ADAPTER = TypeAdapter(WaiterTurnResponse)
 WaiterSeatingResponse = WaiterSeatingSuccess | WaiterTurnFailure
 WAITER_SEATING_RESPONSE_ADAPTER = TypeAdapter(WaiterSeatingResponse)
+WaiterServeResponse = WaiterServeSuccess | WaiterTurnFailure
+WAITER_SERVE_RESPONSE_ADAPTER = TypeAdapter(WaiterServeResponse)

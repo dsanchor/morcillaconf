@@ -211,6 +211,8 @@ class RestaurantSnapshot(ContractModel):
     process_status: Literal["idle", "processing", "awaiting_customer"]
     allowed_actions: list[Action]
     seating: SeatingView = Field(default_factory=SeatingView)
+    # Kitchen orders the waiter has already taken from the pass to the table.
+    served_orders: list[Identifier] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
     def projection_is_consistent(self) -> "RestaurantSnapshot":

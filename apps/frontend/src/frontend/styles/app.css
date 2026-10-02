@@ -288,7 +288,8 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .cocina-plano .estado-agente { fill: var(--piedra-tenue); stroke: var(--nogal); stroke-width: 2; }
 .stApp .cocina-plano.activa .especialista .halo-agente { opacity: 1; animation: pulso-cocina 1.4s ease-in-out infinite; }
 .stApp .cocina-plano.activa .estado-agente { fill: var(--luz); }
-.stApp .cocina-plano.lista .estado-agente { fill: var(--vino); }
+.stApp .cocina-plano.lista .estado-agente { fill: var(--luz); }
+.stApp .cocina-plano.servida .estado-agente { fill: var(--vino); }
 .stApp .planta-marco.entrando { animation: aparecer .9s var(--ease-salida) 2.5s both; }
 
 /* Desktop: the sidebar is locked open. */

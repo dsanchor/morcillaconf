@@ -26,6 +26,8 @@ from restaurant_contracts.waiter import (
     WaiterSeatingReleaseRequest,
     WaiterSeatingSuccess,
     WaiterSeatingSyncRequest,
+    WaiterServeRequest,
+    WaiterServeSuccess,
     WaiterTurnFailure,
     WaiterTurnRequest,
     WaiterTurnSuccess,
@@ -44,6 +46,7 @@ from restaurant_agent.conversation import (
     TurnLimitExceededError,
 )
 from restaurant_agent.memory import create_memory_store
+from restaurant_agent.kitchen.rendering import served_text
 from restaurant_agent.memory.store import (
     DurableMemoryRepository,
     MemoryConflictError,
@@ -239,6 +242,11 @@ class RemoteWaiterService:
         except ConversationError as exc:
             return _failure(exc)
 
+    async def serve_order(self, request: WaiterServeRequest) -> WaiterServeSuccess:
+        """Take the cooked dishes from the pass to the table, without the model."""
+
+        return WaiterServeSuccess(order_id=request.order_id, reply=served_text(request.dishes))
+
     @asynccontextmanager
     async def _conversation(
         self,
@@ -378,6 +386,8 @@ def create_server(
                 operation = selected_service.release_seating(turn)
             elif isinstance(turn, WaiterSeatingSyncRequest):
                 operation = selected_service.sync_seating(turn)
+            elif isinstance(turn, WaiterServeRequest):
+                operation = selected_service.serve_order(turn)
             else:
                 operation = selected_service.take_turn(turn)
             result = await _cancel_when_signalled(operation, cancellation_signal)

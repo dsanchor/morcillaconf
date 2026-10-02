@@ -119,6 +119,12 @@ CREATE TABLE IF NOT EXISTS seating_decisions (
     outcome TEXT NOT NULL,
     decided_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS served_orders (
+    conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id),
+    order_id TEXT NOT NULL,
+    served_at TEXT NOT NULL,
+    PRIMARY KEY(conversation_id, order_id)
+);
 """
 
 
@@ -357,6 +363,22 @@ class Transaction:
             (conversation_id,),
         ).fetchall()
         return [ChatMessage.model_validate_json(row["message_json"]) for row in rows]
+
+    # Served kitchen orders
+
+    def mark_served(self, conversation_id: str, order_id: str, now: datetime) -> bool:
+        cursor = self._connection.execute(
+            "INSERT OR IGNORE INTO served_orders VALUES (?, ?, ?)",
+            (conversation_id, order_id, now.isoformat()),
+        )
+        return cursor.rowcount == 1
+
+    def served_orders(self, conversation_id: str) -> list[str]:
+        rows = self._connection.execute(
+            "SELECT order_id FROM served_orders WHERE conversation_id = ? ORDER BY served_at",
+            (conversation_id,),
+        ).fetchall()
+        return [row["order_id"] for row in rows]
 
     # Stream events
 

@@ -21,6 +21,8 @@ class BffSettings(BaseSettings):
     bff_session_ttl_hours: float = Field(default=12, gt=0, le=168)
     bff_event_retention: int = Field(default=500, ge=2, le=100_000)
     bff_sse_heartbeat_seconds: float = Field(default=15, gt=0, le=300)
+    # Time cooked dishes wait at the pass before the waiter takes them to the table.
+    bff_serve_delay_seconds: float = Field(default=3, ge=0, le=60)
     # Read only to refuse it: the waiter is the only client of the seating MCP.
     seating_mcp_url: str | None = None
 

@@ -37,6 +37,13 @@ def render_text(result: KitchenPlan | KitchenFailure) -> str:
     return text if len(text) <= RENDERED_TEXT_LIMIT else f"{text[: RENDERED_TEXT_LIMIT - 1]}…"
 
 
+def served_text(dishes: list[str]) -> str:
+    """What the waiter says while leaving the cooked dishes on the table."""
+
+    listed = dishes[0] if len(dishes) == 1 else f"{', '.join(dishes[:-1])} y {dishes[-1]}"
+    return f"Aquí tenéis, recién salido de cocina: {listed}. ¡Que aproveche!"
+
+
 def allergen_text(item: AcceptedItem) -> str:
     if not item.allergens_verified:
         return "alérgenos pendientes de verificar"

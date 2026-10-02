@@ -59,7 +59,7 @@ FAILURE_GUIDANCE = (
 class OrderLineRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: DishName = Field(description="El plato o la bebida tal como lo pide el cliente.")
+    name: DishName = Field(description="El plato tal como lo pide el cliente; nunca una bebida.")
     quantity: Quantity = Field(default=1, description="Raciones, unidades o bebidas.")
     modifications: list[KitchenText] = Field(
         default_factory=list, max_length=10, description="Cambios pedidos, como «sin cebolla»."
@@ -129,9 +129,9 @@ def create_kitchen_tool(kitchen: KitchenPort) -> FunctionTool:
     return FunctionTool(
         name=KITCHEN_TOOL,
         description=(
-            "Envía a cocina un pedido claro: platos y bebidas con su cantidad, sus "
-            "modificaciones y las alergias o intolerancias declaradas. El chef lo "
-            "comprueba con la carta y el recetario y devuelve su plan."
+            "Envía a cocina sólo la comida confirmada: platos con su cantidad, sus "
+            "modificaciones y las alergias o intolerancias declaradas. Nunca incluyas "
+            "bebidas: las sirve el camarero desde la barra."
         ),
         func=pedir_a_cocina,
         input_model=KitchenRequest,

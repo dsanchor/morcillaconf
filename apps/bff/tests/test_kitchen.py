@@ -185,6 +185,29 @@ async def test_the_kitchen_message_is_persisted_with_its_typed_result(settings, 
     assert [message["role"] for message in last_snapshot["snapshot"]["messages"]][-2:] == ["kitchen", "assistant"]
 
 
+async def test_the_waiter_serves_the_cooked_dishes_once_after_the_pass(settings, clock, commands) -> None:
+    database = Database(settings.bff_database_path)
+    memory_store = SQLiteMemoryStore(settings.bff_database_path.with_name("test-waiter-memory.db"))
+    waiter = KitchenWaiter(
+        LocalWaiter(ScriptedWaiterAgent(), mode="scripted", max_turns=20, memory_store=memory_store), REPORT
+    )
+    service = RestaurantService(database=database, waiter=waiter, clock=clock)
+    session = service.authenticate(service.open_session("Ana").token)
+    arrival = await service.submit(session, commands.arrive())
+    await service.submit(session, commands.say(arrival.conversation_id, "Pido una morcilla"))
+    await service.drain()
+    await service._serve(arrival.conversation_id, session.actor, PLAN)
+
+    snapshot = service.get_snapshot(session, arrival.conversation_id)
+    assert snapshot.served_orders == ["ko_1"]
+    assert [message.role for message in snapshot.messages] == [
+        "assistant", "user", "kitchen", "assistant", "assistant",
+    ]
+    assert snapshot.messages[-1].text == (
+        "Aquí tenéis, recién salido de cocina: 1 × Morcilla de Burgos a la brasa. ¡Que aproveche!"
+    )
+
+
 async def test_the_remote_waiter_passes_the_kitchen_report_through() -> None:
     def handle(request: httpx.Request) -> httpx.Response:
         body = {

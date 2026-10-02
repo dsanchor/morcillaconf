@@ -40,6 +40,7 @@ def create_app(
             max_turns=config.waiter_max_turns,
             session_ttl=timedelta(hours=config.bff_session_ttl_hours),
             heartbeat_seconds=config.bff_sse_heartbeat_seconds,
+            serve_delay_seconds=config.bff_serve_delay_seconds,
             clock=clock,
         )
         recovered = service.recover_interrupted_turns()

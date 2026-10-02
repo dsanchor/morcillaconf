@@ -97,6 +97,15 @@
 .planta .comensal text { font-size: 18px; }
 .planta .comensal.caminando { animation: caminar-a-la-mesa 2.6s cubic-bezier(.45, 0, .2, 1) both; }
 .planta .cliente-propio.caminando { animation-name: caminar-cliente; }
+/* The waiter walks from the kitchen pass to the customer with the tray. */
+.planta .camarero.sirviendo { animation: servir 2.6s cubic-bezier(.45, 0, .2, 1) both; }
+.planta text.pase { font-family: var(--sans); font-size: 13px; fill: var(--piedra-tenue); letter-spacing: .08em; }
+
+@keyframes servir {
+  0% { transform: translate(var(--x0), var(--y0)); }
+  45% { transform: translate(var(--xm), var(--ym)); }
+  100% { transform: translate(var(--x1), var(--y1)); }
+}
 
 @keyframes caminar-a-la-mesa {
   0% { opacity: 0; transform: translate(var(--x0), var(--y0)) scale(.8); }
@@ -113,6 +122,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .planta .comensal.caminando,
+  .planta .camarero.sirviendo,
   .escena .resplandor,
   .escena.llama .hojas,
   .escena.abriendo .hoja,

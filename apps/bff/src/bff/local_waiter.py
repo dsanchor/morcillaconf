@@ -22,6 +22,7 @@ from restaurant_agent.conversation import (
     TurnLimitExceededError,
 )
 from restaurant_agent.memory.store import DurableMemoryRepository
+from restaurant_agent.kitchen.rendering import served_text
 from restaurant_agent.seating import bind_visit
 
 from bff.scripted_seating import (
@@ -36,6 +37,7 @@ from bff.waiter import (
     WaiterNoPendingDecisionError,
     WaiterSeatingCall,
     WaiterSeatingResult,
+    WaiterServeCall,
     WaiterSeatingUnavailableError,
     WaiterTurn,
     WaiterTurnLimitError,
@@ -188,6 +190,9 @@ class LocalWaiter:
             session_json=call.session_json,
             seating=self._report(call.visit_id),
         )
+
+    async def serve_order(self, call: WaiterServeCall) -> str:
+        return served_text(list(call.dishes))
 
     def _report(self, visit_id: str | None):
         if self._seating is None or visit_id is None:

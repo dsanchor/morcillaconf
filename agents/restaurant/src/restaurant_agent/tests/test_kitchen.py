@@ -26,6 +26,7 @@ from kitchen_agent.service import KitchenService
 from kitchen_agent.allergens import declared, restricted
 from kitchen_agent.evidence import parse
 from kitchen_agent.validation import (
+    DRINK_NOT_FOR_KITCHEN,
     NOT_EVALUATED,
     NOT_IN_CARTA,
     build_plan,
@@ -257,10 +258,11 @@ def test_a_dish_the_knowledge_base_did_not_return_is_never_accepted() -> None:
         draft(accept(1, "hamburguesa-con-queso"), accept(2, "agua-con-gas", "pinchos_frios", steps=["Abrir"])),
         EVIDENCE,
     )
-    assert [(item.line, item.reason) for item in plan.rejected] == [(1, NOT_IN_CARTA)]
-    [water] = plan.accepted
-    assert water.station is KitchenStation.BARRA
-    assert plan.stations[0].station is KitchenStation.BARRA and plan.stations[0].tasks[0].steps == []
+    assert [(item.line, item.reason) for item in plan.rejected] == [
+        (1, NOT_IN_CARTA),
+        (2, DRINK_NOT_FOR_KITCHEN),
+    ]
+    assert not plan.accepted and not plan.stations
 
 
 def test_the_identifier_is_read_from_a_copied_heading_and_must_be_a_carta_dish() -> None:
