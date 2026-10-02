@@ -30,8 +30,13 @@ from kitchen_agent.knowledge import (
     create_knowledge_tool,
     knowledge_base_mcp_url,
 )
-from kitchen_agent.orchestration import ChefCoordination, InvalidSpecialistAnswer
-from kitchen_agent.specialists import SpecialistName
+from kitchen_agent.orchestration import (
+    ChefCoordination,
+    InvalidSpecialistAnswer,
+    required_specialists,
+)
+from kitchen_agent.progress import Step, done
+from kitchen_agent.specialists import SPECIALIST_STATIONS, SpecialistName
 from kitchen_agent.validation import build_plan
 
 logger = logging.getLogger(__name__)
@@ -157,9 +162,13 @@ class KitchenService:
     ) -> KitchenPlan | KitchenFailure:
         result = await self._plan(order)
         if isinstance(result, KitchenPlan) and result.accepted:
-            await self._sleeper(
-                max(item.estimated_ready_seconds for item in result.accepted)
-            )
+            seconds = max(item.estimated_ready_seconds for item in result.accepted)
+            dishes = sum(item.quantity for item in result.accepted)
+            step = await Step(
+                "cocina", "Cocina prepara los platos", f"{dishes} platos · {seconds} s"
+            ).start()
+            await self._sleeper(seconds)
+            await step.finish()
         return result
 
     async def _plan(
@@ -172,14 +181,22 @@ class KitchenService:
             knowledge_tool=knowledge_tool,
             middleware=[recorder, KnowledgeToolMiddleware()],
         )
+        chef = await Step("chef", "Chef analiza la comanda", f"{len(order.lines)} líneas").start()
         async with agent:
             if getattr(knowledge_tool, "unavailable", False):
+                await chef.finish("Foundry IQ no disponible", failed=True)
                 return kitchen_failure(
                     order, KitchenFailureCode.KNOWLEDGE_UNAVAILABLE
                 )
             response = await agent.run(order_prompt(order))
         evidence = recorder.evidence()
+        await done(
+            "foundry_iq",
+            "Foundry IQ: carta y recetario",
+            f"{evidence.retrievals} consultas · {len(evidence.dishes)} platos encontrados",
+        )
         if evidence.retrievals == 0:
+            await chef.finish("No ha podido consultar la carta", failed=True)
             code = (
                 KitchenFailureCode.KNOWLEDGE_UNAVAILABLE
                 if evidence.failures
@@ -189,13 +206,33 @@ class KitchenService:
         try:
             draft = response.value
         except (ValidationError, ValueError) as exc:
+            await chef.finish("Respuesta no válida", failed=True)
             raise InvalidChefAnswer(type(exc).__name__) from exc
         if not isinstance(draft, ChefDraft):
+            await chef.finish("Respuesta no válida", failed=True)
             raise InvalidChefAnswer("no structured answer")
         try:
             plan = build_plan(order, draft, evidence)
         except ValidationError as exc:
+            await chef.finish("Plan no válido", failed=True)
             raise InvalidChefAnswer(
                 f"{exc.error_count()} validation errors"
             ) from exc
-        return await self._coordination.review(order, plan)
+        await chef.finish(f"Acepta {len(plan.accepted)} · rechaza {len(plan.rejected)}")
+        required = required_specialists(plan)
+        reviews = [
+            (name, await Step("especialista", f"{name} revisa sus tareas").start())
+            for name in required
+        ]
+        reviewed = await self._coordination.review(order, plan)
+        kept = {item.line for item in reviewed.accepted}
+        for name, step in reviews:
+            lines = [
+                item.line for item in plan.accepted if item.station in SPECIALIST_STATIONS[name]
+            ]
+            refused = [line for line in lines if line not in kept]
+            await step.finish(
+                "OK" if not refused else f"Rechaza {len(refused)} de {len(lines)}",
+                failed=bool(refused),
+            )
+        return reviewed

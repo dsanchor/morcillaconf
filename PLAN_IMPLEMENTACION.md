@@ -704,6 +704,27 @@ El proveedor de pago sigue siendo simulado y se identifica como tal.
 - Una traza o evidencia recuperable por escena, sin depender de navegar en vivo
   por Application Insights.
 
+### Fase 11. Observabilidad con OpenTelemetry en Application Insights
+
+Va al final: el panel «Bajo el capó» ya cuenta en vivo lo que ocurre por debajo
+con pasos curados que viajan dentro de los mensajes de la conversación. Esta
+fase añade la vista técnica para enseñar trazas y métricas reales.
+
+- [ ] Exportar con OpenTelemetry trazas de frontend-BFF, camarero, MCP de mesas,
+  A2A y cocina hacia Application Insights, con propagación de contexto
+  (`traceparent`) entre servicios y A2A para ver una traza de extremo a extremo.
+- [ ] Métricas por tramo: latencia del modelo, llamadas a Foundry IQ, MCP, A2A,
+  revisión de especialistas, espera en el pase, tokens y errores.
+- [ ] Correlacionar cada paso del panel con su span (mismo `correlation_id`) para
+  saltar del panel a la traza durante la charla.
+- [ ] Panel o workbook de Application Insights preparado para la demo, sin datos
+  personales en atributos ni logs.
+
+**Criterios de salida**
+
+- Una petición de pedido se ve como una única traza distribuida en Application
+  Insights, con los mismos tramos que muestra el panel «Bajo el capó».
+
 ## 6. Contratos y estados compartidos
 
 Introducir cada contrato con su primer consumidor, no todos al iniciar.

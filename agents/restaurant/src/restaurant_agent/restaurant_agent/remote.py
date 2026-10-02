@@ -18,6 +18,7 @@ from azure.ai.agentserver.responses import (
 )
 from azure.ai.agentserver.core import get_request_context
 
+from restaurant_contracts.activity import ActivityStep, merge_steps
 from restaurant_contracts.waiter import (
     WAITER_REQUEST_ADAPTER,
     SeatingReport,
@@ -33,6 +34,7 @@ from restaurant_contracts.waiter import (
     WaiterTurnSuccess,
 )
 
+from restaurant_agent.activity import recording
 from restaurant_agent.agent import create_waiter_agent
 from restaurant_agent.config import Settings
 from restaurant_agent.conversation import (
@@ -389,7 +391,13 @@ def create_server(
             elif isinstance(turn, WaiterServeRequest):
                 operation = selected_service.serve_order(turn)
             else:
-                operation = selected_service.take_turn(turn)
+                # A turn streams its activity steps, one JSON line each, and
+                # ends with the typed result as its last line.
+                return TextResponse(
+                    context,
+                    request,
+                    text=_turn_lines(selected_service.take_turn, turn, cancellation_signal),
+                )
             result = await _cancel_when_signalled(operation, cancellation_signal)
         except Exception as exc:
             logger.error("Remote waiter request failed: %s", type(exc).__name__)
@@ -403,3 +411,43 @@ def create_server(
         )
 
     return server
+
+
+async def _turn_lines(
+    take_turn: Callable[[WaiterTurnRequest], Awaitable[Any]],
+    turn: WaiterTurnRequest,
+    cancellation_signal: asyncio.Event,
+) -> AsyncIterator[str]:
+    queue: asyncio.Queue[ActivityStep] = asyncio.Queue()
+    steps: list[ActivityStep] = []
+    with recording(queue.put_nowait):
+        # The task copies the context, so the turn reports into this queue.
+        operation = asyncio.ensure_future(_cancel_when_signalled(take_turn(turn), cancellation_signal))
+    try:
+        while True:
+            getter = asyncio.ensure_future(queue.get())
+            done, _ = await asyncio.wait({operation, getter}, return_when=asyncio.FIRST_COMPLETED)
+            if getter in done:
+                step = getter.result()
+                steps = merge_steps(steps, step)
+                yield json.dumps({"activity": step.model_dump(mode="json")}, ensure_ascii=False) + "\n"
+                continue
+            getter.cancel()
+            break
+        while not queue.empty():
+            step = queue.get_nowait()
+            steps = merge_steps(steps, step)
+            yield json.dumps({"activity": step.model_dump(mode="json")}, ensure_ascii=False) + "\n"
+        try:
+            result = operation.result()
+        except Exception as exc:
+            logger.error("Remote waiter turn failed: %s", type(exc).__name__)
+            result = WaiterTurnFailure(
+                code="internal_error", message="The waiter request could not be processed"
+            )
+        if isinstance(result, WaiterTurnSuccess):
+            result = result.model_copy(update={"activity": steps})
+        yield result.model_dump_json()
+    finally:
+        if not operation.done():
+            operation.cancel()

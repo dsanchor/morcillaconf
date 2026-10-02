@@ -2,6 +2,7 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 
+from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ChatMessage
 from restaurant_contracts.kitchen import (
     AcceptedItem,
@@ -23,6 +24,7 @@ from frontend.markup import (
     KITCHEN_FAILED,
     KITCHEN_LABEL,
     Reveal,
+    activity_markup,
     command_row_markup,
     conversation_markup,
     door_hint_markup,
@@ -218,6 +220,27 @@ def test_the_cooked_dishes_are_their_own_bubble_between_the_order_and_the_reply(
         "La casa no ofrece platos certificados sin gluten.",
         "Brasa1 × Morcilla de Burgos a la brasa. Marcar a la brasa. Omitir: pimiento asado. Precauciones: Pinzas limpias.",
     ]
+
+
+def test_the_activity_panel_shows_each_component_live_and_escaped() -> None:
+    order = QUESTION.model_copy(
+        update={
+            "activity": [
+                ActivityStep(step_id="m", component="memoria", label="Lee la memoria del cliente", detail="<alergia> & leche", duration_ms=4),
+                ActivityStep(step_id="c", component="cocina", label="A2A: envía la comanda a cocina", status="running"),
+                ActivityStep(step_id="p", component="especialista", label="Parrilla revisa sus tareas", detail="OK", duration_ms=2500),
+            ]
+        }
+    )
+    root = _parse(activity_markup([GREETING, order]))
+    steps = root.findall(".//li")
+    assert [step.get("class") for step in steps] == [
+        "capo-paso memoria done", "capo-paso cocina running", "capo-paso especialista done",
+    ]
+    assert _text(steps[0]) == "Memoria4 msLee la memoria del cliente<alergia> & leche"
+    assert "en curso" in _text(steps[1]) and "2,5 s" in _text(steps[2])
+    assert root.get("aria-label") == "Bajo el capó"
+    assert "Escribe al camarero" in _text(_parse(activity_markup([GREETING])))
 
 
 def test_the_kitchen_scene_matches_the_floor_plan_and_shows_the_agents() -> None:

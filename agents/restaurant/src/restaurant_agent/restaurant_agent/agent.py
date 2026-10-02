@@ -7,6 +7,7 @@ from agent_framework import Agent, MCPStreamableHTTPTool
 
 from restaurant_contracts.kitchen import KitchenPort
 
+from restaurant_agent.activity import ActivityToolMiddleware
 from restaurant_agent.config import Settings
 from restaurant_agent.contracts import WaiterModelResult
 from restaurant_agent.kitchen import A2AKitchen
@@ -168,6 +169,7 @@ def create_waiter_agent(
         tools=tools,
         context_providers=context_providers,
         middleware=[
+            ActivityToolMiddleware(),
             HabitualOrderMiddleware(intent_classifier),
             SeatingToolContextMiddleware(),
             KnowledgeToolMiddleware(),

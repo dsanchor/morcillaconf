@@ -1,13 +1,16 @@
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
 from agent_framework import AgentSession
 
+from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ActorContext
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 from restaurant_contracts.waiter import WaiterServeRequest, WaiterTurnRequest, WaiterTurnSuccess
 
+from restaurant_agent.activity import instant, tracked
 from restaurant_agent.config import Settings
 from restaurant_agent.contracts import WaiterModelResult
 from restaurant_agent.memory.contracts import MemoryCandidate, MemoryIntent, MemoryKind
@@ -205,3 +208,63 @@ async def test_cancellation_signal_cancels_an_in_flight_turn() -> None:
     with pytest.raises(asyncio.CancelledError):
         await task
     assert operation_cancelled.is_set()
+
+
+def _turn_request() -> WaiterTurnRequest:
+    return WaiterTurnRequest(
+        conversation_id="conv_1",
+        actor=ActorContext(actor_id="ana", authenticated=True),
+        presented_name="Ana",
+        message="Una morcilla",
+        customer=CustomerSnapshot(presented_name="Ana"),
+        order_draft=OrderDraft(),
+        turn_count=0,
+        correlation_id="corr_1",
+    )
+
+
+class SteppingService:
+    async def take_turn(self, request):
+        with tracked("cocina", "A2A: envía la comanda a cocina"):
+            await asyncio.sleep(0)
+        instant("memoria", "Guarda en memoria", "agua con gas")
+        return WaiterTurnSuccess(
+            reply="Hecho", customer=request.customer, order_draft=request.order_draft, turn_count=1
+        )
+
+
+def test_a_turn_streams_its_activity_before_the_result(tmp_path, monkeypatch) -> None:
+    from starlette.testclient import TestClient
+
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
+    server = create_server(_settings(tmp_path), service=SteppingService())
+    body = {
+        "model": "restaurant",
+        "input": _turn_request().model_dump_json(),
+        "conversation": {"id": "conv_1"},
+        "store": False,
+    }
+    with TestClient(server) as client:
+        streamed = client.post(
+            "/responses", json={**body, "stream": True}, headers={"x-agent-user-id": "ana"}
+        )
+        whole = client.post(
+            "/responses", json={**body, "stream": False}, headers={"x-agent-user-id": "ana"}
+        )
+
+    deltas = [
+        json.loads(line[len("data: "):])["delta"]
+        for line in streamed.text.splitlines()
+        if line.startswith("data: ") and '"response.output_text.delta"' in line
+    ]
+    lines = "".join(deltas).strip().split("\n")
+    steps = [ActivityStep.model_validate(json.loads(line)["activity"]) for line in lines[:-1]]
+    assert [(step.component, step.status) for step in steps] == [
+        ("cocina", "running"), ("cocina", "done"), ("memoria", "done"),
+    ]
+    result = WaiterTurnSuccess.model_validate_json(lines[-1])
+    assert result.reply == "Hecho"
+    assert [step.status for step in result.activity] == ["done", "done"]
+
+    text = whole.json()["output"][0]["content"][0]["text"]
+    assert WaiterTurnSuccess.model_validate_json(text.strip().split("\n")[-1]).reply == "Hecho"

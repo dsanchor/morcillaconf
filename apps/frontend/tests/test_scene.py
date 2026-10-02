@@ -6,6 +6,7 @@ import pytest
 from frontend.facade import FACADE_STATES, facade_html
 from frontend.floor_plan import (
     DOOR_GAP,
+    PASS_OPENING,
     WAITER_STATES,
     customer_icon_svg,
     floor_plan_svg,
@@ -84,16 +85,18 @@ def _segments(path: str) -> set[frozenset[tuple[float, float]]]:
     return segments
 
 
-def test_walls_enclose_the_room_except_the_door() -> None:
+def test_walls_enclose_the_room_except_the_door_and_the_pass() -> None:
     plan = _parse(floor_plan_svg("Ana", "barra"))
     walls = next(path for path in plan.iter(f"{SVG}path") if path.get("stroke-width") == "10")
     path = walls.get("d")
     assert "Z" not in path.upper()
     segments = _segments(path)
     left, right = DOOR_GAP
+    top, bottom = PASS_OPENING
     assert frozenset({(24, 24), (24, 316)}) in segments
     assert frozenset({(24, 24), (976, 24)}) in segments
-    assert frozenset({(976, 24), (976, 316)}) in segments
+    assert frozenset({(976, 24), (976, top)}) in segments
+    assert frozenset({(976, bottom), (976, 316)}) in segments
     assert frozenset({(976, 316), (right, 316)}) in segments
     assert frozenset({(24, 316), (left, 316)}) in segments
     for segment in segments:

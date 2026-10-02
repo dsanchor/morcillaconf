@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from html import escape
 from typing import Literal
 
+from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ChatMessage
 from restaurant_contracts.kitchen import (
     STATION_LABELS,
@@ -87,6 +88,61 @@ def command_row_markup(command: str) -> str:
 
 def simulated_markup() -> str:
     return f'<div class="simulado-linea"><p class="simulado">{SIMULATED_LABEL}</p></div>'
+
+
+COMPONENT_LABELS = {
+    "camarero": "Camarero",
+    "memoria": "Memoria",
+    "mcp": "MCP mesas",
+    "cocina": "Cocina A2A",
+    "foundry_iq": "Foundry IQ",
+    "chef": "Chef",
+    "especialista": "Especialista",
+    "entrega": "Entrega",
+}
+ACTIVITY_TURNS = 3
+
+
+def activity_markup(messages: Sequence[ChatMessage]) -> str:
+    """The system's steps behind the latest messages, newest first."""
+
+    turns = [message for message in messages if message.activity][-ACTIVITY_TURNS:]
+    if not turns:
+        body = '<p class="capo-vacio">Escribe al camarero para ver qué ocurre por debajo.</p>'
+    else:
+        body = "".join(_activity_turn(message) for message in reversed(turns))
+    return f'<div class="capo-panel" aria-live="polite" aria-label="Bajo el capó">{body}</div>'
+
+
+def _activity_turn(message: ChatMessage) -> str:
+    if message.role == "user":
+        text = " ".join(message.text.split())
+        title = f"«{text[:38]}…»" if len(text) > 38 else f"«{text}»"
+    else:
+        title = "Entrega en mesa"
+    steps = "".join(_activity_step(step) for step in message.activity)
+    return (
+        f'<section class="capo-turno"><p class="capo-titulo">{text_html(title)}</p>'
+        f"<ol>{steps}</ol></section>"
+    )
+
+
+def _activity_step(step: ActivityStep) -> str:
+    if step.status == "running":
+        timing = "en curso"
+    elif step.duration_ms is None:
+        timing = ""
+    elif step.duration_ms < 1000:
+        timing = f"{step.duration_ms} ms"
+    else:
+        timing = f"{step.duration_ms / 1000:.1f} s".replace(".", ",")
+    detail = f'<span class="capo-detalle">{text_html(step.detail)}</span>' if step.detail else ""
+    return (
+        f'<li class="capo-paso {step.component} {step.status}">'
+        f'<span class="capo-componente">{COMPONENT_LABELS[step.component]}</span>'
+        f'<span class="capo-tiempo">{timing}</span>'
+        f'<span class="capo-etiqueta">{text_html(step.label)}</span>{detail}</li>'
+    )
 
 
 def plan_markup(

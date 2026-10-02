@@ -5,7 +5,7 @@ import httpx
 from restaurant_contracts.application import ActorContext
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 
-from bff.waiter import RemoteWaiter, WaiterTurn, WaiterTurnLimitError
+from bff.waiter import TURN_ACTIVITY, RemoteWaiter, WaiterTurn, WaiterTurnLimitError
 
 
 def _turn() -> WaiterTurn:
@@ -72,6 +72,44 @@ async def test_remote_waiter_uses_the_responses_protocol() -> None:
     assert json.loads(payload["input"])["operation"] == "take_turn"
     assert result.reply == "¿Qué os pongo?"
     await waiter.aclose()
+
+
+async def test_the_turn_relays_live_activity_from_the_waiter_stream() -> None:
+    step = {"step_id": "cocina-1", "component": "cocina", "label": "A2A: envía la comanda a cocina", "status": "running"}
+    final = {
+        "status": "completed",
+        "reply": "Marchando",
+        "customer": {"presented_name": "Ana"},
+        "order_draft": {"items": []},
+        "turn_count": 1,
+        "activity": [{**step, "status": "done", "duration_ms": 1200}],
+    }
+    text = json.dumps({"activity": step}) + "\n" + json.dumps(final)
+    # Deltas split mid-line, as a real token stream may do.
+    chunks = [text[:17], text[17:60], text[60:]]
+    sse = "".join(
+        f"event: response.output_text.delta\ndata: {json.dumps({'type': 'response.output_text.delta', 'delta': chunk})}\n\n"
+        for chunk in chunks
+    ) + 'event: response.completed\ndata: {"type": "response.completed"}\n\n'
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert json.loads(request.content)["stream"] is True
+        return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
+
+    waiter = RemoteWaiter("http://restaurant-agent:8088", timeout_seconds=3)
+    await waiter._client.aclose()
+    waiter._client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    seen = []
+    token = TURN_ACTIVITY.set(seen.append)
+    try:
+        result = await waiter.take_turn(_turn())
+    finally:
+        TURN_ACTIVITY.reset(token)
+        await waiter.aclose()
+
+    assert [(item.step_id, item.status) for item in seen] == [("cocina-1", "running")]
+    assert result.reply == "Marchando"
+    assert [(item.step_id, item.status) for item in result.activity] == [("cocina-1", "done")]
 
 
 async def test_remote_waiter_maps_typed_agent_failures() -> None:

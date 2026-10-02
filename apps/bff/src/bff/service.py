@@ -43,6 +43,7 @@ from restaurant_contracts.application import (
     SnapshotUpdated,
     StreamEvent,
 )
+from restaurant_contracts.activity import ActivityStep, merge_steps
 from restaurant_contracts.customer import CustomerSnapshot, missing_customer_fields
 from restaurant_contracts.kitchen import KitchenPlan
 from restaurant_contracts.seating import (
@@ -62,6 +63,7 @@ from bff.notifier import Notifier
 from bff.storage import ConversationRow, Database, SeatingRow, Transaction
 from bff.telemetry import tracer
 from bff.waiter import (
+    TURN_ACTIVITY,
     WaiterError,
     WaiterInvalidResponseError,
     WaiterNoPendingDecisionError,
@@ -738,6 +740,11 @@ class RestaurantService:
             visit_id=row.visit_id,
         )
         outcome: WaiterTurnResult | tuple[ErrorCode, str]
+        live = TURN_ACTIVITY.set(
+            lambda step: self._record_activity(
+                job.conversation_id, job.event_id, step, job.correlation_id
+            )
+        )
         try:
             outcome = await self._waiter.take_turn(turn)
             if not outcome.reply.strip():
@@ -765,6 +772,8 @@ class RestaurantService:
                 type(exc).__name__,
             )
             outcome = (ErrorCode.INTERNAL_ERROR, WAITER_FAILED)
+        finally:
+            TURN_ACTIVITY.reset(live)
         succeeded = isinstance(outcome, WaiterTurnResult)
         span.set_attribute("bff.waiter.outcome", "completed" if succeeded else outcome[0])
         if succeeded:
@@ -779,14 +788,62 @@ class RestaurantService:
         if succeeded and outcome.kitchen is not None:
             cooked = outcome.kitchen.result
             if isinstance(cooked, KitchenPlan) and cooked.accepted:
-                self._start(self._serve(job.conversation_id, job.actor, cooked))
+                self._start(self._serve(job.conversation_id, job.actor, cooked, job.event_id))
+
+    def _record_activity(
+        self, conversation_id: str, command_event_id: str, step: ActivityStep, correlation_id: str
+    ) -> None:
+        """Merge one live step into the customer's message and publish the snapshot."""
+
+        try:
+            with self._db.write() as tx:
+                row = tx.get_conversation(conversation_id)
+                message = self._customer_message(tx, conversation_id, command_event_id)
+                if row is None or message is None:
+                    return
+                tx.update_message(
+                    conversation_id,
+                    message.model_copy(update={"activity": merge_steps(message.activity, step)}),
+                )
+                self._emit_snapshot(tx, row, command_event_id, correlation_id)
+            self._notifier.notify(conversation_id)
+        except Exception as exc:
+            # The panel is a view: a lost step never fails the turn.
+            logger.warning("Activity step not recorded: %s", type(exc).__name__)
+
+    @staticmethod
+    def _customer_message(
+        tx: Transaction, conversation_id: str, command_event_id: str
+    ) -> ChatMessage | None:
+        return next(
+            (
+                message
+                for message in reversed(tx.list_messages(conversation_id))
+                if message.role == "user" and message.command_event_id == command_event_id
+            ),
+            None,
+        )
 
     async def _serve(
-        self, conversation_id: str, actor: ActorContext, plan: KitchenPlan
+        self,
+        conversation_id: str,
+        actor: ActorContext,
+        plan: KitchenPlan,
+        turn_event_id: str | None = None,
     ) -> None:
         """The waiter takes the cooked dishes from the pass to the customer."""
 
+        at_pass = ActivityStep(
+            step_id=f"pase-{plan.order_id}",
+            component="entrega",
+            label="Platos en el pase",
+            detail=f"El camarero los recoge en {self._serve_delay:g} s",
+            status="running",
+        )
         try:
+            if turn_event_id is not None:
+                self._record_activity(conversation_id, turn_event_id, at_pass, new_id("corr"))
+            waited = time.monotonic()
             await asyncio.sleep(self._serve_delay)
             async with self._lock(conversation_id):
                 with self._db.read() as tx:
@@ -794,13 +851,15 @@ class RestaurantService:
                     if row is None or plan.order_id in tx.served_orders(conversation_id):
                         return
                 correlation_id = new_id("corr")
+                started = time.monotonic()
+                dishes = tuple(f"{item.quantity} × {item.name}" for item in plan.accepted)
                 reply = await self._waiter.serve_order(
                     WaiterServeCall(
                         conversation_id=conversation_id,
                         actor=actor,
                         correlation_id=correlation_id,
                         order_id=plan.order_id,
-                        dishes=tuple(f"{item.quantity} × {item.name}" for item in plan.accepted),
+                        dishes=dishes,
                     )
                 )
                 now = self._clock()
@@ -808,6 +867,22 @@ class RestaurantService:
                     current = tx.get_conversation(conversation_id)
                     if current is None or not tx.mark_served(conversation_id, plan.order_id, now):
                         return
+                    if turn_event_id is not None:
+                        ordered = self._customer_message(tx, conversation_id, turn_event_id)
+                        if ordered is not None:
+                            picked = at_pass.model_copy(
+                                update={
+                                    "status": "done",
+                                    "detail": "Recogidos por el camarero",
+                                    "duration_ms": int((time.monotonic() - waited) * 1000),
+                                }
+                            )
+                            tx.update_message(
+                                conversation_id,
+                                ordered.model_copy(
+                                    update={"activity": merge_steps(ordered.activity, picked)}
+                                ),
+                            )
                     serve_event = new_id("serve")
                     tx.add_message(
                         conversation_id,
@@ -817,6 +892,15 @@ class RestaurantService:
                             text=reply,
                             occurred_at=now,
                             command_event_id=serve_event,
+                            activity=[
+                                ActivityStep(
+                                    step_id=f"servir-{plan.order_id}",
+                                    component="entrega",
+                                    label="El camarero sirve la mesa",
+                                    detail=", ".join(dishes)[:200],
+                                    duration_ms=int((time.monotonic() - started) * 1000),
+                                )
+                            ],
                         ),
                     )
                     self._emit_snapshot(tx, current, serve_event, correlation_id)
@@ -838,6 +922,14 @@ class RestaurantService:
                 return
             if isinstance(outcome, WaiterTurnResult):
                 self._apply_report(tx, row.conversation_id, outcome.seating)
+                if outcome.activity:
+                    ordered = self._customer_message(tx, row.conversation_id, job.event_id)
+                    if ordered is not None:
+                        # The waiter's final list replaces the steps seen live.
+                        tx.update_message(
+                            row.conversation_id,
+                            ordered.model_copy(update={"activity": list(outcome.activity)}),
+                        )
                 row.customer = outcome.customer
                 row.order_draft = outcome.order_draft
                 row.turn_count = outcome.turn_count

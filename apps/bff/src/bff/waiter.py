@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
 import httpx
 
+from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ActorContext
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 from restaurant_contracts.kitchen import KitchenReport
@@ -24,6 +28,10 @@ from restaurant_contracts.waiter import (
 )
 
 WaiterMode = Literal["scripted", "remote"]
+# Where the waiter's live steps go during the turn being run.
+TURN_ACTIVITY: ContextVar[Callable[[ActivityStep], None] | None] = ContextVar(
+    "turn_activity", default=None
+)
 
 
 @dataclass(frozen=True)
@@ -52,6 +60,7 @@ class WaiterTurnResult:
     seating: SeatingReport | None = None
     # The kitchen's answer when the waiter sent it the order in this turn.
     kitchen: KitchenReport | None = None
+    activity: tuple[ActivityStep, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -153,9 +162,7 @@ class RemoteWaiter:
             correlation_id=turn.correlation_id,
             visit_id=turn.visit_id,
         )
-        result = await self._post(
-            request, turn.conversation_id, turn.actor.actor_id, WAITER_TURN_RESPONSE_ADAPTER
-        )
+        result = await self._stream_turn(request, turn.conversation_id, turn.actor.actor_id)
         _raise_failure(result)
         return WaiterTurnResult(
             reply=result.reply,
@@ -168,7 +175,65 @@ class RemoteWaiter:
             session_json=result.session_json,
             seating=result.seating,
             kitchen=result.kitchen,
+            activity=tuple(result.activity),
         )
+
+    async def _stream_turn(
+        self, request: WaiterTurnRequest, conversation_id: str, actor_id: str
+    ) -> Any:
+        """Relay each activity line live; the last line is the typed result."""
+
+        lines: list[str] = []
+        buffer = ""
+
+        def take(piece: str) -> None:
+            if not piece.strip():
+                return
+            step = _activity_line(piece)
+            if step is None:
+                lines.append(piece)
+                return
+            sink = TURN_ACTIVITY.get()
+            if sink is not None:
+                sink(step)
+
+        try:
+            async with self._client.stream(
+                "POST",
+                self._url,
+                json={
+                    "model": "restaurant",
+                    "input": request.model_dump_json(),
+                    "conversation": {"id": conversation_id},
+                    "store": False,
+                    "stream": True,
+                },
+                headers={"x-agent-user-id": actor_id},
+            ) as response:
+                response.raise_for_status()
+                if "text/event-stream" not in response.headers.get("content-type", ""):
+                    text = self._output_text(json.loads(await response.aread()))
+                    for piece in text.split("\n"):
+                        take(piece)
+                else:
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        data = json.loads(line[5:].strip())
+                        kind = data.get("type")
+                        if kind == "response.output_text.delta":
+                            buffer += data.get("delta", "")
+                            while "\n" in buffer:
+                                piece, buffer = buffer.split("\n", 1)
+                                take(piece)
+                        elif kind in ("response.failed", "response.incomplete"):
+                            raise ValueError("Remote waiter response did not complete")
+                    take(buffer)
+            if not lines:
+                raise ValueError("Remote waiter response has no result")
+            return WAITER_TURN_RESPONSE_ADAPTER.validate_json(lines[-1])
+        except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
+            raise WaiterUnavailableError(type(exc).__name__) from exc
 
     async def decide_seating(
         self, call: WaiterSeatingCall, *, approved: bool, proposal_token: str
@@ -262,6 +327,19 @@ class RemoteWaiter:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+
+def _activity_line(piece: str) -> ActivityStep | None:
+    try:
+        payload = json.loads(piece)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict) or set(payload) != {"activity"}:
+        return None
+    try:
+        return ActivityStep.model_validate(payload["activity"])
+    except ValueError:
+        return None
 
 
 def _seating_fields(call: WaiterSeatingCall) -> dict[str, Any]:

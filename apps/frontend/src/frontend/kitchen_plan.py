@@ -41,8 +41,9 @@ def _agent(name: str, x: int, y: int, *, chef: bool = False, busy: bool = False)
         '<circle class="halo-agente" r="32" fill="url(#k-halo)"/>'
         f'<ellipse rx="21" ry="13" fill="{body}" stroke="#6b5a4a" stroke-width="1.5"/>'
         f'{toque}<circle r="10" fill="#ead7b3"/>'
-        f'<text y="-30" text-anchor="middle">{escape(name)}</text>'
-        '<circle class="estado-agente" cx="23" cy="8" r="5"/>'
+        # Specialists are named by their station's label; only the chef carries a name.
+        + (f'<text y="-30" text-anchor="middle">{escape(name)}</text>' if chef else "")
+        + '<circle class="estado-agente" cx="23" cy="8" r="5"/>'
         '</g>'
     )
 
@@ -108,8 +109,10 @@ def kitchen_plan_svg(active: bool, plan: KitchenPlan | None, served: bool = Fals
         '<rect x="72" y="112" width="356" height="38" rx="6" fill="#4a3322" '
         'stroke="#8a6644" stroke-width="2"/>'
         '<path d="M82,121 H418" stroke="#b08457" stroke-width="3"/>'
-        '<path d="M24,316 V24 H476 V316" fill="none" stroke="#cdba95" '
+        '<path d="M24,316 V288 M24,228 V24 H476 V316" fill="none" stroke="#cdba95" '
         'stroke-width="10" stroke-linecap="square"/>'
+        '<rect x="17" y="228" width="14" height="60" rx="2" fill="#4a3322" '
+        'stroke="#b08457" stroke-width="2"/>'
         '<text class="titulo-cocina" x="42" y="54">Cocina</text>'
         '<rect class="marco-estado" x="350" y="35" width="118" height="27" rx="13.5"/>'
         f'<text class="estado-cocina" x="458" y="54" text-anchor="end">{status}</text>'

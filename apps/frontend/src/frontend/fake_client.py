@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any, Literal
 
+from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import (
     Action,
     ActorContext,
@@ -403,8 +404,40 @@ class FakeRestaurant:
             if isinstance(kitchen.result, KitchenPlan) and kitchen.result.accepted:
                 dishes = [f"{item.quantity} × {item.name}" for item in kitchen.result.accepted]
                 conversation.at_pass.append((kitchen.result.order_id, dishes, self._monotonic()))
+        self._attach_activity(conversation, command.event_id, preferences + restrictions, kitchen)
         self._say(conversation, command, correlation_id, reply, pause=self.pause_seconds)
         return None
+
+    def _attach_activity(
+        self,
+        conversation: _Conversation,
+        command_event_id: str,
+        remembered: list[str],
+        kitchen: KitchenReport | None,
+    ) -> None:
+        """Simulated steps, shaped like the real waiter's, on the customer's message."""
+
+        def step(component: str, label: str, detail: str | None = None, ms: int = 0) -> ActivityStep:
+            return ActivityStep(
+                step_id=self._next_id("paso"), component=component, label=label, detail=detail, duration_ms=ms
+            )
+
+        steps = [
+            step("memoria", "Lee la memoria del cliente", "Simulada", 4),
+            step("camarero", "El camarero razona con el modelo", "Camarero simulado", 900),
+        ]
+        if kitchen is not None:
+            lines = len(kitchen.order.lines)
+            steps += [
+                step("cocina", "A2A: envía la comanda a cocina", f"{lines} líneas", 1200),
+                step("chef", "Chef analiza la comanda", f"{lines} líneas", 600),
+                step("foundry_iq", "Foundry IQ: carta y recetario", "Carta simulada", 300),
+            ]
+        if remembered:
+            steps.append(step("memoria", "Guarda en memoria", "; ".join(remembered)[:200], 5))
+        for index, message in enumerate(conversation.messages):
+            if message.role == "user" and message.command_event_id == command_event_id:
+                conversation.messages[index] = message.model_copy(update={"activity": steps})
 
     def _decide(
         self, conversation: _Conversation, command: DecideTableCommand, correlation_id: str

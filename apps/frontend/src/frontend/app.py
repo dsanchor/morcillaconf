@@ -18,6 +18,7 @@ from restaurant_contracts.client import BffClientError
 from frontend.config import ClientConfigurationError, FrontendSettings, client_connector
 from frontend.markup import (
     Reveal,
+    activity_markup,
     command_row_markup,
     conversation_markup,
     door_hint_markup,
@@ -113,6 +114,9 @@ def _render_inside(*, opening: bool) -> None:
                         _command_button(visit, item)
                     else:
                         st.markdown(command_row_markup(item), unsafe_allow_html=True)
+            with st.container(key="capo", gap=8):
+                st.toggle("Bajo el capó", key="capo_visible", value=True)
+                activity = st.empty()
     if opening:
         state.opened_at = time.monotonic()
     with st.container(key="sala", gap=10):
@@ -133,6 +137,10 @@ def _render_inside(*, opening: bool) -> None:
         greeting = visit.greeting_id
         reveal = Reveal(greeting, reveal_pace) if reveal_pace and greeting else None
         window.markdown(conversation_markup(visit.view(), reveal=reveal), unsafe_allow_html=True)
+        if state.get("capo_visible", True):
+            activity.markdown(activity_markup(visit.view().messages), unsafe_allow_html=True)
+        else:
+            activity.empty()
 
     seating_before = _seating_of(visit)
     if text is not None:

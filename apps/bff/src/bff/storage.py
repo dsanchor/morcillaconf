@@ -356,6 +356,12 @@ class Transaction:
             ),
         )
 
+    def update_message(self, conversation_id: str, message: ChatMessage) -> None:
+        self._connection.execute(
+            "UPDATE messages SET message_json = ? WHERE conversation_id = ? AND message_id = ?",
+            (message.model_dump_json(), conversation_id, message.message_id),
+        )
+
     def list_messages(self, conversation_id: str) -> list[ChatMessage]:
         rows = self._connection.execute(
             "SELECT message_json FROM messages WHERE conversation_id = ? "

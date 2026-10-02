@@ -13,6 +13,7 @@ from pydantic import (
     model_validator,
 )
 
+from restaurant_contracts.activity import MAX_ACTIVITY_STEPS, ActivityStep
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
 from restaurant_contracts.kitchen import RENDERED_TEXT_LIMIT, KitchenReport
 from restaurant_contracts.memory import MemoryKind
@@ -183,6 +184,10 @@ class ChatMessage(ContractModel):
     # Left out of the JSON when absent, so customer and waiter messages keep
     # the exact shape that earlier versions read.
     kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
+    # What the system did for this message (a customer's message or a serving).
+    activity: list[ActivityStep] = Field(
+        default_factory=list, max_length=MAX_ACTIVITY_STEPS, exclude_if=lambda value: not value
+    )
 
     @model_validator(mode="after")
     def kitchen_messages_carry_their_report(self) -> "ChatMessage":

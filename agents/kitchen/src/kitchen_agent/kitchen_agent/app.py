@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 
 from a2a.helpers import new_task_from_user_message
@@ -24,8 +25,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.kitchen import KitchenOrder
 
+from kitchen_agent import progress
 from kitchen_agent.config import Settings
 from kitchen_agent.service import KitchenService
 
@@ -73,6 +76,16 @@ class KitchenAgentExecutor(AgentExecutor):
         updater = TaskUpdater(event_queue, task.id, context.context_id)
         await updater.submit()
         await updater.start_work()
+
+        async def publish(step: ActivityStep) -> None:
+            await updater.update_status(
+                state=TaskState.TASK_STATE_WORKING,
+                message=updater.new_agent_message(
+                    [Part(text=json.dumps({"activity": step.model_dump(mode="json")}))]
+                ),
+            )
+
+        progress.install(publish)
         try:
             request = KitchenOrder.model_validate_json(request_text(context))
             result = await self._service.plan(request)

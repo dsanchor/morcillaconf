@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter
 
+from .activity import MAX_ACTIVITY_STEPS, ActivityStep
 from .application import ActorContext
 from .customer import CustomerSnapshot, OrderDraft
 from .kitchen import KitchenReport
@@ -135,6 +136,9 @@ class WaiterTurnSuccess(WireModel):
     # Left out of the JSON when absent, so a BFF of the previous version still
     # reads every other turn while both are being redeployed.
     kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
+    activity: list[ActivityStep] = Field(
+        default_factory=list, max_length=MAX_ACTIVITY_STEPS, exclude_if=lambda value: not value
+    )
 
 
 class WaiterSeatingSuccess(WireModel):

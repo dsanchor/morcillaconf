@@ -12,6 +12,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from restaurant_agent import seating as seating_state
+from restaurant_agent.activity import instant, tracked
 from restaurant_agent.kitchen_tool import take_kitchen_report
 
 from restaurant_agent.contracts import (
@@ -322,6 +323,15 @@ class ConversationManager:
                 )
 
             self._refresh_remembered_memories(record)
+            if record.authenticated and self._memory_store is not None:
+                remembered = record.remembered_memories
+                instant(
+                    "memoria",
+                    "Lee la memoria del cliente",
+                    "; ".join(memory.value for memory in remembered)[:200]
+                    if remembered
+                    else "Sin recuerdos de otras visitas",
+                )
             # Only the kitchen's answer to this turn's order reaches the response.
             take_kitchen_report(record.agent_session.state)
             prompt = self._build_prompt(record, normalized_message)
@@ -344,9 +354,10 @@ class ConversationManager:
                 # inline on a later stateless Responses request.
                 _compact_completed_tool_history(record.agent_session.state)
             try:
-                response = await self._run(
-                    record, run_input, options={"response_format": WaiterModelResult}
-                )
+                with tracked("camarero", "El camarero razona con el modelo"):
+                    response = await self._run(
+                        record, run_input, options={"response_format": WaiterModelResult}
+                    )
             finally:
                 kitchen = take_kitchen_report(record.agent_session.state)
             paused = bool(
@@ -412,6 +423,12 @@ class ConversationManager:
                 record,
                 candidates=memory_candidates,
             )
+            if persisted and memory_candidates:
+                instant(
+                    "memoria",
+                    "Guarda en memoria",
+                    "; ".join(candidate.value for candidate in memory_candidates)[:200],
+                )
             if persisted and order_preference is not None:
                 record.persisted_order_preferences.add(
                     order_preference.value.casefold()

@@ -6,6 +6,7 @@ from dataclasses import replace
 import httpx
 from fastapi.testclient import TestClient
 
+from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ActorContext, ChatMessage
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 from restaurant_contracts.kitchen import (
@@ -28,7 +29,7 @@ from bff.main import create_app
 from bff.scripted import ScriptedWaiterAgent
 from bff.service import RestaurantService
 from bff.storage import Database
-from bff.waiter import RemoteWaiter, WaiterTurn, WaiterTurnResult
+from bff.waiter import TURN_ACTIVITY, RemoteWaiter, WaiterTurn, WaiterTurnResult
 
 ORDER = KitchenOrder(
     order_id="ko_1",
@@ -183,6 +184,42 @@ async def test_the_kitchen_message_is_persisted_with_its_typed_result(settings, 
     assert messages[2].kitchen == FAILED and messages[2].kitchen.result.code is KitchenFailureCode.NOT_CONFIGURED
     last_snapshot = [event for event in events if event["event_type"] == "snapshot.updated"][-1]
     assert [message["role"] for message in last_snapshot["snapshot"]["messages"]][-2:] == ["kitchen", "assistant"]
+
+
+class SteppingWaiter(KitchenWaiter):
+    """Reports one live step during the turn and returns the final list."""
+
+    async def take_turn(self, turn: WaiterTurn) -> WaiterTurnResult:
+        running = ActivityStep(step_id="cocina-1", component="cocina", label="A2A: envía la comanda a cocina", status="running")
+        TURN_ACTIVITY.get()(running)
+        result = await super().take_turn(turn)
+        return replace(result, activity=(running.model_copy(update={"status": "done", "duration_ms": 900}),))
+
+
+async def test_live_steps_are_published_on_the_customer_message(settings, clock, commands) -> None:
+    database = Database(settings.bff_database_path)
+    memory_store = SQLiteMemoryStore(settings.bff_database_path.with_name("test-waiter-memory.db"))
+    waiter = SteppingWaiter(
+        LocalWaiter(ScriptedWaiterAgent(), mode="scripted", max_turns=20, memory_store=memory_store), FAILED
+    )
+    service = RestaurantService(database=database, waiter=waiter, clock=clock)
+    session = service.authenticate(service.open_session("Ana").token)
+    arrival = await service.submit(session, commands.arrive())
+    await service.submit(session, commands.say(arrival.conversation_id, "Pido una morcilla"))
+    await service.drain()
+
+    with database.read() as tx:
+        events = [json.loads(raw) for _, raw in tx.events_after(arrival.conversation_id, 0)]
+    live = [
+        event["snapshot"]
+        for event in events
+        if event["event_type"] == "snapshot.updated" and event["snapshot"]["process_status"] == "processing"
+        and any(message.get("activity") for message in event["snapshot"]["messages"])
+    ]
+    assert live and live[0]["messages"][-1]["activity"][0]["status"] == "running"
+    snapshot = service.get_snapshot(session, arrival.conversation_id)
+    customer = next(message for message in snapshot.messages if message.role == "user")
+    assert [(step.step_id, step.status) for step in customer.activity] == [("cocina-1", "done")]
 
 
 async def test_the_waiter_serves_the_cooked_dishes_once_after_the_pass(settings, clock, commands) -> None:

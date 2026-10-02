@@ -114,6 +114,33 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .st-key-comandos button:hover { background: rgba(242, 176, 74, .08) !important; }
 .stApp .st-key-comandos button:hover p { color: var(--luz); }
 .stApp .st-key-comandos button:disabled { opacity: .45; }
+
+/* «Bajo el capó»: the system's steps behind each message, in the scene's palette. */
+.stApp .st-key-capo { padding: 0 6px; }
+.stApp .st-key-capo [data-testid="stWidgetLabel"] p { font: 500 .95rem/1.2 var(--sans); color: var(--piedra); }
+.stApp .capo-panel { display: grid; gap: 12px; max-height: calc(100vh - 300px); overflow-y: auto; }
+.stApp .capo-vacio { margin: 0; font: italic .85rem/1.35 var(--serif); color: var(--piedra-tenue); }
+.stApp .capo-turno { border-top: 1px solid var(--roble-medio); padding-top: 8px; }
+.stApp .capo-titulo { margin: 0 0 6px; font: italic .85rem/1.3 var(--serif); color: var(--piedra); overflow-wrap: anywhere; }
+.stApp .capo-turno ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.stApp .capo-paso {
+  --tono: var(--veta);
+  display: grid; grid-template-columns: 1fr auto; column-gap: 6px;
+  padding: 4px 0 4px 9px; border-left: 3px solid var(--tono);
+  font: 400 .78rem/1.3 var(--sans); color: var(--piedra);
+}
+.stApp .capo-paso.memoria { --tono: var(--vino); }
+.stApp .capo-paso.mcp { --tono: var(--piedra-tenue); }
+.stApp .capo-paso.cocina, .stApp .capo-paso.chef, .stApp .capo-paso.especialista { --tono: #7fa3d4; }
+.stApp .capo-paso.foundry_iq { --tono: var(--luz); }
+.stApp .capo-paso.entrega { --tono: #b08457; }
+.stApp .capo-componente { font-weight: 700; color: var(--tono); letter-spacing: .03em; }
+.stApp .capo-tiempo { font-family: var(--mono); font-size: .7rem; color: var(--piedra-tenue); }
+.stApp .capo-etiqueta, .stApp .capo-detalle { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.stApp .capo-detalle { color: var(--piedra-tenue); font-size: .72rem; }
+.stApp .capo-paso.running { animation: parpadeo-pase 1.1s ease-in-out infinite; }
+.stApp .capo-paso.running .capo-tiempo { color: var(--luz); }
+.stApp .capo-paso.failed { --tono: #d0604a; }
 .stApp .comando .arg { color: var(--piedra-tenue); font-style: italic; }
 
 /* The conversation window: oak frame with iron corner brackets. */
@@ -374,6 +401,7 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   .stApp .escribiendo i,
   .stApp .pila .saludo { animation: none !important; }
   .stApp .cocina-plano .marco-estado,
+  .stApp .capo-paso.running,
   .stApp .cocina-plano .halo-agente,
   .stApp .cocina-plano .estado-agente { animation: none !important; }
   .stApp .pila .aguarda { display: none; }

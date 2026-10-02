@@ -47,6 +47,8 @@ WALK_SECONDS = 3.6
 SERVE_SECONDS = 2.6
 # The pass: the hatch in the right wall through which the kitchen hands out dishes.
 PASS = (944, 258)
+# The hatch's span in the right wall; the kitchen opens its left wall at the same height.
+PASS_OPENING = (228, 288)
 SERVE_MIDPOINT = (560, 140)
 ROUND_SLOTS = 4
 MAX_ROUND_CHAIRS = 6
@@ -156,9 +158,10 @@ def _bar(stools: tuple[tuple[int, int], ...] = STOOLS) -> str:
 
 def _walls() -> str:
     gap_left, gap_right = DOOR_GAP
+    pass_top, pass_bottom = PASS_OPENING
     return (
-        f'<path d="M{gap_right},316 H976 V24 H24 V316 H{gap_left}" fill="none" '
-        'stroke="#cdba95" stroke-width="10" stroke-linecap="square"/>'
+        f'<path d="M{gap_right},316 H976 V{pass_bottom} M976,{pass_top} V24 H24 V316 H{gap_left}" '
+        'fill="none" stroke="#cdba95" stroke-width="10" stroke-linecap="square"/>'
         f'<path d="M{gap_left},316 V{316 - (gap_right - gap_left)}" stroke="#cdba95" '
         'stroke-width="3"/>'
         f'<path d="M{gap_right},316 A{gap_right - gap_left},{gap_right - gap_left} 0 0 0 '
@@ -356,11 +359,12 @@ def _plates(slot: _Slot, seats: list[tuple[float, float, bool]], count: int) -> 
 
 
 def _pass_hatch() -> str:
-    x, y = PASS
+    x, _ = PASS
+    top, bottom = PASS_OPENING
     return (
-        f'<rect x="{x + 22}" y="{y - 30}" width="14" height="60" rx="2" fill="#4a3322" '
+        f'<rect x="969" y="{top}" width="14" height="{bottom - top}" rx="2" fill="#4a3322" '
         'stroke="#b08457" stroke-width="2"/>'
-        f'<text class="pase" x="{x - 2}" y="{y + 46}" text-anchor="middle" aria-hidden="true">pase</text>'
+        f'<text class="pase" x="{x - 2}" y="{bottom + 16}" text-anchor="middle" aria-hidden="true">pase</text>'
     )
 
 
