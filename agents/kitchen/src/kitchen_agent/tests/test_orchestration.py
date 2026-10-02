@@ -137,6 +137,23 @@ async def test_group_chat_routes_to_all_required_specialists_and_they_accept() -
     ]
 
 
+async def test_a_single_station_order_is_reviewed_by_its_only_specialist() -> None:
+    full = plan()
+    single = KitchenPlan(
+        order_id=full.order_id,
+        accepted=full.accepted[:1],
+        stations=full.stations[:1],
+    )
+    single_order = KitchenOrder(order_id="ko_group", lines=order().lines[:1])
+
+    result = await ChefCoordination(
+        lambda name: AcceptingSpecialistClient(name)
+    ).review(single_order, single)
+
+    assert result.verdict == "accepted"
+    assert [item.line for item in result.accepted] == [1]
+
+
 def test_the_chef_rejects_a_line_when_its_specialist_rejects_it() -> None:
     replies = [
         SpecialistReply(

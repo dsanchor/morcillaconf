@@ -133,9 +133,10 @@ class KitchenService:
             result = kitchen_failure(order, KitchenFailureCode.INVALID_PLAN)
         except Exception as exc:
             logger.warning(
-                "Kitchen failed on %s: %s",
+                "Kitchen failed on %s: %s: %s",
                 order.order_id,
                 type(exc).__name__,
+                str(exc)[:300],
             )
             result = kitchen_failure(order, KitchenFailureCode.CHEF_UNAVAILABLE)
         outcome = (

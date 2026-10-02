@@ -76,15 +76,19 @@ class ChefCoordination:
         if not required:
             return plan
         specialists = create_specialists(self._client_factory)
-        workflow = ConcurrentBuilder(
-            name=f"kitchen-{order.order_id}",
-            participants=[specialists[name] for name in required],
-        ).build()
-        result = await workflow.run(coordination_payload(plan))
-        outputs = result.get_outputs()
-        responses = [
-            output for output in outputs if isinstance(output, AgentResponse)
-        ]
+        payload = coordination_payload(plan)
+        if len(required) == 1:
+            # ConcurrentBuilder needs at least two participants to fan out.
+            responses = [await specialists[required[0]].run(payload)]
+        else:
+            workflow = ConcurrentBuilder(
+                name=f"kitchen-{order.order_id}",
+                participants=[specialists[name] for name in required],
+            ).build()
+            result = await workflow.run(payload)
+            responses = [
+                output for output in result.get_outputs() if isinstance(output, AgentResponse)
+            ]
         if not responses:
             raise InvalidSpecialistAnswer("group chat produced no conversation")
         replies = _parse_replies(
