@@ -176,7 +176,7 @@ class FakeRestaurant:
         max_turns: int = 20,
         retained_events: int | None = None,
         clock: Callable[[], datetime] | None = None,
-        serve_seconds: float = 3.0,
+        serve_seconds: float = 15.0,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         if pause_seconds < 0:

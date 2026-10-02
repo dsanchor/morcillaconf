@@ -388,6 +388,7 @@ apply_app "$BFF_APP_NAME" "$BFF_IMAGE" internal 8000 false \
   "BFF_SESSION_TTL_HOURS=$BFF_SESSION_TTL_HOURS" \
   "BFF_EVENT_RETENTION=$BFF_EVENT_RETENTION" \
   "BFF_SSE_HEARTBEAT_SECONDS=$BFF_SSE_HEARTBEAT_SECONDS" \
+  "BFF_SERVE_DELAY_SECONDS=${BFF_SERVE_DELAY_SECONDS:-15}" \
   "BFF_PORT=8000"
 BFF_FQDN="$(az containerapp show --name "$BFF_APP_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
   --query properties.configuration.ingress.fqdn --output tsv)"

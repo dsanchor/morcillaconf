@@ -26,7 +26,7 @@ def _defs() -> str:
     )
 
 
-def _agent(name: str, x: int, y: int, *, chef: bool = False) -> str:
+def _agent(name: str, x: int, y: int, *, chef: bool = False, busy: bool = False) -> str:
     body = "#8c1c2b" if chef else "#15110f"
     toque = (
         '<g class="toque" transform="translate(0,-14)">'
@@ -36,7 +36,7 @@ def _agent(name: str, x: int, y: int, *, chef: bool = False) -> str:
         else '<path d="M-8,-8 L0,2 L8,-8 Z" fill="#f1e8d6"/>'
     )
     return (
-        f'<g class="agente-cocina {"chef" if chef else "especialista"}" '
+        f'<g class="agente-cocina {"chef" if chef else "especialista"}{" con-platos" if busy else ""}" '
         f'transform="translate({x},{y})">'
         '<circle class="halo-agente" r="32" fill="url(#k-halo)"/>'
         f'<ellipse rx="21" ry="13" fill="{body}" stroke="#6b5a4a" stroke-width="1.5"/>'
@@ -80,7 +80,7 @@ def _station(
         f'<rect x="{x - 41}" y="182" width="82" height="68" rx="4" '
         'fill="#4a3322" stroke="#81603f" stroke-width="1.5"/>'
         f'<text class="nombre-partida" x="{x}" y="164" text-anchor="middle">{label}</text>'
-        f'{_agent(label, x, 217)}{"".join(details)}</g>'
+        f'{_agent(label, x, 217, busy=bool(tasks))}{"".join(details)}</g>'
     )
 
 
@@ -95,8 +95,10 @@ def kitchen_plan_svg(active: bool, plan: KitchenPlan | None, served: bool = Fals
         state, status = "servida", "SERVIDO"
     else:
         state, status = "lista", "EN EL PASE"
+    # Served dishes have left the kitchen: the stations are clear again.
+    shown = None if served else plan
     stations = "".join(
-        _station(label, station_ids, x, plan)
+        _station(label, station_ids, x, shown)
         for label, station_ids, x in STATIONS
     )
     return (
@@ -109,6 +111,7 @@ def kitchen_plan_svg(active: bool, plan: KitchenPlan | None, served: bool = Fals
         '<path d="M24,316 V24 H476 V316" fill="none" stroke="#cdba95" '
         'stroke-width="10" stroke-linecap="square"/>'
         '<text class="titulo-cocina" x="42" y="54">Cocina</text>'
+        '<rect class="marco-estado" x="350" y="35" width="118" height="27" rx="13.5"/>'
         f'<text class="estado-cocina" x="458" y="54" text-anchor="end">{status}</text>'
         f'{_agent("Chef", 250, 87, chef=True)}{stations}</svg>'
     )

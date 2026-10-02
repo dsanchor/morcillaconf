@@ -290,6 +290,16 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .cocina-plano.activa .estado-agente { fill: var(--luz); }
 .stApp .cocina-plano.lista .estado-agente { fill: var(--luz); }
 .stApp .cocina-plano.servida .estado-agente { fill: var(--vino); }
+/* At the pass: an amber pill and glowing stations, so the waiter's cue stands out. */
+.stApp .cocina-plano .marco-estado { display: none; }
+.stApp .cocina-plano.lista .marco-estado {
+  display: inline; fill: var(--luz); stroke: var(--lumbre); stroke-width: 2;
+  animation: parpadeo-pase 1.1s ease-in-out infinite;
+}
+.stApp .cocina-plano.lista .estado-cocina { fill: var(--tinta); font-weight: 700; letter-spacing: .06em; }
+.stApp .cocina-plano.lista .con-platos .halo-agente { opacity: 1; animation: pulso-cocina 1.1s ease-in-out infinite; }
+.stApp .cocina-plano.lista .con-platos .estado-agente { fill: var(--lumbre); animation: parpadeo-pase 1.1s ease-in-out infinite; }
+.stApp .cocina-plano.lista .plato-cocina { fill: var(--lumbre); font-weight: 700; }
 .stApp .planta-marco.entrando { animation: aparecer .9s var(--ease-salida) 2.5s both; }
 
 /* Desktop: the sidebar is locked open. */
@@ -342,6 +352,7 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 
 @keyframes pensar { 0%, 70%, 100% { opacity: .25; transform: none; } 35% { opacity: 1; transform: translateY(-4px); } }
 @keyframes pulso-cocina { 0%, 100% { opacity: .18; } 50% { opacity: 1; } }
+@keyframes parpadeo-pase { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @keyframes abrir-ventana {
   from { clip-path: inset(0 50% 0 50% round 6px); opacity: .35; }
   to { clip-path: inset(0 0 0 0 round 6px); opacity: 1; }
@@ -362,5 +373,8 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   .stApp .planta-marco.entrando,
   .stApp .escribiendo i,
   .stApp .pila .saludo { animation: none !important; }
+  .stApp .cocina-plano .marco-estado,
+  .stApp .cocina-plano .halo-agente,
+  .stApp .cocina-plano .estado-agente { animation: none !important; }
   .stApp .pila .aguarda { display: none; }
 }
