@@ -4,8 +4,8 @@ The waiter sends the chef only the order: dishes, quantities, modifications
 and the allergies or intolerances declared for it, never the customer's
 profile, history or memory. The chef answers with a plan that has passed
 deterministic validation, or with an explicit failure; never with an
-invented plan. ``KitchenPort`` is the boundary between both: in-process
-today, a remote agent later, without changing the waiter.
+invented plan. ``KitchenPort`` is the boundary between both: the waiter uses
+it without depending on the A2A transport used by the external kitchen.
 """
 
 from __future__ import annotations
@@ -193,6 +193,7 @@ class KitchenPlan(KitchenModel):
 
 
 class KitchenFailureCode(StrEnum):
+    KITCHEN_NOT_CONFIGURED = "kitchen_not_configured"
     NOT_CONFIGURED = "knowledge_not_configured"
     KNOWLEDGE_UNAVAILABLE = "knowledge_unavailable"
     CARTA_NOT_CONSULTED = "carta_not_consulted"
@@ -236,7 +237,7 @@ class KitchenReport(KitchenModel):
 
 
 class KitchenPort(Protocol):
-    """Where the waiter sends an order: the chef in-process today, remote later."""
+    """Where the waiter sends an order: the external kitchen A2A agent."""
 
     async def plan(self, order: KitchenOrder) -> KitchenPlan | KitchenFailure:
         """Never raises: every problem becomes an explicit ``KitchenFailure``."""

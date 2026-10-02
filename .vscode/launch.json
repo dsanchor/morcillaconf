@@ -2,6 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Debug Kitchen A2A Agent",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5680
+      },
+      "preLaunchTask": "Open Kitchen Agent Inspector",
+      "internalConsoleOptions": "neverOpen",
+      "postDebugTask": "Terminate All Tasks"
+    },
+    {
       "name": "Debug Local Agent/Workflow HTTP Server",
       "type": "debugpy",
       "request": "attach",

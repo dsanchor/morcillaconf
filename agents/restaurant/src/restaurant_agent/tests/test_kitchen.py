@@ -8,28 +8,33 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from pathlib import Path
 
 import pytest
+import uvicorn
 from mcp.types import CallToolResult, TextContent
 
-import restaurant_agent.kitchen.port as kitchen_port
-import restaurant_agent.knowledge as knowledge
+import kitchen_agent.knowledge as knowledge
+import kitchen_agent.service as kitchen_service
 from knowledge_stub import KB_NAME, StubKnowledge, build_server
-from restaurant_agent.agent import create_waiter_agent
-from restaurant_agent.config import Settings
-from restaurant_agent.conversation import ConversationManager
-from restaurant_agent.kitchen import InProcessKitchen
-from restaurant_agent.kitchen.agent import ChefDraft
-from restaurant_agent.kitchen.allergens import declared, restricted
-from restaurant_agent.kitchen.evidence import parse
-from restaurant_agent.kitchen.rendering import render_text
-from restaurant_agent.kitchen.validation import (
+from kitchen_agent.app import create_app as create_kitchen_app
+from kitchen_agent.chef import ChefDraft
+from kitchen_agent.config import Settings as KitchenSettings
+from kitchen_agent.service import KitchenService
+from kitchen_agent.allergens import declared, restricted
+from kitchen_agent.evidence import parse
+from kitchen_agent.validation import (
     NOT_EVALUATED,
     NOT_IN_CARTA,
     build_plan,
 )
+from restaurant_agent.agent import create_waiter_agent
+from restaurant_agent.config import Settings
+from restaurant_agent.conversation import ConversationManager
+from restaurant_agent.kitchen import A2AKitchen
+from restaurant_agent.kitchen.rendering import render_text
 from restaurant_agent.kitchen_tool import (
     ALREADY_ANSWERED,
     KITCHEN_CALLED_KEY,
@@ -398,13 +403,6 @@ def fake_search_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(knowledge, "search_token", lambda settings: FakeToken())
 
 
-@pytest.fixture(autouse=True)
-def no_recorded_outages():
-    knowledge._OUTAGES.clear()
-    yield
-    knowledge._OUTAGES.clear()
-
-
 @pytest.fixture
 def kb_server():
     stub = StubKnowledge(
@@ -441,6 +439,27 @@ def settings(port: int | None = None, **overrides: object) -> Settings:
     return Settings(**values)
 
 
+def kitchen_settings(
+    port: int | None = None, **overrides: object
+) -> KitchenSettings:
+    values: dict[str, object] = {
+        "_env_file": None,
+        "foundry_project_endpoint": (
+            "https://example.services.ai.azure.com/api/projects/demo"
+        ),
+        "azure_ai_model_deployment_name": "test-model",
+        "knowledge_base_timeout_seconds": 5,
+        "kitchen_timeout_seconds": 10,
+    }
+    if port is not None:
+        values.update(
+            azure_search_endpoint=f"http://127.0.0.1:{port}",
+            knowledge_base_name=KB_NAME,
+        )
+    values.update(overrides)
+    return KitchenSettings(**values)
+
+
 def lookup(call_id: str = "kb_carta") -> dict:
     return {"calls": [(call_id, KNOWLEDGE_TOOL, {"query_variants": ["Carta de la casa: morcilla a la brasa"]})]}
 
@@ -456,13 +475,15 @@ CELIAC_DRAFT = {
 }
 
 
-def kitchen(configured: Settings, chef: ScriptedModel) -> InProcessKitchen:
-    return InProcessKitchen(configured, client_factory=lambda _: chef)
+def kitchen(
+    configured: KitchenSettings, chef: ScriptedModel
+) -> KitchenService:
+    return KitchenService(configured, client_factory=lambda _: chef)
 
 
 async def test_the_chef_plans_from_the_knowledge_base_with_only_the_order(kb_server) -> None:
     chef = ScriptedModel([lookup(), {"result": CELIAC_DRAFT}])
-    result = await kitchen(settings(kb_server.port), chef).plan(CELIAC_ORDER)
+    result = await kitchen(kitchen_settings(kb_server.port), chef).plan(CELIAC_ORDER)
 
     assert isinstance(result, KitchenPlan)
     assert [item.carta_id for item in result.accepted] == ["morcilla-de-burgos-a-la-brasa"]
@@ -480,7 +501,7 @@ async def test_the_chef_plans_from_the_knowledge_base_with_only_the_order(kb_ser
 
 async def test_without_a_knowledge_base_the_kitchen_says_it_cannot_consult_the_carta() -> None:
     chef = ScriptedModel()
-    result = await kitchen(settings(), chef).plan(CELIAC_ORDER)
+    result = await kitchen(kitchen_settings(), chef).plan(CELIAC_ORDER)
     assert isinstance(result, KitchenFailure) and result.code is KitchenFailureCode.NOT_CONFIGURED
     assert result.message.startswith("Cocina no puede consultar la carta")
     assert chef.calls == []
@@ -488,7 +509,7 @@ async def test_without_a_knowledge_base_the_kitchen_says_it_cannot_consult_the_c
 
 async def test_an_unreachable_knowledge_base_fails_the_order_without_calling_the_model() -> None:
     chef = ScriptedModel()
-    result = await kitchen(settings(free_port()), chef).plan(CELIAC_ORDER)
+    result = await kitchen(kitchen_settings(free_port()), chef).plan(CELIAC_ORDER)
     assert isinstance(result, KitchenFailure) and result.code is KitchenFailureCode.KNOWLEDGE_UNAVAILABLE
     assert chef.calls == []
 
@@ -496,25 +517,25 @@ async def test_an_unreachable_knowledge_base_fails_the_order_without_calling_the
 async def test_a_failed_retrieval_is_a_failure_whatever_the_chef_answers(kb_server) -> None:
     kb_server.stub.fail = True
     chef = ScriptedModel([lookup(), {"result": CELIAC_DRAFT}])
-    result = await kitchen(settings(kb_server.port), chef).plan(CELIAC_ORDER)
+    result = await kitchen(kitchen_settings(kb_server.port), chef).plan(CELIAC_ORDER)
     assert isinstance(result, KitchenFailure) and result.code is KitchenFailureCode.KNOWLEDGE_UNAVAILABLE
 
 
 async def test_a_chef_that_did_not_consult_the_carta_cannot_answer(kb_server) -> None:
     chef = ScriptedModel([{"result": CELIAC_DRAFT}])
-    result = await kitchen(settings(kb_server.port), chef).plan(CELIAC_ORDER)
+    result = await kitchen(kitchen_settings(kb_server.port), chef).plan(CELIAC_ORDER)
     assert isinstance(result, KitchenFailure) and result.code is KitchenFailureCode.CARTA_NOT_CONSULTED
 
 
 async def test_an_answer_that_is_not_a_plan_is_rejected(kb_server) -> None:
     chef = ScriptedModel([lookup(), {"result": {"plato": "morcilla"}}])
-    result = await kitchen(settings(kb_server.port), chef).plan(CELIAC_ORDER)
+    result = await kitchen(kitchen_settings(kb_server.port), chef).plan(CELIAC_ORDER)
     assert isinstance(result, KitchenFailure) and result.code is KitchenFailureCode.INVALID_PLAN
 
 
 async def test_a_chef_model_error_is_an_explicit_failure(kb_server) -> None:
     chef = ScriptedModel([lookup()])  # The second model call has no script and raises.
-    result = await kitchen(settings(kb_server.port), chef).plan(CELIAC_ORDER)
+    result = await kitchen(kitchen_settings(kb_server.port), chef).plan(CELIAC_ORDER)
     assert isinstance(result, KitchenFailure) and result.code is KitchenFailureCode.CHEF_UNAVAILABLE
 
 
@@ -522,23 +543,24 @@ async def test_the_whole_plan_is_bounded_by_the_kitchen_timeout(kb_server) -> No
     kb_server.stub.delay_seconds = 4
     chef = ScriptedModel([lookup(), {"result": CELIAC_DRAFT}])
     started = time.monotonic()
-    result = await kitchen(settings(kb_server.port, kitchen_timeout_seconds=1), chef).plan(CELIAC_ORDER)
+    result = await kitchen(
+        kitchen_settings(kb_server.port, kitchen_timeout_seconds=1),
+        chef,
+    ).plan(CELIAC_ORDER)
     # The answer comes at the deadline, not when the stalled lookup ends.
     assert time.monotonic() - started < 2.5
     assert isinstance(result, KitchenFailure) and result.code is KitchenFailureCode.TIMEOUT
-    await asyncio.gather(*kitchen_port.BACKGROUND, return_exceptions=True)
-    assert not kitchen_port.BACKGROUND
+    await asyncio.gather(*kitchen_service.BACKGROUND, return_exceptions=True)
+    assert not kitchen_service.BACKGROUND
 
 
-def test_the_chef_model_is_configurable_and_defaults_to_the_waiters() -> None:
-    assert settings().kitchen_model == "test-model"
-    assert settings(kitchen_model_deployment_name="gpt-4.1-mini").kitchen_model == "gpt-4.1-mini"
-    assert settings(kitchen_model_deployment_name=" ").kitchen_model_deployment_name is None
-    assert settings().kitchen_timeout_seconds == 10 and Settings(
+def test_the_external_kitchen_has_its_own_model_and_timeout() -> None:
+    assert kitchen_settings().azure_ai_model_deployment_name == "test-model"
+    assert kitchen_settings().kitchen_timeout_seconds == 10
+    assert KitchenSettings(
         _env_file=None,
         foundry_project_endpoint="https://example.services.ai.azure.com/api/projects/demo",
         azure_ai_model_deployment_name="test-model",
-        memory_database_path=Path("/tmp/unused-memory.db"),
     ).kitchen_timeout_seconds == 30
 
 
@@ -554,6 +576,142 @@ class FakeKitchen:
     async def plan(self, order: KitchenOrder) -> KitchenPlan:
         self.orders.append(order)
         return build_plan(order, ChefDraft.model_validate(CELIAC_DRAFT), EVIDENCE)
+
+
+class FakeA2ATransport:
+    def __init__(
+        self,
+        result: KitchenPlan | KitchenFailure | None = None,
+        *,
+        delay: float = 0,
+    ) -> None:
+        self.result = result
+        self.delay = delay
+        self.orders: list[KitchenOrder] = []
+
+    async def send(self, value: KitchenOrder) -> str:
+        self.orders.append(value)
+        if self.delay:
+            await asyncio.sleep(self.delay)
+        assert self.result is not None
+        return self.result.model_dump_json()
+
+
+class RunningA2AKitchen:
+    def __init__(self, service: FakeKitchen) -> None:
+        self.port = free_port()
+        app = create_kitchen_app(
+            KitchenSettings(
+                _env_file=None,
+                foundry_project_endpoint=(
+                    "https://example.services.ai.azure.com/api/projects/demo"
+                ),
+                azure_ai_model_deployment_name="test-model",
+                kitchen_a2a_public_url=f"http://127.0.0.1:{self.port}/",
+            ),
+            service=service,
+        )
+        self._server = uvicorn.Server(
+            uvicorn.Config(
+                app,
+                host="127.0.0.1",
+                port=self.port,
+                log_level="warning",
+            )
+        )
+        self._thread = threading.Thread(
+            target=self._server.run,
+            daemon=True,
+        )
+
+    def __enter__(self) -> "RunningA2AKitchen":
+        self._thread.start()
+        deadline = time.monotonic() + 10
+        while not self._server.started:
+            if time.monotonic() > deadline:
+                raise RuntimeError("stub A2A kitchen did not start")
+            time.sleep(0.02)
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self._server.should_exit = True
+        self._thread.join(timeout=10)
+
+    @property
+    def url(self) -> str:
+        return f"http://127.0.0.1:{self.port}"
+
+
+async def test_the_waiter_a2a_port_validates_the_external_kitchen_result() -> None:
+    value = order("morcilla a la brasa")
+    expected = build_plan(
+        value,
+        draft(
+            accept(1, "morcilla-de-burgos-a-la-brasa"),
+            sources=[{"document": "carta"}],
+        ),
+        EVIDENCE,
+    )
+    transport = FakeA2ATransport(expected)
+
+    result = await A2AKitchen(
+        settings(),
+        transport=transport,
+    ).plan(value)
+
+    assert result == expected
+    assert transport.orders == [value]
+
+
+async def test_the_waiter_calls_the_external_kitchen_over_real_a2a() -> None:
+    value = order("morcilla a la brasa")
+    service = FakeKitchen()
+
+    with RunningA2AKitchen(service) as server:
+        result = await A2AKitchen(
+            settings(kitchen_a2a_url=server.url),
+        ).plan(value)
+
+    assert isinstance(result, KitchenPlan)
+    assert result.order_id == value.order_id
+    assert service.orders == [value]
+
+
+async def test_the_waiter_a2a_port_rejects_an_answer_for_another_order() -> None:
+    value = order("morcilla a la brasa")
+    wrong = KitchenFailure(
+        order_id="ko_other",
+        code=KitchenFailureCode.CHEF_UNAVAILABLE,
+        message="No disponible.",
+    )
+
+    result = await A2AKitchen(
+        settings(),
+        transport=FakeA2ATransport(wrong),
+    ).plan(value)
+
+    assert isinstance(result, KitchenFailure)
+    assert result.code is KitchenFailureCode.INVALID_PLAN
+
+
+async def test_the_waiter_bounds_the_whole_a2a_call() -> None:
+    value = order("morcilla a la brasa")
+    transport = FakeA2ATransport(
+        KitchenFailure(
+            order_id=value.order_id,
+            code=KitchenFailureCode.CHEF_UNAVAILABLE,
+            message="No disponible.",
+        ),
+        delay=2,
+    )
+
+    result = await A2AKitchen(
+        settings(kitchen_timeout_seconds=1),
+        transport=transport,
+    ).plan(value)
+
+    assert isinstance(result, KitchenFailure)
+    assert result.code is KitchenFailureCode.TIMEOUT
 
 
 def ask_kitchen(call_id: str = "call_kitchen") -> tuple[str, str, dict]:
@@ -631,15 +789,18 @@ async def test_the_kitchen_is_asked_once_per_turn_even_in_parallel() -> None:
     assert response.kitchen.order == port.orders[0]
 
 
-async def test_without_a_knowledge_base_the_waiter_gets_an_explicit_kitchen_failure() -> None:
-    model = ScriptedModel([{"calls": [ask_kitchen()]}, say("Cocina no puede consultar la carta ahora.")])
+async def test_without_an_a2a_endpoint_the_waiter_gets_an_explicit_kitchen_failure() -> None:
+    model = ScriptedModel([{"calls": [ask_kitchen()]}, say("Cocina no está configurada.")])
     response = await waiter(settings(), model).send_message(
         conversation_id="conv_1", actor_id="ana", message="Una morcilla"
     )
     assert isinstance(response.kitchen.result, KitchenFailure)
-    assert response.kitchen.result.code is KitchenFailureCode.NOT_CONFIGURED
+    assert response.kitchen.result.code is KitchenFailureCode.KITCHEN_NOT_CONFIGURED
     [answer] = function_results(model, 1)
-    assert answer.startswith("kitchen_failed: knowledge_not_configured\nCocina no ha podido preparar el plan")
+    assert answer.startswith(
+        "kitchen_failed: kitchen_not_configured\n"
+        "Cocina no ha podido preparar el plan"
+    )
 
 
 async def test_the_remote_turn_carries_the_kitchen_report(tmp_path) -> None:
@@ -665,12 +826,12 @@ async def test_the_remote_turn_carries_the_kitchen_report(tmp_path) -> None:
 
 
 def test_the_instructions_keep_the_kitchen_rules() -> None:
+    from kitchen_agent.chef import load_instructions as chef_instructions
     from restaurant_agent.agent import load_instructions
-    from restaurant_agent.kitchen.agent import load_instructions as chef_instructions
 
     waiter_rules = " ".join(load_instructions().split())
     assert "pedir_a_cocina" in waiter_rules and "sin alterarlo" in waiter_rules
     assert "Nunca envíes el nombre del cliente" in waiter_rules
     chef_rules = " ".join(chef_instructions().split())
-    for rule in ("No está en la carta.", "pendientes de verificar", "freidora compartida", "no estimes tiempos"):
+    for rule in ("No está en la carta.", "pendientes de verificar", "freidora compartida", "no hables de existencias"):
         assert rule in chef_rules

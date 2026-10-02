@@ -1,6 +1,6 @@
 .env
-scripts/container-apps.env
-scripts/knowledge.env
+scripts/*.env
+!scripts/*.env.example
 .container-apps-deploy.*/
 .local/
 .venv

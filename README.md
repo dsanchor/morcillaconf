@@ -210,16 +210,18 @@ servicio Basic no se puede pausar.
 Cuando el pedido está claro, el camarero se lo pasa al chef con la tool
 `pedir_a_cocina`: platos, cantidades, modificaciones («sin cebolla») y las
 alergias o intolerancias declaradas, nada más. El chef es un agente de Agent
-Framework sin sesión ni memoria que vive en el mismo contenedor que el
-camarero y cuya única herramienta es la misma base de conocimiento:
+Framework sin sesión ni memoria que vive en su propio contenedor. El camarero
+lo invoca mediante A2A y el chef consulta la misma base de conocimiento:
 
 - comprueba cada plato en la carta y rechaza, con su motivo, lo que no está;
 - consulta el recetario: partida, ingredientes y alérgenos;
 - aplica las modificaciones solo si la receta lo permite;
 - aplica las alergias e intolerancias con los alérgenos declarados, sin
   deducirlos, y avisa de la información pendiente de verificar;
-- reparte el trabajo por partidas (brasa, fritos, pinchos fríos y barra) para
-  los futuros pinches y cita sus fuentes.
+- coordina un group chat con los especialistas de parrilla, fritos y general;
+  por ahora los tres aceptan siempre las tareas que reciben;
+- reparte el trabajo por partidas (brasa, fritos, pinchos fríos y barra) y cita
+  sus fuentes.
 
 Nuestro código valida su respuesta antes de que llegue al camarero: cada línea
 se acepta o se rechaza una sola vez y con la cantidad pedida, un plato aceptado
@@ -231,16 +233,18 @@ cocina, nunca un plan inventado.
 En la vista, el plan del chef aparece en la misma conversación como una burbuja
 propia, azul con texto blanco y un gorro de cocinero, entre el mensaje del
 cliente y la respuesta del camarero, que resume el veredicto sin cambiarlo.
-Todavía no hay pinches, tiempos, despensa ni confirmación del pedido. Detalles
-en el [README del agente](agents/restaurant/README.md#cocina-chef-v1).
+Todavía no hay tiempos, despensa ni confirmación del pedido. Detalles en el
+[README de cocina](agents/kitchen/README.md) y el
+[README del camarero](agents/restaurant/README.md#cocina).
 
 ## Despliegue en Azure Container Apps
 
 El script [`scripts/deploy-container-apps.sh`](scripts/deploy-container-apps.sh)
 crea o actualiza, dentro de un grupo de recursos que ya existe, una identidad
-administrada, un entorno de Container Apps y las cuatro aplicaciones. Solo el
-frontend tiene entrada externa; BFF, agente y MCP usan entrada interna y se
-descubren mediante sus FQDN del mismo entorno. El grupo de recursos y el
+administrada, un entorno de Container Apps y las cinco aplicaciones. Solo el
+frontend tiene entrada externa; BFF, camarero, cocina y MCP usan entrada
+interna y se descubren mediante sus FQDN del mismo entorno. El grupo de
+recursos y el
 proyecto de Foundry son prerrequisitos: el script no los crea, y tampoco
 modifica el grupo. La [base de conocimiento](#base-de-conocimiento-foundry-iq)
 es un prerrequisito opcional con su propio script.
@@ -265,7 +269,7 @@ ${EDITOR:-vi} scripts/container-apps.env
 
 El fichero usa sintaxis simple `NOMBRE=valor`; el script lo analiza sin
 ejecutarlo como Bash. No necesita secretos ni credenciales de registro: recibe
-cuatro referencias públicas completas de GHCR y las despliega directamente. Usa preferentemente digest
+cinco referencias públicas completas de GHCR y las despliega directamente. Usa preferentemente digest
 `sha256` o etiquetas de commit SHA, nunca `latest`. La identidad solo se asigna
 al agente y recibe `Foundry User` sobre el proyecto Foundry indicado.
 Conviene mantener `scripts/container-apps.env` fuera del control de versiones.
@@ -278,14 +282,13 @@ identidad del agente recibe además `Search Index Data Reader` sobre el servicio
 de búsqueda y el agente recibe la configuración de la base. Sin ellos, el
 despliegue no cambia y los ficheros de entorno existentes siguen sirviendo.
 
-El chef va en el mismo contenedor del agente y usa la misma base: sin ella,
-cocina responde que no puede consultar la carta. Tiene dos variables opcionales
-que también pueden faltar en ficheros anteriores:
-`KITCHEN_MODEL_DEPLOYMENT_NAME`, un deployment propio del mismo proyecto
-Foundry (vacío, el del camarero), y `KITCHEN_TIMEOUT_SECONDS`, el tiempo máximo
-de todo el plan de cocina (30 por defecto). Ese tiempo debe dejar margen dentro
-de `WAITER_AGENT_TIMEOUT_SECONDS` para las llamadas del propio camarero; el
-script avisa si queda menos de 20 s.
+El chef vive en una Container App independiente y publica A2A. Usa el mismo
+proyecto, modelo y base de conocimiento; sin esta última, cocina responde que
+no puede consultar la carta. El script crea la aplicación, configura su Agent
+Card con la URL interna e inyecta `KITCHEN_A2A_URL` en el camarero.
+`KITCHEN_TIMEOUT_SECONDS` limita la llamada A2A y toda la orquestación de cocina
+(30 s por defecto) y debe dejar margen dentro de
+`WAITER_AGENT_TIMEOUT_SECONDS`; el script avisa si queda menos de 20 s.
 
 El despliegue es idempotente y no construye ni publica imágenes, pero no realiza
 una previsualización: revisa el fichero de entorno antes de ejecutarlo. Para

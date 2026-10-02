@@ -45,7 +45,8 @@ la demo:
   e ingredientes, conservando sus fuentes.
 - MCP: consultar datos operativos como mesas o existencias.
 - Multiagente: delegar la preparación del pedido en especialistas.
-- A2A: solicitar productos a un proveedor externo.
+- A2A: invocar el agente de cocina externo y, posteriormente, solicitar
+  productos a un proveedor externo.
 - Human in the loop: una persona en caja revisa el ticket y el importe antes de
   completar el pago.
 - Application Insights: explicar qué ocurrió y cuánto tardó cada paso.
@@ -127,6 +128,26 @@ poder distinguir entre:
 - estado operacional;
 - delegación entre agentes;
 - efectos reales, como reservar una mesa o crear una cuenta.
+
+### Evolucion modular acordada el 1 de octubre de 2026
+
+Recepcion/mesas, carta/conocimiento, cocina y cobro mantienen autoridad y
+contratos propios. Cocina es ademas una frontera de despliegue: el camarero la
+invoca mediante la tool `pedir_a_cocina`, que realiza una llamada A2A al agente
+de cocina externo. El camarero no conoce ni invoca directamente al chef o a sus
+especialistas.
+
+El chef lider y los tres especialistas comparten inicialmente el despliegue de
+cocina. Su coordinacion interna puede usar fan-out/fan-in o evaluar un group
+chat, siempre que el chef siga siendo la unica autoridad de consolidacion y se
+conserven contratos tipados, limites, timeouts y validacion determinista.
+Separar los especialistas se reserva para una necesidad demostrada de escalado,
+aislamiento, ciclo de vida o propiedad.
+
+La primera entrega de cocina no consulta inventario: demuestra el traspaso del
+pedido al chef, su contraste con carta, recetas, ingredientes y restricciones,
+y la devolucion de un plan explicito. La despensa se incorpora posteriormente
+como estado operacional mediante MCP.
 
 ## 3. Experiencia principal
 
@@ -410,7 +431,7 @@ flowchart LR
     W --> MEM[Memoria]
     W --> MENU[Foundry IQ mediante MCP]
     W --> TABLES[Servicio de mesas]
-    W --> CHEF[Lider de cocina]
+    W -->|Tool pedir_a_cocina / A2A| CHEF[Agente de cocina externo]
     W --> BILL[Servicio de cuenta]
 
     CHEF --> PANTRY[MCP de despensa]
@@ -483,7 +504,7 @@ Recibe una comanda estructurada y coordina su preparación:
 
 - valida que los productos pertenezcan a la carta consultando la misma base de
   conocimiento que el camarero;
-- consulta recetas e ingredientes en Foundry IQ y existencias mediante MCP;
+- consulta recetas e ingredientes en Foundry IQ;
 - divide el pedido por categoría;
 - delega en los especialistas adecuados;
 - solicita a cada especialista aceptación y tiempo estimado;
@@ -491,6 +512,14 @@ Recibe una comanda estructurada y coordina su preparación:
 - recurre al proveedor cuando falte un producto y la espera sea compatible con
   la demo;
 - confirma al camarero el pedido viable y el tiempo de espera estimado.
+
+`pedir_a_cocina` es una tool del camarero y un adaptador A2A: envía una comanda
+minima y tipada al agente de cocina externo y convierte su respuesta en el
+resultado estructurado que valida la aplicacion. El chef coordina mediante
+group chat los especialistas de parrilla, fritos y general. Temporalmente todos
+aceptan las tareas asignadas, pero una negativa o respuesta ausente ya impide
+que el chef confirme esa línea. Cocina v1 todavia no consulta inventario ni
+despensa.
 
 La confirmación de cocina utiliza un contrato estructurado:
 
@@ -524,7 +553,10 @@ substitution
 ```
 
 No conversan con el cliente ni necesitan hablar entre ellos. El líder de cocina
-es el único punto de coordinación.
+es el único punto de coordinación. En la primera topologia multiagente viven en
+el mismo despliegue externo que el chef, separados del camarero por la frontera
+A2A. Siguen siendo componentes separados por contrato aunque compartan el
+proceso de cocina.
 
 ### Proveedor mediante A2A
 
@@ -577,9 +609,12 @@ Cada respuesta conserva la fuente utilizada. Los menús diarios, la separación
 entre laborables y fin de semana o varios contenedores son evoluciones futuras,
 no requisitos de la primera versión.
 
-Cuando la base no contenga una respuesta, el agente puede usar búsqueda web
-como fallback explícito. Debe identificar la fuente externa y no mezclarla con
-la carta oficial ni utilizarla para declarar stock, precio o disponibilidad.
+Cuando carta, recetario e ingredientes no contengan evidencia suficiente para
+la consulta, la recuperacion debe intentar automaticamente la busqueda web como
+fallback, sin exigir que el usuario lo solicite. Debe identificar la fuente
+externa y no mezclarla con la carta oficial ni utilizarla para declarar
+alergenos de la casa, stock, precio o disponibilidad. Si las fuentes de la casa
+ya responden suficientemente, la web no es necesaria.
 
 ### Memoria
 
@@ -637,6 +672,14 @@ de la cuota de preferencias, un resumen idéntico se actualiza sin duplicarse y
 acumula un contador de repeticiones. No se utiliza un LLM para resumir
 restricciones.
 
+Las preferencias incluyen tanto pedidos habituales como preferencias de asiento
+expresadas por el cliente, por ejemplo mesa o barra. Recordar una preferencia de
+asiento no reserva un recurso ni evita consultar disponibilidad: se presenta
+como contexto no vinculante y la eleccion actual prevalece. Debe probarse su
+recuperacion en una sesion nueva para la misma identidad normalizada, tanto en
+el flujo individual como en el de grupos, junto con pruebas negativas entre
+identidades.
+
 Todos los recuerdos son contexto no vinculante. Las alergias y restricciones
 recordadas deben reconfirmarse en la visita actual y nunca se consideran
 vigentes únicamente por proceder de una visita anterior. Una instrucción actual
@@ -657,17 +700,23 @@ un evento o una invocación procedente del frontal:
    bloquea atómicamente una mesa compatible y espera la confirmación o rechazo
    antes de ocuparla.
 5. La base compartida de Foundry IQ resuelve las consultas sobre carta, recetas
-   e ingredientes y devuelve sus fuentes; la búsqueda web solo actúa como
-   fallback identificado.
+   e ingredientes y devuelve sus fuentes; si estas no contienen evidencia
+   suficiente, intenta automaticamente la búsqueda web como fallback
+   identificado.
 6. El camarero construye el borrador de la comanda.
-7. El líder de cocina consulta la despensa.
-8. Si falta un producto, el líder consulta al agente proveedor mediante A2A.
-9. El líder distribuye tareas entre especialistas.
-10. Los especialistas pueden trabajar en paralelo.
-11. El líder consolida disponibilidad, sustituciones y tiempos.
-12. El líder confirma al camarero el pedido viable y el tiempo de espera
-    estimado.
-13. El camarero presenta esa confirmación y espera una decisión explícita.
+7. La tool `pedir_a_cocina` envía la comanda tipada mediante A2A al agente de
+   cocina externo.
+8. En Cocina v1, el líder contrasta el pedido con carta, recetas, ingredientes
+   y restricciones y devuelve un plan tipado por A2A, sin consultar inventario.
+9. En el incremento multiagente, el líder distribuye tareas entre especialistas
+   internos, que pueden trabajar en paralelo, y consolida sus respuestas.
+10. Cuando se incorpore despensa, el líder la consulta mediante MCP.
+11. Si entonces falta un producto, el líder puede consultar al agente proveedor
+    mediante A2A.
+12. El líder consolida disponibilidad, sustituciones y tiempos en una única
+    propuesta.
+13. La tool devuelve al camarero el resultado A2A validado.
+14. El camarero presenta esa confirmación y espera una decisión explícita.
 14. El cliente confirma, modifica o cancela el pedido desde el frontal.
 15. Solo un pedido confirmado se prepara y entrega.
 16. El cliente solicita la cuenta y el camarero invoca el cálculo determinista.
@@ -803,9 +852,15 @@ eventualmente el acceso a modelos y agentes para explicarlo durante la demo.
 
 ### Incremento 4: cocina multiagente
 
-- líder de cocina;
-- especialistas de brasa, fritos y pinchos fríos;
-- distribución y consolidación;
+- Cocina v1: tool del camarero y transferencia tipada mediante A2A a un agente
+  de cocina externo;
+- contraste con carta, recetario, ingredientes y restricciones mediante
+  Foundry IQ, sin inventario;
+- validacion determinista del plan y error explicito;
+- siguiente incremento: especialistas de brasa, fritos y pinchos fríos dentro
+  del mismo despliegue de cocina;
+- distribución y consolidación interna, evaluando group chat solo si mantiene
+  una unica autoridad y contratos observables;
 - rechazo y sustitución explícitos;
 - manejo de fallos parciales.
 
@@ -868,10 +923,19 @@ La demo se considera preparada cuando:
 
 ### Prioridad inmediata
 
-Tras cerrar el camarero, la memoria y el flujo de mesas, la prioridad inmediata
-es conectar la carta sencilla a Foundry IQ mediante MCP. Después se construye
-la orquestación del chef y los especialistas. La validación temprana del Hosted
-Agent se pospone hasta que estos agentes dispongan de conocimiento real.
+Con Foundry IQ y Cocina v1 ya integrados, la prioridad inmediata es:
+
+1. hacer automatico y verificable el fallback web cuando las fuentes de la
+   casa no contengan los ingredientes solicitados;
+2. verificar y corregir la recuperacion de preferencias de mesa/barra y pedidos
+   habituales en sesiones nuevas;
+3. validar conjuntamente la llamada A2A ya implementada y sustituir las
+   aceptaciones temporales de los especialistas por decisiones reales, sin
+   inventario en este incremento.
+
+La validacion del Hosted Agent se aborda cuando este recorrido interno sea
+estable. El inventario y la posible separacion de los especialistas en
+despliegues propios son evoluciones posteriores, no bloqueos de Cocina v1.
 
 ### Riesgos principales
 

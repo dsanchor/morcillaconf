@@ -1,13 +1,11 @@
-name: Publish restaurant agent image
+name: Publish kitchen agent image
 
 on:
   push:
     paths:
-      - agents/restaurant/**
       - agents/kitchen/**
       - packages/contracts/**
-      - .dockerignore
-      - .github/workflows/restaurant-agent-image.yml
+      - .github/workflows/kitchen-agent-image.yml
 
 permissions:
   contents: read
@@ -18,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --file agents/restaurant/Dockerfile --target test --tag restaurant-agent:test .
-      - run: docker run --rm restaurant-agent:test
+      - run: docker build --file agents/kitchen/Dockerfile --target test --tag kitchen-agent:test .
+      - run: docker run --rm kitchen-agent:test
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -28,7 +26,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: agents/restaurant/Dockerfile
+          file: agents/kitchen/Dockerfile
           target: runtime
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/morcillaconf-restaurant-agent:${{ github.sha }}
+          tags: ghcr.io/${{ github.repository_owner }}/morcillaconf-kitchen-agent:${{ github.sha }}

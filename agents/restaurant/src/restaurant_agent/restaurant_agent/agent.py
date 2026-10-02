@@ -9,7 +9,7 @@ from restaurant_contracts.kitchen import KitchenPort
 
 from restaurant_agent.config import Settings
 from restaurant_agent.contracts import WaiterModelResult
-from restaurant_agent.kitchen import InProcessKitchen
+from restaurant_agent.kitchen import A2AKitchen
 from restaurant_agent.kitchen_tool import create_kitchen_tool
 from restaurant_agent.knowledge import KnowledgeToolMiddleware, create_knowledge_tool
 from restaurant_agent.memory.context import DurableMemoryContextProvider
@@ -85,7 +85,7 @@ def create_waiter_agent(
 
     ``client`` replaces the model (the BFF's scripted waiter), keeping the
     same tools, middleware and context providers. ``kitchen`` is where
-    ``pedir_a_cocina`` sends orders: by default the chef in this process.
+    ``pedir_a_cocina`` sends orders through A2A to the external kitchen.
     """
 
     if client is None:
@@ -136,9 +136,7 @@ def create_waiter_agent(
     tools: list[Any] = [
         *(seating_tools or []),
         *([knowledge_tool] if knowledge_tool else []),
-        # Always offered: without a knowledge base the kitchen answers that it
-        # cannot consult the carta, instead of the waiter promising anything.
-        create_kitchen_tool(kitchen or InProcessKitchen(settings)),
+        create_kitchen_tool(kitchen or A2AKitchen(settings)),
     ]
     context_providers = [VisitContextProvider(seating_tools[0] if seating_tools else None)]
     if memory_store:

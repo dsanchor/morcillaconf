@@ -1,22 +1,33 @@
-"""The chef in this process, behind the ``KitchenPort`` the waiter uses.
-
-Each order gets a fresh chef: its own model client and its own connection to
-the knowledge base, nothing shared with the waiter's session. The whole plan
-is bounded by ``KITCHEN_TIMEOUT_SECONDS`` and every problem becomes an
-explicit ``KitchenFailure``: the waiter never receives an invented plan.
-"""
+"""A2A ``KitchenPort`` implementation used by the waiter."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import time
-from collections.abc import Callable
-from typing import Any
+import os
+import uuid
+from collections.abc import Callable, Sequence
+from typing import Protocol
 
+import httpx
+from a2a.client import A2AClientError, ClientConfig, ClientFactory
+from a2a.types import (
+    Message,
+    Part,
+    Role,
+    SendMessageConfiguration,
+    SendMessageRequest,
+    TaskState,
+)
+from azure.identity import (
+    DefaultAzureCredential,
+    ManagedIdentityCredential,
+    get_bearer_token_provider,
+)
 from pydantic import ValidationError
 
 from restaurant_contracts.kitchen import (
+    KITCHEN_RESULT_ADAPTER,
     KitchenFailure,
     KitchenFailureCode,
     KitchenOrder,
@@ -24,31 +35,12 @@ from restaurant_contracts.kitchen import (
 )
 
 from restaurant_agent.config import Settings
-from restaurant_agent.kitchen.agent import (
-    ChefDraft,
-    create_chef_agent,
-    create_chef_client,
-    order_prompt,
-)
-from restaurant_agent.kitchen.evidence import EvidenceRecorder
-from restaurant_agent.kitchen.validation import build_plan
-from restaurant_agent.knowledge import (
-    KnowledgeToolMiddleware,
-    create_knowledge_tool,
-    knowledge_base_mcp_url,
-)
 
 logger = logging.getLogger(__name__)
 
 FAILURES = {
-    KitchenFailureCode.NOT_CONFIGURED: (
-        "Cocina no puede consultar la carta: la base de conocimiento no está configurada."
-    ),
-    KitchenFailureCode.KNOWLEDGE_UNAVAILABLE: (
-        "Cocina no puede consultar la carta ahora mismo."
-    ),
-    KitchenFailureCode.CARTA_NOT_CONSULTED: (
-        "Cocina no ha podido comprobar el pedido en la carta."
+    KitchenFailureCode.KITCHEN_NOT_CONFIGURED: (
+        "Cocina no está configurada para recibir pedidos."
     ),
     KitchenFailureCode.TIMEOUT: "Cocina no ha respondido a tiempo.",
     KitchenFailureCode.CHEF_UNAVAILABLE: "Cocina no puede responder ahora mismo.",
@@ -56,105 +48,164 @@ FAILURES = {
         "Cocina ha devuelto un plan que no supera la validación."
     ),
 }
+TERMINAL_FAILURES = {
+    TaskState.TASK_STATE_FAILED,
+    TaskState.TASK_STATE_CANCELED,
+    TaskState.TASK_STATE_REJECTED,
+    TaskState.TASK_STATE_AUTH_REQUIRED,
+}
 
 
-# Chefs cut short by the timeout, still closing their knowledge base connection:
-# an in-flight MCP request keeps its session open until the request ends.
-BACKGROUND: set[asyncio.Task[KitchenPlan | KitchenFailure]] = set()
+def kitchen_failure(
+    order: KitchenOrder, code: KitchenFailureCode
+) -> KitchenFailure:
+    return KitchenFailure(
+        order_id=order.order_id,
+        code=code,
+        message=FAILURES[code],
+    )
 
 
-def kitchen_failure(order: KitchenOrder, code: KitchenFailureCode) -> KitchenFailure:
-    return KitchenFailure(order_id=order.order_id, code=code, message=FAILURES[code])
+class KitchenA2ATransport(Protocol):
+    async def send(self, order: KitchenOrder) -> str:
+        """Return the external kitchen's serialized result."""
 
 
-def _leave_in_background(task: asyncio.Task[KitchenPlan | KitchenFailure]) -> None:
-    task.cancel()
-    BACKGROUND.add(task)
-    task.add_done_callback(_forget)
+class SdkKitchenA2ATransport:
+    def __init__(
+        self,
+        url: str,
+        *,
+        timeout_seconds: float,
+        token_provider: Callable[[], str] | None = None,
+    ) -> None:
+        self._url = url.rstrip("/")
+        self._timeout_seconds = timeout_seconds
+        self._token_provider = token_provider
+
+    async def send(self, order: KitchenOrder) -> str:
+        headers: dict[str, str] = {}
+        if self._token_provider is not None:
+            token = await asyncio.to_thread(self._token_provider)
+            headers["Authorization"] = f"Bearer {token}"
+        async with httpx.AsyncClient(
+            headers=headers,
+            timeout=self._timeout_seconds,
+        ) as http_client:
+            factory = ClientFactory(
+                ClientConfig(
+                    streaming=True,
+                    httpx_client=http_client,
+                    accepted_output_modes=["text"],
+                )
+            )
+            client = await factory.create_from_url(self._url)
+            chunks: list[str] = []
+            failed = False
+            try:
+                request = SendMessageRequest(
+                    message=Message(
+                        message_id=str(uuid.uuid4()),
+                        role=Role.ROLE_USER,
+                        parts=[Part(text=order.model_dump_json())],
+                    ),
+                    configuration=SendMessageConfiguration(
+                        accepted_output_modes=["text"],
+                    ),
+                )
+                async for event in client.send_message(request):
+                    payload_type = event.WhichOneof("payload")
+                    if payload_type == "artifact_update":
+                        chunks.extend(
+                            _text_parts(event.artifact_update.artifact.parts)
+                        )
+                    elif payload_type == "status_update":
+                        failed = (
+                            event.status_update.status.state
+                            in TERMINAL_FAILURES
+                        )
+                    elif payload_type == "task":
+                        failed = event.task.status.state in TERMINAL_FAILURES
+            finally:
+                await client.close()
+        if failed or not chunks:
+            raise A2AClientError(
+                "Kitchen A2A task did not produce a result"
+            )
+        return "".join(chunks)
 
 
-def _forget(task: asyncio.Task[KitchenPlan | KitchenFailure]) -> None:
-    BACKGROUND.discard(task)
-    if not task.cancelled() and task.exception() is not None:
-        logger.warning("A stopped chef failed while closing: %s", type(task.exception()).__name__)
+def _text_parts(parts: Sequence[Part]) -> list[str]:
+    return [
+        part.text
+        for part in parts
+        if part.WhichOneof("content") == "text"
+    ]
 
 
-class InvalidChefAnswer(Exception):
-    """The chef's answer cannot become a valid plan."""
+def _token_provider(settings: Settings) -> Callable[[], str] | None:
+    if not settings.kitchen_a2a_token_scope:
+        return None
+    credential = (
+        ManagedIdentityCredential(
+            client_id=os.environ.get("AZURE_CLIENT_ID") or None
+        )
+        if settings.app_environment == "production"
+        else DefaultAzureCredential()
+    )
+    return get_bearer_token_provider(
+        credential,
+        settings.kitchen_a2a_token_scope,
+    )
 
 
-class InProcessKitchen:
-    """Runs the chef for one order at a time, in the waiter's process."""
-
+class A2AKitchen:
     def __init__(
         self,
         settings: Settings,
         *,
-        client_factory: Callable[[Settings], Any] = create_chef_client,
-        knowledge_tool_factory: Callable[[Settings], Any] = create_knowledge_tool,
+        transport: KitchenA2ATransport | None = None,
     ) -> None:
-        self._settings = settings
-        self._client_factory = client_factory
-        self._knowledge_tool_factory = knowledge_tool_factory
-
-    async def plan(self, order: KitchenOrder) -> KitchenPlan | KitchenFailure:
-        if knowledge_base_mcp_url(self._settings) is None:
-            return kitchen_failure(order, KitchenFailureCode.NOT_CONFIGURED)
-        started = time.monotonic()
-        chef = asyncio.create_task(self._plan(order))
-        try:
-            # Shielded, so the waiter gets the answer at the deadline instead
-            # of waiting for the chef's connections to close.
-            result = await asyncio.wait_for(
-                asyncio.shield(chef), self._settings.kitchen_timeout_seconds
+        self._timeout_seconds = settings.kitchen_timeout_seconds
+        self._transport = transport
+        if self._transport is None and settings.kitchen_a2a_url is not None:
+            self._transport = SdkKitchenA2ATransport(
+                str(settings.kitchen_a2a_url),
+                timeout_seconds=self._timeout_seconds,
+                token_provider=_token_provider(settings),
             )
+
+    async def plan(
+        self, order: KitchenOrder
+    ) -> KitchenPlan | KitchenFailure:
+        if self._transport is None:
+            return kitchen_failure(
+                order, KitchenFailureCode.KITCHEN_NOT_CONFIGURED
+            )
+        try:
+            async with asyncio.timeout(self._timeout_seconds):
+                payload = await self._transport.send(order)
+            result = KITCHEN_RESULT_ADAPTER.validate_json(payload)
+            if result.order_id != order.order_id:
+                raise ValueError("Kitchen result answers another order")
+            return result
         except TimeoutError:
-            _leave_in_background(chef)
-            result = kitchen_failure(order, KitchenFailureCode.TIMEOUT)
-        except asyncio.CancelledError:
-            _leave_in_background(chef)
-            raise
-        except InvalidChefAnswer as exc:
-            logger.warning("Invalid chef answer for %s: %s", order.order_id, exc)
-            result = kitchen_failure(order, KitchenFailureCode.INVALID_PLAN)
-        except Exception as exc:
-            # Only the type: model errors may echo the order.
-            logger.warning("The chef failed on %s: %s", order.order_id, type(exc).__name__)
-            result = kitchen_failure(order, KitchenFailureCode.CHEF_UNAVAILABLE)
-        outcome = result.code.value if isinstance(result, KitchenFailure) else result.verdict
-        logger.info(
-            "Kitchen order %s: %s in %.1f s", order.order_id, outcome, time.monotonic() - started
-        )
-        return result
-
-    async def _plan(self, order: KitchenOrder) -> KitchenPlan | KitchenFailure:
-        knowledge_tool = self._knowledge_tool_factory(self._settings)
-        recorder = EvidenceRecorder()
-        agent = create_chef_agent(
-            client=self._client_factory(self._settings),
-            knowledge_tool=knowledge_tool,
-            middleware=[recorder, KnowledgeToolMiddleware()],
-        )
-        async with agent:
-            if getattr(knowledge_tool, "unavailable", False):
-                # The knowledge base did not answer the connection: no model call.
-                return kitchen_failure(order, KitchenFailureCode.KNOWLEDGE_UNAVAILABLE)
-            response = await agent.run(order_prompt(order))
-        evidence = recorder.evidence()
-        if evidence.retrievals == 0:
-            code = (
-                KitchenFailureCode.KNOWLEDGE_UNAVAILABLE
-                if evidence.failures
-                else KitchenFailureCode.CARTA_NOT_CONSULTED
-            )
-            return kitchen_failure(order, code)
-        try:
-            draft = response.value
+            return kitchen_failure(order, KitchenFailureCode.TIMEOUT)
         except (ValidationError, ValueError) as exc:
-            raise InvalidChefAnswer(type(exc).__name__) from exc
-        if not isinstance(draft, ChefDraft):
-            raise InvalidChefAnswer("no structured answer")
-        try:
-            return build_plan(order, draft, evidence)
-        except ValidationError as exc:
-            raise InvalidChefAnswer(f"{exc.error_count()} validation errors") from exc
+            logger.warning(
+                "Invalid A2A kitchen result for %s: %s",
+                order.order_id,
+                type(exc).__name__,
+            )
+            return kitchen_failure(
+                order, KitchenFailureCode.INVALID_PLAN
+            )
+        except (A2AClientError, httpx.HTTPError) as exc:
+            logger.warning(
+                "Kitchen A2A unavailable for %s: %s",
+                order.order_id,
+                type(exc).__name__,
+            )
+            return kitchen_failure(
+                order, KitchenFailureCode.CHEF_UNAVAILABLE
+            )

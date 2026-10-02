@@ -124,11 +124,11 @@ El [chef](#cocina-chef-v1) reutiliza la misma base y el mismo endpoint MCP para
 validar platos, recetas e ingredientes. La despensa seguirá siendo un MCP
 operacional aparte: cambiar el stock no obliga a reindexar la base.
 
-## Cocina: chef v1
+## Cocina externa mediante A2A
 
-Primera porción de la fase 6, según el sync del 01/10: el chef, sin pinches,
-sin despensa y en el mismo contenedor que el camarero, con la orquestación
-dentro de él.
+El chef y sus especialistas viven en
+[`agents/kitchen`](../kitchen), con imagen y proceso independientes. El
+camarero solo conoce la frontera `KitchenPort`.
 
 - **Camarero.** Su tool `pedir_a_cocina` (`restaurant_agent/kitchen_tool.py`)
   recibe un pedido tipado: líneas con plato, cantidad y modificaciones, y las
@@ -140,17 +140,19 @@ dentro de él.
   resumir el veredicto del chef sin alterarlo y no inventar nunca un resultado
   de cocina.
 - **Puerto.** El camarero habla con cocina mediante `KitchenPort`
-  (`restaurant_contracts.kitchen`). Hoy lo implementa `InProcessKitchen`, en el
-  mismo proceso; el chef podrá pasar a un endpoint Responses o a un Hosted Agent
-  sin tocar al camarero.
-- **Chef** (`restaurant_agent/kitchen/`): un `Agent` de Agent Framework
+  (`restaurant_contracts.kitchen`). `A2AKitchen` descubre la Agent Card, envía
+  el pedido mediante A2A JSON-RPC y valida estrictamente la respuesta. Sin URL,
+  timeout, fallo remoto o respuesta inválida devuelve un `KitchenFailure`.
+- **Chef** (`agents/kitchen/src/kitchen_agent/kitchen_agent/`): un `Agent` de Agent Framework
   (`kitchen-lead`) sin sesión, sin memoria y sin contacto con el cliente, con
-  [instrucciones en español](restaurant_agent/kitchen/instructions.md),
+  instrucciones en español,
   salida estructurada y una sola herramienta: `knowledge_base_retrieve`, con su
-  propia conexión de solo lectura a la base. Usa el mismo proyecto Foundry; su
-  deployment es `KITCHEN_MODEL_DEPLOYMENT_NAME` o, si está vacío, el del
-  camarero. Como mucho cuatro consultas a la base por pedido.
-- **Validación determinista** (`kitchen/validation.py`), sobre lo que devolvió
+  propia conexión de solo lectura a la base. Usa el modelo configurado para el
+  proyecto de cocina. Como mucho hace cuatro consultas a la base por pedido.
+- **Group chat.** El chef selecciona los especialistas necesarios entre
+  parrilla, fritos y general. Temporalmente todos aceptan siempre, pero la
+  consolidación ya convierte una negativa o una decisión ausente en rechazo.
+- **Validación determinista** de cocina, sobre lo que devolvió
   la base y no sobre lo que dice el modelo:
   - cada línea del pedido se acepta o se rechaza una sola vez, con la cantidad
     pedida; una decisión contradictoria cuenta como rechazo y una línea sin
@@ -184,8 +186,9 @@ dentro de él.
 Medido el 01/10 con `gpt-5.6-luna` y la base real: el chef tarda entre 9 y
 17 s y el turno completo con cocina, entre 18 y 28 s.
 
-Límites de esta versión: no hay pinches, tiempos ni despensa, el pedido no se
-confirma y cada cambio del cliente es un pedido nuevo en un turno nuevo.
+Límites de esta versión: los especialistas aceptan siempre, no hay tiempos ni
+despensa, el pedido no se confirma y cada cambio del cliente es un pedido nuevo
+en un turno nuevo.
 
 En la CLI (`./scripts/run-waiter-cli.sh`), una propuesta pendiente se decide
 respondiendo `s` o `n`.
@@ -232,15 +235,18 @@ SEATING_MCP_TIMEOUT_SECONDS="5"
 AZURE_SEARCH_ENDPOINT="https://<servicio>.search.windows.net"
 KNOWLEDGE_BASE_NAME="conocimiento-restaurante"
 KNOWLEDGE_BASE_TIMEOUT_SECONDS="20"
-KITCHEN_MODEL_DEPLOYMENT_NAME=""
+KITCHEN_A2A_URL="http://localhost:8089"
+KITCHEN_A2A_TOKEN_SCOPE=""
 KITCHEN_TIMEOUT_SECONDS="30"
 ```
 
-Las variables de la base de conocimiento son opcionales: la conectan. Tu
+Las variables de la base de conocimiento son opcionales para el camarero: la
+conectan. Tu
 usuario necesita el rol Search Index Data Reader sobre el servicio de búsqueda
 (`./scripts/provision-knowledge.sh` se lo asigna a quien lo ejecuta). Las dos
-del chef también son opcionales: un deployment propio del mismo proyecto
-(vacío, el del camarero) y el tiempo máximo del plan de cocina.
+de cocina configuran el endpoint A2A, un scope de autenticación opcional y el
+tiempo máximo de la llamada. El modelo y Foundry IQ del chef se configuran en
+el proyecto independiente de cocina.
 
 La configuración local debe coincidir con el entorno de `azd`, porque
 `azd ai agent run` da prioridad a sus propias variables.

@@ -17,8 +17,8 @@ from agent_framework import FunctionInvocationContext, FunctionMiddleware
 
 from restaurant_contracts.kitchen import KitchenStation
 
-from restaurant_agent.knowledge import HOUSE, KNOWLEDGE_TOOL, UNAVAILABLE
-from restaurant_agent.kitchen.allergens import declared
+from kitchen_agent.allergens import declared
+from kitchen_agent.knowledge import HOUSE, KNOWLEDGE_TOOL, UNAVAILABLE
 
 logger = logging.getLogger(__name__)
 

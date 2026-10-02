@@ -8,6 +8,7 @@ COPY packages/contracts /workspace/packages/contracts
 COPY agents/restaurant/src/restaurant_agent/pyproject.toml agents/restaurant/src/restaurant_agent/uv.lock agents/restaurant/src/restaurant_agent/uv.toml ./
 
 FROM base AS test
+COPY agents/kitchen/src/kitchen_agent /workspace/agents/kitchen/src/kitchen_agent
 RUN uv sync --frozen --all-groups --no-install-project
 COPY agents/restaurant/src/restaurant_agent/restaurant_agent ./restaurant_agent
 COPY agents/restaurant/src/restaurant_agent/tests ./tests

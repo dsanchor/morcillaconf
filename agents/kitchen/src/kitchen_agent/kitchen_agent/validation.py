@@ -32,9 +32,9 @@ from restaurant_contracts.kitchen import (
     StationTask,
 )
 
-from restaurant_agent.kitchen.agent import ChefDraft, ChefLine
-from restaurant_agent.kitchen.allergens import normalize, restricted
-from restaurant_agent.kitchen.evidence import CartaEntry, Evidence
+from kitchen_agent.allergens import normalize, restricted
+from kitchen_agent.chef import ChefDraft, ChefLine
+from kitchen_agent.evidence import CartaEntry, Evidence
 
 TEXT_LIMIT = 300
 CARTA_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

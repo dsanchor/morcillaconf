@@ -23,7 +23,7 @@ indicadas en el propio plan.
 | 3. Vista única, BFF y continuidad | Implementada: 3A, 3B, 3C y 3D validadas en el Codespace el 28/09 | Pendiente; validada por Jesús el 28/09 ([revisión de 3A](docs/revision-fase-3a-jesus.md), [validación de 3C y 3D](#validación-en-el-codespace-28092026)) | 3A: 133 pruebas y 15 reglas del contrato. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) e imagen Docker publicada. 3C/3D: [BFF](#fase-3c-bff) con el camarero en Foundry; 146 + 8, 123 y 96 pruebas, smoke real y recorrido manual superados |
 | 4. Mesas y recorrido local con control de caja | Parcial: flujo de asientos integrado en `main`; pedido, caja, pago y liberación pendientes | Revisión conjunta del alcance completo pendiente | Bloqueo temporal, confirmación/rechazo, concurrencia, plano y recorrido E2E implementados |
 | 5. Conocimiento compartido con Foundry IQ y MCP | Implementada en `main` (PR #10): base de conocimiento con carta, recetario en PDF con ficha de ingredientes y web de respaldo; el camarero la consulta por su endpoint MCP | Pendiente | [Fase 5](#fase-5-carta-con-foundry-iq-30092026): base aprovisionada y consultada por REST y MCP; camarero local con Foundry respondiendo desde cada fuente con su cita; 263 + 30 pruebas locales y recorrido E2E de asientos |
-| 6. Chef líder y especialistas | Parcial: cocina v1 en `main`, con el chef que revisa el pedido con la carta y el recetario y lo reparte por partidas; pinches, despensa, tiempos y confirmación del pedido pendientes | Pendiente | [Cocina v1](#cocina-v1-el-chef-01102026): chef con salida validada, burbuja propia en la vista y tres pedidos reales contra Foundry y la base |
+| 6. Chef líder y especialistas | Parcial: cocina es un agente A2A independiente; el chef valida con carta/recetario y coordina parrilla, fritos y general mediante group chat; los especialistas aceptan temporalmente siempre | Pendiente | [Cocina v1](#cocina-v1-el-chef-01102026): frontera A2A, Docker propio, validación determinista y especialistas internos; despensa, tiempos y confirmación del pedido pendientes |
 | 7. Validación de Hosted Agent | Pospuesta hasta disponer de carta y orquestación representativas | Pendiente | El agente actual se ha ejecutado localmente y como contenedor remoto, pero no acredita el workflow objetivo completo |
 | 8. Proveedor mediante A2A | Pendiente | Pendiente | Sin implementación |
 | 9. Integración duradera en Azure | Pendiente | Pendiente | Sin implementación |
@@ -46,9 +46,10 @@ indicadas en el propio plan.
   modelo de Foundry y a las tools MCP, y devuelve el resultado estructurado
   dentro de una respuesta estándar.
 - `scripts/deploy-container-apps.sh` despliega imágenes públicas e inmutables
-  de GHCR en cuatro Container Apps independientes dentro del mismo entorno.
-  Solo el frontend tiene ingress externo; BFF, agente y MCP usan ingress
-  interno. El agente recibe una identidad administrada con `Azure AI User`.
+  de GHCR en cinco Container Apps independientes dentro del mismo entorno.
+  Solo el frontend tiene ingress externo; BFF, camarero, cocina y MCP usan
+  ingress interno. Camarero y cocina comparten una identidad administrada con
+  `Foundry User`.
 - Mientras BFF y MCP sigan usando SQLite, cada uno lo guarda en el
   almacenamiento efímero de su propio contenedor (`/data`), sin Azure Files, y
   todas las aplicaciones quedan limitadas a una réplica. Los datos se pierden al
@@ -57,9 +58,12 @@ indicadas en el propio plan.
 
 ## Acuerdos del sync del 01/10/2026
 
-- Empezar ya con el chef; los especialistas (pinches) llegan después.
+- Empezar ya con el chef; los especialistas se incorporaron después como
+  participantes temporales que siempre aceptan.
 - Todavía sin despensa ni inventario.
-- Todo en el mismo contenedor del agente, con la orquestación dentro de él.
+- La decisión inicial de usar el mismo contenedor fue reemplazada por un
+  agente de cocina independiente, expuesto por A2A, con su orquestación
+  interna.
 - Jesús y dsanchor acuerdan dejar los PR: el trabajo va en una rama, se
   publica para que pase la CI de cada componente y, con la CI en verde, se
   integra en `main` con un commit de merge. La evidencia de CI queda en esas
@@ -99,8 +103,9 @@ ninguna casilla del plan: queda pendiente de la revisión conjunta.
   y la respuesta del camarero, y la publica en el snapshot y los eventos.
 - **Vista:** la burbuja del chef, azul con texto blanco y un gorro de cocinero,
   en la misma conversación. El falso tiene un chef simulado para «Pido…».
-- **Despliegue:** `KITCHEN_MODEL_DEPLOYMENT_NAME` y `KITCHEN_TIMEOUT_SECONDS`,
-  opcionales; los ficheros de entorno anteriores siguen sirviendo.
+- **Despliegue:** imagen y Container App propias para cocina;
+  `KITCHEN_A2A_URL` en el camarero y `KITCHEN_TIMEOUT_SECONDS` como límite del
+  recorrido remoto.
 
 ### Evidencia
 

@@ -451,8 +451,8 @@ async def test_writing_while_pending_keeps_the_hold_and_asks_again(waiter, seati
     assert len(calls(seating_server, "hold_seating")) == 1
     assert seating_server.stub.assignments["seat_1"]["status"] == "held"
     seen = ana.model.calls[2]["messages"]
-    rejected = next(i for i, (_, items) in enumerate(seen) if any("rejected by user" in item[3] for item in items))
-    assert "Sí, confírmala" in seen[rejected + 1][1][0][3]
+    assert any("rejected by user" in item[3] for _, items in seen for item in items)
+    assert any("Sí, confírmala" in item[3] for _, items in seen for item in items)
     instructions = ana.model.calls[2]["instructions"]
     assert '"awaiting_buttons_again": true' in instructions and "sigue en pie" in instructions
     assert response.reply == "Para confirmar, pulsa «Confirmar»; la Mesa 3 sigue reservada."

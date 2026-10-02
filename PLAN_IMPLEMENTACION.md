@@ -37,7 +37,9 @@ ya realizados. Esto no implica borrar los archivos o recursos actuales.
 - El HITL de caja revisa peticion original, ticket, consumos y cargos
   adicionales antes de aprobar o rechazar el importe.
 - La liberacion la solicita el cliente despues de un pago confirmado.
-- A2A conecta al chef con un proveedor independiente, no con fritura.
+- A2A conecta al camarero con el agente de cocina externo y, en un incremento
+  posterior, al chef con un proveedor independiente. No se usa entre el chef y
+  sus especialistas.
 - La reposicion no tiene HITL; no se anade una tercera aprobacion.
 - La observabilidad y los controles empresariales se introducen con cada efecto,
   no como una capa ornamental al terminar.
@@ -49,15 +51,15 @@ ya realizados. Esto no implica borrar los archivos o recursos actuales.
 | Lenguaje y contratos | Python y Pydantic; dependencias compatibles fijadas en un lockfile desde fase 1 |
 | Agentes y workflow | Microsoft Agent Framework; workflow explicito, secuencial y concurrente donde corresponda |
 | Modelo | `gpt-5.6-luna` en Microsoft Foundry; modelo elegido, con acceso y deployment por configurar y validar en fase 1 |
-| Hosting final del workflow | Hosted Agent en Microsoft Foundry, incluyendo camarero, chef y los tres especialistas |
+| Hosting final del workflow | Camarero como Hosted Agent en Microsoft Foundry; cocina como agente externo con endpoint A2A |
 | Interfaz | Streamlit en Python, una unica vista de cliente |
 | API/BFF | FastAPI; comandos HTTP, eventos SSE y consulta de snapshot |
 | Conocimiento | Base compartida de Foundry IQ, accesible mediante MCP, con carta, recetas e ingredientes; busqueda web como fallback identificado |
 | Datos locales | SQLite para desarrollo; adaptadores separados de memoria, negocio, eventos y checkpoints |
 | Datos compartidos en Azure | Cosmos DB; persistencia separada por responsabilidad y adaptador de checkpoints validado expresamente |
 | Herramientas | Servidor MCP propio con servicios de negocio deterministas |
-| Agente externo | Proveedor independiente accesible mediante A2A |
-| Hosting auxiliar | Azure Container Apps para Streamlit/FastAPI, MCP y proveedor A2A |
+| Agentes externos | Cocina accesible mediante A2A; proveedor independiente mediante A2A en un incremento posterior |
+| Hosting auxiliar | Azure Container Apps para Streamlit/FastAPI, MCP, cocina A2A y proveedor A2A |
 | Empaquetado y CI | Cada componente ejecutable aporta su `Dockerfile` y un workflow de GitHub Actions de ruta acotada que valida, construye y publica su imagen |
 | Identidad | Nombre de entrada normalizado y sesión de demo en el BFF para aislar recursos simulados; managed/agent identities solo entre servicios Azure |
 | Observabilidad | Eventos de dominio, OpenTelemetry y Application Insights |
@@ -122,13 +124,14 @@ flowchart LR
     BFF -->|SSE y snapshot| UI
     BFF -->|Invocar o reanudar| HOST
     subgraph HOST[Hosted Agent en Foundry]
-        W[Camarero y workflow] -->|Borrador| CHEF[Chef lider]
-        CHEF --> S[Brasa, fritos y pinchos frios]
-        S -->|Aceptacion y estimaciones| CHEF
-        CHEF -->|Disponibilidad y espera| W
+        W[Camarero y workflow]
         W --> D[Decision explicita: pedido]
         W --> H[HITL: revision de caja]
     end
+    W -->|Tool pedir_a_cocina / A2A| CHEF[Agente de cocina externo]
+    CHEF --> S[Brasa, fritos y pinchos frios]
+    S -->|Aceptacion y estimaciones| CHEF
+    CHEF -->|Resultado A2A| W
     HOST -->|Solicitudes y resultados| BFF
     W --> MEM[Memoria]
     W --> KB[Foundry IQ mediante MCP]
@@ -139,6 +142,7 @@ flowchart LR
     MCP --> DB[Datos operativos y pago simulado]
     HOST --> CP[Checkpoints y decisiones duraderos]
     HOST -.-> OBS[OpenTelemetry y Application Insights]
+    CHEF -.-> OBS
     BFF -.-> OBS
     MCP -.-> OBS
     A2A -.-> OBS
@@ -150,8 +154,9 @@ flowchart LR
 | Persona revisora de caja | Aprobar o rechazar el ticket y el importe presentados | Modificar consumos, inventar cargos o actuar sobre otra version |
 | Streamlit | Mostrar estado y recoger decisiones | Ser fuente de verdad ni inferir exito desde texto |
 | FastAPI | Autenticar, comprobar pertenencia, adaptar transporte y reanudar | Confiar en `actor_id` enviado ni duplicar el grafo |
-| Camarero/workflow | Conversacion, coordinacion y pausa para la revision de caja | Consultar directamente a especialistas/proveedor o inventar viabilidad y espera |
-| Chef lider | Validar despensa, consultar especialistas/proveedor y consolidar | Hablar al cliente o preparar sin confirmacion del pedido |
+| Camarero/workflow | Conversacion, coordinacion, tool de cocina y pausa para la revision de caja | Saltarse A2A, consultar directamente a especialistas/proveedor o inventar viabilidad y espera |
+| Agente de cocina A2A | Recibir la comanda, coordinar chef/especialistas y devolver un resultado tipado | Acceder a la sesion completa, hablar al cliente o preparar sin confirmacion del pedido |
+| Chef lider | Consultar conocimiento, especialistas y posteriormente despensa/proveedor; consolidar | Hablar al cliente o preparar sin confirmacion del pedido |
 | Especialistas | Evaluar su categoria y devolver estimaciones; preparar tras autorizacion | Aprobar pedidos, cobrar o gestionar mesas |
 | MCP/servicios | Validaciones, concurrencia, importes y efectos idempotentes | Aceptar permisos concedidos por un prompt |
 | Proveedor A2A | Resolver suministro con contrato y despliegue independientes | Aprobar el pedido del cliente o declarar stock local sin una recepcion registrada |
@@ -160,6 +165,34 @@ El frontal inicia acciones de negocio. Las llamadas internas y sus resultados
 son coordinados por el workflow: no necesitan un boton por invocacion.
 Los controles se aplican tambien en ejecutores y herramientas, no solo en el
 agente exterior o en botones deshabilitados.
+
+### Decisiones de arquitectura de la reunion del 1 de octubre de 2026
+
+- Mantener una arquitectura modular por responsabilidades: recepcion y mesas,
+  carta/conocimiento, cocina y cobro son dominios separados aunque no impliquen
+  todavia despliegues independientes.
+- Desplegar cocina como un agente externo con contrato A2A. El camarero lo
+  invoca exclusivamente mediante la tool `pedir_a_cocina`, que adapta el
+  contrato de dominio al transporte A2A y devuelve una respuesta tipada.
+- Mantener inicialmente al chef lider y a los tres especialistas dentro del
+  mismo despliegue de cocina. Su coordinacion es interna; un group chat puede
+  evaluarse, pero no sustituye contratos ni validaciones deterministas.
+- Separar los especialistas o mover la orquestacion fuera del agente de cocina
+  solo cuando exista una necesidad demostrada de escalado, aislamiento, ciclo
+  de vida o propiedad.
+- La primera entrega de cocina se limita al traspaso del pedido y a comprobarlo
+  contra carta, recetas, ingredientes y restricciones. El inventario queda fuera
+  de ese incremento y se incorporara despues mediante un servicio operacional.
+- Foundry IQ conserva tres fuentes: carta en Blob Storage, recetario e
+  ingredientes en Azure AI Search y Bing como respaldo externo. Si las fuentes
+  de la casa no contienen los ingredientes solicitados, la recuperacion debe
+  intentar automaticamente la web sin exigir que el cliente lo pida.
+- La memoria debe recuperar de forma consistente preferencias de pedido,
+  preferencias de asiento (mesa o barra) y restricciones. Las restricciones
+  recordadas siguen siendo no vinculantes y requieren reconfirmacion.
+- Para la demostracion se priorizan respuestas breves: ante una incompatibilidad
+  se ofrece una alternativa o consulta a cocina sin exponer razonamientos
+  internos, metadatos de memoria ni explicaciones excesivas de retrieval.
 
 ## 5. Hoja de ruta y checklist
 
@@ -174,7 +207,7 @@ despues de la validacion y aprobacion de ambas partes. No se asignan responsable
 | 3 | Vista unica, BFF y recuperacion | 1-2 | Identidad, comandos, eventos y continuidad |
 | 4 | Mesas y recorrido local con control de caja | 3A; integración progresiva con 3C/3D | Decisiones explicitas, HITL de pago y efectos transaccionales |
 | 5 | Conocimiento compartido con Foundry IQ y MCP | 4 | Carta, recetas e ingredientes con fuentes |
-| 6 | Chef y especialistas reales | 5 | Delegacion, concurrencia y consolidacion |
+| 6 | Agente de cocina externo y especialistas | 5 | Tool A2A, delegacion, concurrencia y consolidacion |
 | 7 | Validacion del destino Hosted Agent | 5-6 | Portabilidad, identidad de servicio y reanudacion remota |
 | 8 | Proveedor remoto A2A | 7 | Interoperabilidad y resiliencia |
 | 9 | Integracion duradera en Azure y acceso publico controlado | 5-8 | Seguridad, persistencia y operacion distribuida |
@@ -263,6 +296,11 @@ no la recupera.
   entorno. La variable antigua exportada ya no se necesita.
 - [x] Probar persistencia al recrear proceso, concurrencia basica, borrado y
   aislamiento; documentar limites del almacenamiento local.
+- [ ] Verificar y corregir la seleccion y recuperacion de preferencias de
+  asiento (`mesa` o `barra`) y de pedidos habituales en una visita nueva.
+  Probar la misma identidad con distinto uso de mayusculas, una identidad
+  diferente y los flujos individual y de grupo. Una preferencia recordada no
+  reserva asiento ni sustituye la eleccion o confirmacion vigente.
 
 **Aceptacion y pruebas**
 
@@ -459,9 +497,11 @@ como fuente externa. El stock sigue procediendo exclusivamente de despensa.
   misma base sin incorporar el contenido a sus instrucciones.
 - [ ] Conectar el camarero al servicio de carta y devolver siempre fuente,
   version y tipo de documento utilizado.
-- [ ] Permitir busqueda web solo como fallback cuando la base no tenga respuesta;
-  identificarla expresamente y no usarla para afirmar precio, stock o
-  disponibilidad del restaurante.
+- [ ] Activar automaticamente la busqueda web cuando carta, recetario e
+  ingredientes no aporten evidencia suficiente para la consulta. No exigir que
+  el usuario pida buscar en Internet. Identificarla expresamente y no usarla
+  para afirmar precio, stock, alergenos de la casa o disponibilidad del
+  restaurante.
 - [ ] Reconocer informacion ausente, incluida evidencia insuficiente sobre
   alergenos, en vez de inferirla.
 - [ ] Mantener la despensa y el inventario como estado operacional separado por
@@ -471,16 +511,39 @@ como fuente externa. El stock sigue procediendo exclusivamente de despensa.
 
 **Aceptacion:** camarero y chef consultan la misma base; las respuestas distinguen
 carta, receta, ingrediente y fuente web; una fuente externa no altera la carta
-oficial. Un plato puede existir en carta y no estar disponible en inventario.
+oficial. Una consulta sin evidencia en fuentes de la casa intenta Bing
+automaticamente y una consulta con evidencia suficiente no lo activa sin
+necesidad. Un plato puede existir en carta sin que eso pruebe su stock.
 
 ### Fase 6. Chef lider y especialistas de cocina
 
-**Demostracion:** el camarero consulta al chef; este verifica despensa, consulta
-brasa, fritos y pinchos frios y devuelve disponibilidad y espera al camarero.
-Solo entonces el cliente recibe la propuesta que debe confirmar explicitamente.
+**Demostracion:** la tool `pedir_a_cocina` transfiere mediante A2A un pedido
+claro desde el camarero al agente de cocina externo y devuelve un plan tipado y
+validado contra el conocimiento de la casa. En el siguiente incremento, el chef
+coordina brasa, fritos y pinchos frios dentro del despliegue de cocina. El
+inventario no condiciona esta primera demostracion.
 
-- [ ] Sustituir el adaptador de cocina simulado por agentes Agent Framework.
-  Solo el chef recibe el borrador del camarero y accede a su dominio operativo.
+**Estado al 2 de octubre:** Cocina v1 se ha extraido a un proyecto e imagen
+independientes. El camarero conserva `pedir_a_cocina`, que descubre la Agent
+Card y llama por A2A. El chef consulta Foundry IQ, valida el plan y coordina
+parrilla, fritos y general mediante un group chat acotado. Temporalmente todos
+los especialistas aceptan sus tareas. Quedan la revision conjunta, el fallback
+web automatico y la evolucion de las decisiones de cada partida.
+
+- [x] Extraer Cocina v1 a un agente externo con Agent Card y endpoint A2A.
+  Mantener `pedir_a_cocina` como unica tool publica del camarero y convertirla
+  en adaptador A2A con autenticacion de servicio, timeout, correlacion e
+  idempotencia.
+- [ ] Validar conjuntamente Cocina v1: transferencia camarero -> tool -> A2A ->
+  cocina y respuesta A2A -> tool -> camarero,
+  evidencia de carta/recetario, validacion determinista y error explicito ante
+  timeout, falta de conocimiento o respuesta invalida.
+- [x] Incorporar parrilla, fritos y general como agentes internos del mismo
+  despliegue de cocina. Solo el chef recibe la comanda A2A y coordina. En esta
+  primera versión los especialistas aceptan siempre.
+- [x] Implementar un group chat acotado, con selección de participantes y
+  consolidación deterministas, límites de rondas y una única autoridad final
+  en el chef.
 - [ ] Enviar tareas tipadas a cada especialidad, con productos/restricciones
   relevantes; no compartir todo el perfil o historial del cliente.
 - [ ] Ejecutar consultas independientes con fan-out/fan-in y consolidacion del
@@ -499,12 +562,22 @@ Solo entonces el cliente recibe la propuesta que debe confirmar explicitamente.
   confirmacion explicita.
 - [ ] Tras confirmar, iniciar preparacion simulada de la comanda comprometida.
   Mantener limites por rama, plazo total y consolidacion de fallos parciales.
+- [ ] Mantener inventario y despensa fuera de Cocina v1 y del primer incremento
+  con especialistas. Incorporarlos despues mediante MCP operacional, sin
+  convertir Foundry IQ ni una respuesta web en prueba de existencias.
+- [ ] Conservar fronteras que permitan separar chef, especialistas u
+  orquestador en el futuro, pero no crear despliegues adicionales dentro de
+  cocina hasta justificar escalado, aislamiento o propiedad independiente.
 
-**Aceptacion:** spans prueban consultas concurrentes, estimaciones individuales
-y consolidacion. Un fallo de fritos produce rechazo/alternativa explicita, no
-falso exito. Se distingue confirmacion tecnica del chef de aprobacion humana.
-No hay llamadas camarero -> especialista/proveedor ni preparacion antes de la
-confirmacion del pedido.
+**Aceptacion:** una traza correlacionada prueba la invocacion
+camarero -> tool -> A2A -> cocina y el retorno del resultado; los spans internos
+prueban consultas concurrentes, estimaciones individuales y consolidacion. Un
+fallo de fritos produce rechazo/alternativa explicita, no falso exito. Se
+distingue confirmacion tecnica del chef de aprobacion humana. No hay llamadas
+directas camarero -> chef/especialista/proveedor ni preparacion antes de la
+confirmacion del pedido. La primera aceptacion de Cocina v1 no depende de
+inventario; cuando este se incorpore, su evidencia procede exclusivamente del
+MCP operacional.
 
 ### Fase 7. Validar el destino Hosted Agent con carta y orquestacion
 

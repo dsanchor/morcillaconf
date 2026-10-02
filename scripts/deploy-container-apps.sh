@@ -85,8 +85,8 @@ PY
 require_vars \
   AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_RESOURCE_GROUP \
   MANAGED_IDENTITY_NAME CONTAINERAPPS_ENVIRONMENT \
-  FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME MCP_APP_NAME \
-  FRONTEND_IMAGE BFF_IMAGE RESTAURANT_AGENT_IMAGE MCP_IMAGE \
+  FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME KITCHEN_AGENT_APP_NAME MCP_APP_NAME \
+  FRONTEND_IMAGE BFF_IMAGE RESTAURANT_AGENT_IMAGE KITCHEN_AGENT_IMAGE MCP_IMAGE \
   FOUNDRY_PROJECT_RESOURCE_ID FOUNDRY_PROJECT_ENDPOINT AZURE_AI_MODEL_DEPLOYMENT_NAME \
   MEMORY_MAX_ITEMS WAITER_MAX_TURNS WAITER_AGENT_TIMEOUT_SECONDS \
   BFF_SESSION_TTL_HOURS BFF_EVENT_RETENTION \
@@ -108,7 +108,7 @@ validate_match FOUNDRY_PROJECT_RESOURCE_ID '^/subscriptions/[^/]+/resourceGroups
 [[ "$FOUNDRY_PROJECT_RESOURCE_ID" != *"/subscriptions/00000000-0000-0000-0000-000000000000/"* ]] ||
   fail "Replace the FOUNDRY_PROJECT_RESOURCE_ID placeholder"
 
-for name in FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME MCP_APP_NAME; do
+for name in FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME KITCHEN_AGENT_APP_NAME MCP_APP_NAME; do
   validate_match "$name" '^[a-z][a-z0-9-]{0,30}[a-z0-9]$' "2-32 lowercase letters, numbers, or hyphens, starting with a letter"
 done
 
@@ -136,15 +136,11 @@ if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
   validate_match KNOWLEDGE_BASE_TIMEOUT_SECONDS '^([1-9]|[1-5][0-9]|60)$' "a whole number of seconds from 1 to 60"
 fi
 
-# Optional chef settings (cocina v1). The chef runs inside the restaurant agent,
-# in the same Foundry project: its own model deployment, or the waiter's when
-# empty, and a time budget for the whole kitchen plan.
+# The external kitchen and the waiter share the Foundry project and model, but
+# run in separate Container Apps connected through A2A.
 KITCHEN_TIMEOUT_SECONDS="${KITCHEN_TIMEOUT_SECONDS:-30}"
 export KITCHEN_TIMEOUT_SECONDS
 validate_match KITCHEN_TIMEOUT_SECONDS '^([1-9]|[1-9][0-9]|1[01][0-9]|120)$' "a whole number of seconds from 1 to 120"
-if [[ -n "${KITCHEN_MODEL_DEPLOYMENT_NAME:-}" ]]; then
-  validate_match KITCHEN_MODEL_DEPLOYMENT_NAME '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' "a model deployment name"
-fi
 validate_match WAITER_AGENT_TIMEOUT_SECONDS '^[1-9][0-9]*$' "a whole number of seconds"
 if ((KITCHEN_TIMEOUT_SECONDS + 20 > WAITER_AGENT_TIMEOUT_SECONDS)); then
   printf 'WARNING: KITCHEN_TIMEOUT_SECONDS (%s) leaves less than 20 s of WAITER_AGENT_TIMEOUT_SECONDS (%s) for the waiter itself\n' \
@@ -159,13 +155,13 @@ validate_ghcr_image() {
   [[ "$image" != *:latest ]] || fail "$name cannot use the mutable latest tag"
   [[ "$image" != *replace-* ]] || fail "Replace the $name placeholder"
 }
-for name in FRONTEND_IMAGE BFF_IMAGE RESTAURANT_AGENT_IMAGE MCP_IMAGE; do
+for name in FRONTEND_IMAGE BFF_IMAGE RESTAURANT_AGENT_IMAGE KITCHEN_AGENT_IMAGE MCP_IMAGE; do
   validate_ghcr_image "$name"
 done
 
-app_names=("$FRONTEND_APP_NAME" "$BFF_APP_NAME" "$RESTAURANT_AGENT_APP_NAME" "$MCP_APP_NAME")
-[[ "$(printf '%s\n' "${app_names[@]}" | sort -u | wc -l)" -eq 4 ]] ||
-  fail "All four Container App names must be distinct"
+app_names=("$FRONTEND_APP_NAME" "$BFF_APP_NAME" "$RESTAURANT_AGENT_APP_NAME" "$KITCHEN_AGENT_APP_NAME" "$MCP_APP_NAME")
+[[ "$(printf '%s\n' "${app_names[@]}" | sort -u | wc -l)" -eq 5 ]] ||
+  fail "All five Container App names must be distinct"
 
 if [[ "$SEATING_LAYOUT_FILE" != /* ]]; then
   SEATING_LAYOUT_FILE="$REPO_ROOT/$SEATING_LAYOUT_FILE"
@@ -324,6 +320,34 @@ MCP_FQDN="$(az containerapp show --name "$MCP_APP_NAME" --resource-group "$AZURE
   --query properties.configuration.ingress.fqdn --output tsv)"
 [[ -n "$MCP_FQDN" ]] || fail "MCP internal FQDN was not assigned"
 
+log "Creating or updating kitchen agent (internal A2A ingress)"
+kitchen_env=(
+  "FOUNDRY_PROJECT_ENDPOINT=$FOUNDRY_PROJECT_ENDPOINT"
+  "AZURE_AI_MODEL_DEPLOYMENT_NAME=$AZURE_AI_MODEL_DEPLOYMENT_NAME"
+  "AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID"
+  "APP_ENVIRONMENT=production"
+  "KITCHEN_TIMEOUT_SECONDS=$KITCHEN_TIMEOUT_SECONDS"
+  "KITCHEN_HOST=0.0.0.0"
+  "KITCHEN_PORT=8089"
+  "KITCHEN_A2A_PUBLIC_URL=https://$KITCHEN_AGENT_APP_NAME/"
+)
+if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
+  kitchen_env+=(
+    "AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT"
+    "KNOWLEDGE_BASE_NAME=$KNOWLEDGE_BASE_NAME"
+    "KNOWLEDGE_BASE_TIMEOUT_SECONDS=$KNOWLEDGE_BASE_TIMEOUT_SECONDS"
+  )
+fi
+apply_app "$KITCHEN_AGENT_APP_NAME" \
+  "$KITCHEN_AGENT_IMAGE" internal 8089 true "${kitchen_env[@]}"
+KITCHEN_FQDN="$(az containerapp show --name "$KITCHEN_AGENT_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query properties.configuration.ingress.fqdn --output tsv)"
+[[ -n "$KITCHEN_FQDN" ]] || fail "Kitchen agent internal FQDN was not assigned"
+az containerapp update --name "$KITCHEN_AGENT_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --set-env-vars "KITCHEN_A2A_PUBLIC_URL=https://$KITCHEN_FQDN/"
+
 log "Creating or updating restaurant agent (internal ingress)"
 agent_env=(
   "FOUNDRY_PROJECT_ENDPOINT=$FOUNDRY_PROJECT_ENDPOINT"
@@ -336,6 +360,8 @@ agent_env=(
   "ENABLE_DEV_FAKE_IDENTITY=false"
   "SEATING_MCP_URL=https://$MCP_FQDN/mcp"
   "SEATING_MCP_TIMEOUT_SECONDS=$SEATING_MCP_TIMEOUT_SECONDS"
+  "KITCHEN_A2A_URL=https://$KITCHEN_FQDN"
+  "KITCHEN_TIMEOUT_SECONDS=$KITCHEN_TIMEOUT_SECONDS"
 )
 if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
   log "The restaurant agent uses the knowledge base $KNOWLEDGE_BASE_NAME"
@@ -344,10 +370,6 @@ if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
     "KNOWLEDGE_BASE_NAME=$KNOWLEDGE_BASE_NAME"
     "KNOWLEDGE_BASE_TIMEOUT_SECONDS=$KNOWLEDGE_BASE_TIMEOUT_SECONDS"
   )
-fi
-agent_env+=("KITCHEN_TIMEOUT_SECONDS=$KITCHEN_TIMEOUT_SECONDS")
-if [[ -n "${KITCHEN_MODEL_DEPLOYMENT_NAME:-}" ]]; then
-  agent_env+=("KITCHEN_MODEL_DEPLOYMENT_NAME=$KITCHEN_MODEL_DEPLOYMENT_NAME")
 fi
 apply_app "$RESTAURANT_AGENT_APP_NAME" \
   "$RESTAURANT_AGENT_IMAGE" internal 8088 true "${agent_env[@]}"

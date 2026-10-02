@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from restaurant_contracts.kitchen import KitchenOrder
 
-from restaurant_agent.config import Settings
+from kitchen_agent.config import Settings
 
 INSTRUCTIONS_PATH = Path(__file__).with_name("instructions.md")
 # Knowledge base calls per order: the two first lookups and two follow-ups.
@@ -100,7 +100,7 @@ def create_chef_client(settings: Settings) -> Any:
 
     return FoundryChatClient(
         project_endpoint=str(settings.foundry_project_endpoint),
-        model=settings.kitchen_model,
+        model=str(settings.azure_ai_model_deployment_name),
         credential=DefaultAzureCredential(),
     )
 

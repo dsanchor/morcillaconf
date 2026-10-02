@@ -337,6 +337,9 @@ if ! az storage account show --name "$STORAGE_ACCOUNT_NAME" \
     --allow-blob-public-access false --allow-shared-key-access false \
     --public-network-access Enabled
 fi
+az storage account update --name "$STORAGE_ACCOUNT_NAME" \
+  --resource-group "$KNOWLEDGE_RESOURCE_GROUP" \
+  --public-network-access Enabled --default-action Allow
 export STORAGE_ACCOUNT_ID
 STORAGE_ACCOUNT_ID="$(az storage account show --name "$STORAGE_ACCOUNT_NAME" \
   --resource-group "$KNOWLEDGE_RESOURCE_GROUP" --query id --output tsv)"
