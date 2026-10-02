@@ -55,8 +55,8 @@ def test_a_name_opens_the_door_and_the_waiter_greets(app) -> None:
     assert "escena" not in markup
     assert 'class="planta atendiendo"' in markup
     assert GREETING in markup and "revelar-" not in markup
-    assert at.button(key="cmd-new").label == "/new"
-    assert at.button(key="cmd-exit").label == "/exit"
+    assert at.button(key="salir-boton").label == "Salir"
+    assert not [button for button in at.button if (button.key or "").startswith("cmd-")]
 
 
 def test_messages_and_unknown_commands(app) -> None:
@@ -71,7 +71,7 @@ def test_messages_and_unknown_commands(app) -> None:
 def test_new_visit_greets_again(app) -> None:
     at = _enter(app, "Ana").run()
     at = _say(at, "Prefiero la tortilla")
-    at = at.button(key="cmd-new").click().run()
+    at = _say(at, "/new")
     markup = _markup(at)
     assert "revelar-quick" in markup and "Prefiero la tortilla" not in markup
     assert GREETING in markup
@@ -79,7 +79,7 @@ def test_new_visit_greets_again(app) -> None:
 
 def test_exit_returns_to_the_closed_door(app) -> None:
     at = _enter(app, "Ana").run()
-    at = at.button(key="cmd-exit").click().run()
+    at = at.button(key="salir-boton").click().run()
     assert at.session_state["stage"] == "outside"
     assert 'class="escena cerrada"' in _markup(at)
     at = _enter(at, "Luis").run()
@@ -88,13 +88,14 @@ def test_exit_returns_to_the_closed_door(app) -> None:
     assert 'class="escena cerrada"' in _markup(at)
 
 
-def test_entering_again_with_the_same_name_resumes_the_visit(app) -> None:
+def test_leaving_and_entering_again_starts_a_fresh_visit(app) -> None:
     at = _enter(app, "Ana").run()
     at = _say(at, "Prefiero la tortilla")
-    at = at.button(key="cmd-exit").click().run()
+    at = at.button(key="salir-boton").click().run()
+    assert at.session_state["stage"] == "outside"
     at = _enter(at, "Ana").run()
     markup = _markup(at)
-    assert "Prefiero la tortilla" in markup
+    assert "Prefiero la tortilla" not in markup
     assert markup.count(GREETING) == 1
 
 

@@ -163,12 +163,13 @@ class KitchenService:
         result = await self._plan(order)
         if isinstance(result, KitchenPlan) and result.accepted:
             seconds = max(item.estimated_ready_seconds for item in result.accepted)
-            dishes = sum(item.quantity for item in result.accepted)
-            step = await Step(
-                "cocina", "Cocina prepara los platos", f"{dishes} platos · {seconds} s"
-            ).start()
+            timings = " · ".join(
+                f"{item.quantity} × {item.name} {item.estimated_ready_seconds} s"
+                for item in result.accepted
+            )
+            step = await Step("cocina", "Cocina prepara los platos", timings).start()
             await self._sleeper(seconds)
-            await step.finish()
+            await step.finish(f"Listo en {seconds} s · {timings}")
         return result
 
     async def _plan(
@@ -190,10 +191,16 @@ class KitchenService:
                 )
             response = await agent.run(order_prompt(order))
         evidence = recorder.evidence()
+        documents = ", ".join(
+            f"{document} v{version}" for document, version in sorted(evidence.versions.items())
+        )
         await done(
             "foundry_iq",
             "Foundry IQ: carta y recetario",
-            f"{evidence.retrievals} consultas · {len(evidence.dishes)} platos encontrados",
+            f"{evidence.retrievals} consultas"
+            + (f" · {documents}" if documents else "")
+            + f" · {len(evidence.dishes)} platos de la carta"
+            + (f" · {len(evidence.recipes)} recetas" if evidence.recipes else ""),
         )
         if evidence.retrievals == 0:
             await chef.finish("No ha podido consultar la carta", failed=True)
@@ -218,21 +225,51 @@ class KitchenService:
             raise InvalidChefAnswer(
                 f"{exc.error_count()} validation errors"
             ) from exc
-        await chef.finish(f"Acepta {len(plan.accepted)} · rechaza {len(plan.rejected)}")
+        accepted = ", ".join(
+            f"{item.quantity} × {item.name} ({item.station.value})" for item in plan.accepted
+        )
+        refused = ", ".join(item.requested for item in plan.rejected)
+        await chef.finish(
+            " · ".join(
+                part
+                for part in (
+                    f"Acepta {accepted}" if accepted else "",
+                    f"Rechaza {refused}" if refused else "",
+                )
+                if part
+            )
+        )
+        for item in plan.rejected:
+            await done("chef", f"Rechaza {item.requested}", item.reason)
+        if plan.warnings:
+            await done("chef", "Avisos del chef", "; ".join(plan.warnings))
         required = required_specialists(plan)
         reviews = [
-            (name, await Step("especialista", f"{name} revisa sus tareas").start())
+            (
+                name,
+                await Step(
+                    "especialista",
+                    f"{name} revisa sus tareas",
+                    ", ".join(
+                        f"{item.quantity} × {item.name}"
+                        for item in plan.accepted
+                        if item.station in SPECIALIST_STATIONS[name]
+                    ),
+                ).start(),
+            )
             for name in required
         ]
         reviewed = await self._coordination.review(order, plan)
         kept = {item.line for item in reviewed.accepted}
+        reasons = {item.line: item.reason for item in reviewed.rejected}
         for name, step in reviews:
-            lines = [
-                item.line for item in plan.accepted if item.station in SPECIALIST_STATIONS[name]
-            ]
-            refused = [line for line in lines if line not in kept]
+            owned = [item for item in plan.accepted if item.station in SPECIALIST_STATIONS[name]]
+            refused_lines = [item for item in owned if item.line not in kept]
+            confirmed = ", ".join(f"{item.quantity} × {item.name}" for item in owned if item.line in kept)
             await step.finish(
-                "OK" if not refused else f"Rechaza {len(refused)} de {len(lines)}",
-                failed=bool(refused),
+                f"OK: {confirmed}"
+                if not refused_lines
+                else "; ".join(f"{item.name}: {reasons.get(item.line, 'rechazado')}" for item in refused_lines),
+                failed=bool(refused_lines),
             )
         return reviewed

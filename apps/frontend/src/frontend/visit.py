@@ -42,7 +42,7 @@ from restaurant_contracts.seating import RoomView
 Updater = Callable[[], None]
 CommandFactory = Callable[[str, datetime, str], Command]
 
-UNKNOWN_COMMAND = "Ese comando no lo conozco: mira la lista de la izquierda."
+UNKNOWN_COMMAND = "Ese comando no lo conozco."
 NOT_ALLOWED = "Ahora mismo no puedo hacer eso."
 MESSAGES_CLOSED = "Ahora mismo no puedo recibir más mensajes."
 TRY_NEW_VISIT = "Prueba con /new."

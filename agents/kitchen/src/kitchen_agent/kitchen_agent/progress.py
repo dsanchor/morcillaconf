@@ -29,7 +29,7 @@ class Step:
             step_id=f"k-{component}-{uuid.uuid4().hex[:8]}",
             component=component,
             label=label[:160],
-            detail=detail,
+            detail=detail[:200] if detail else None,
             status="running",
         )
         self._started = time.monotonic()

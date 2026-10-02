@@ -19,7 +19,6 @@ from frontend.config import ClientConfigurationError, FrontendSettings, client_c
 from frontend.markup import (
     Reveal,
     activity_markup,
-    command_row_markup,
     conversation_markup,
     door_hint_markup,
     facade_markup,
@@ -37,14 +36,6 @@ ARRIVING_NOTICE = "Un momento, que ya te abrimos."
 # The plan refreshes by itself so parallel customers see each other.
 PLAN_REFRESH_SECONDS = 3
 ENTRANCE_SECONDS = 4.5
-SIDEBAR_BUTTONS = {
-    "new": ("/new", "Nueva visita", Action.ARRIVE),
-    "exit": ("/exit", "Salir", Action.END_VISIT),
-}
-SIDEBAR_ORDER = (
-    "new",
-    "exit",
-)
 
 
 def main() -> None:
@@ -108,12 +99,15 @@ def _render_inside(*, opening: bool) -> None:
     with st.sidebar:
         with st.container(key="lateral", gap=26):
             st.markdown(identity_markup(visit.name), unsafe_allow_html=True)
-            with st.container(key="comandos", gap=2):
-                for item in SIDEBAR_ORDER:
-                    if item in SIDEBAR_BUTTONS:
-                        _command_button(visit, item)
-                    else:
-                        st.markdown(command_row_markup(item), unsafe_allow_html=True)
+            with st.container(key="salir"):
+                st.button(
+                    "Salir",
+                    key="salir-boton",
+                    help="Libera tu sitio y deja la siguiente visita preparada",
+                    type="secondary",
+                    disabled=not visit.allows(Action.END_VISIT),
+                    on_click=_exit_restaurant,
+                )
             with st.container(key="capo", gap=8):
                 st.toggle("Bajo el capó", key="capo_visible", value=True)
                 activity = st.empty()
@@ -248,18 +242,18 @@ def _decide_table(decision: str) -> None:
         visit.decide_table(decision)
 
 
-def _command_button(visit: VisitSession, action: str) -> None:
-    label, help_text, contract_action = SIDEBAR_BUTTONS[action]
-    st.button(
-        label,
-        key=f"cmd-{action}",
-        help=help_text,
-        type="tertiary",
-        width="stretch",
-        disabled=contract_action is not None and not visit.allows(contract_action),
-        on_click=_run_command,
-        args=(action,),
-    )
+def _exit_restaurant() -> None:
+    """Release the place (/exit), open a fresh visit (/new) and go back to the door."""
+
+    state = st.session_state
+    visit: VisitSession | None = state.get("visit")
+    if visit is None:
+        _leave()
+        return
+    if visit.exit():
+        # Entering again with the same name starts this new visit, not the old one.
+        visit.arrive()
+        _leave()
 
 
 def _apply_slash(visit: VisitSession, command: SlashCommand) -> str | None:
@@ -314,19 +308,6 @@ def _enter() -> None:
     state.visit = visit
     state.knocks = 0
     state.stage = OPENING
-
-
-def _run_command(action: str) -> None:
-    state = st.session_state
-    visit: VisitSession | None = state.get("visit")
-    if visit is None:
-        _leave()
-    elif action == "exit":
-        if visit.exit():
-            _leave()
-    elif action == "new":
-        visit.arrive()
-        state.reveal = "quick"
 
 
 def _leave() -> None:
