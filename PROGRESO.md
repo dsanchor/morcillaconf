@@ -527,6 +527,15 @@ representan una nueva ejecución del smoke real con esta política.
 - Clasificador semántico especializado para decidir si el mensaje reutiliza el
   pedido habitual; el context provider entrega esa decisión y la memoria al
   camarero antes de generar el borrador.
+- **Corrección del 05/10/2026.** El clasificador tomaba «ponme otra de
+  croquetas» como «lo de siempre»: sus instrucciones aceptaban cualquier forma
+  indirecta o coloquial de «repetir», y el pedido habitual sustituía al nuevo.
+  Ahora solo reutiliza el pedido habitual cuando el cliente se refiere a él en
+  conjunto, sin nombrar platos. Devuelve `none` al pedir otra ración de un plato
+  concreto, al repetir algo de la misma visita y con otros usos de «siempre».
+  Evaluado contra `gpt-5.6-luna`, con 3 ejecuciones por frase:
+  - 75/75 en 25 frases (antes, 56/75);
+  - 45/45 en 15 frases que no aparecen en las instrucciones (antes, 30/45).
 - Historial acotado de resúmenes de pedido dentro de la cuota de preferencias:
   conserva pedidos distintos, cuenta duplicados exactos y utiliza frecuencia y
   recencia para ordenar las alternativas de «lo de siempre», sin sumarización
