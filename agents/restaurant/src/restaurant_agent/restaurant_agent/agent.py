@@ -14,7 +14,10 @@ from restaurant_agent.kitchen import A2AKitchen
 from restaurant_agent.kitchen_tool import create_kitchen_tool
 from restaurant_agent.knowledge import KnowledgeToolMiddleware, create_knowledge_tool
 from restaurant_agent.memory.context import DurableMemoryContextProvider
-from restaurant_agent.memory.intent import MemoryIntentDecision
+from restaurant_agent.memory.intent import (
+    INTENT_CLASSIFIER_INSTRUCTIONS,
+    MemoryIntentDecision,
+)
 from restaurant_agent.memory.middleware import (
     HabitualOrderMiddleware,
 )
@@ -103,12 +106,7 @@ def create_waiter_agent(
         name="Clasificador de intención de memoria",
         description="Clasifica si el cliente quiere repetir su pedido habitual.",
         client=client,
-        instructions=(
-            "Devuelve reuse_latest_order cuando el mensaje exprese intención "
-            "de repetir, reutilizar o pedir lo habitual recordado, aunque use "
-            "lenguaje coloquial o indirecto. Devuelve none para cualquier "
-            "otra intención. No converses ni tomes decisiones adicionales."
-        ),
+        instructions=INTENT_CLASSIFIER_INSTRUCTIONS,
         default_options={
             "store": False,
             "response_format": MemoryIntentDecision,

@@ -32,6 +32,11 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
   muestra las alternativas para que el cliente elija.
 - Usa clasificación semántica, no una comparación literal de frases, y añade
   la intención resuelta al contexto antes de construir la respuesta.
+- Solo cuenta como «lo de siempre» una referencia al pedido habitual en
+  conjunto, sin nombrar platos. Pedir otra ración de un plato concreto
+  («ponme otra de croquetas», «dos cañas más») es un pedido nuevo de ese plato,
+  aunque forme parte del pedido habitual. Ante la duda, el clasificador
+  responde que no.
 - Permite consultar, corregir y borrar recuerdos individuales o todos.
 - El borrado total no bloquea el guardado de interacciones futuras.
 - Separa sesión, preferencias, restricciones e historial de pedidos completados.
