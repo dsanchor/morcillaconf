@@ -82,11 +82,16 @@ with open(path, encoding="utf-8") as stream:
 PY
 )
 
+# The cashier (acuerdo del 06/10) is the sixth app; only its image is required.
+CASHIER_AGENT_APP_NAME="${CASHIER_AGENT_APP_NAME:-morcilla-cashier}"
+export CASHIER_AGENT_APP_NAME
+
 require_vars \
   AZURE_SUBSCRIPTION_ID AZURE_LOCATION AZURE_RESOURCE_GROUP \
   MANAGED_IDENTITY_NAME CONTAINERAPPS_ENVIRONMENT \
-  FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME KITCHEN_AGENT_APP_NAME MCP_APP_NAME \
-  FRONTEND_IMAGE BFF_IMAGE RESTAURANT_AGENT_IMAGE KITCHEN_AGENT_IMAGE MCP_IMAGE \
+  FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME KITCHEN_AGENT_APP_NAME \
+  CASHIER_AGENT_APP_NAME MCP_APP_NAME \
+  FRONTEND_IMAGE BFF_IMAGE RESTAURANT_AGENT_IMAGE KITCHEN_AGENT_IMAGE CASHIER_AGENT_IMAGE MCP_IMAGE \
   FOUNDRY_PROJECT_RESOURCE_ID FOUNDRY_PROJECT_ENDPOINT AZURE_AI_MODEL_DEPLOYMENT_NAME \
   MEMORY_MAX_ITEMS WAITER_MAX_TURNS WAITER_AGENT_TIMEOUT_SECONDS \
   BFF_SESSION_TTL_HOURS BFF_EVENT_RETENTION \
@@ -108,7 +113,8 @@ validate_match FOUNDRY_PROJECT_RESOURCE_ID '^/subscriptions/[^/]+/resourceGroups
 [[ "$FOUNDRY_PROJECT_RESOURCE_ID" != *"/subscriptions/00000000-0000-0000-0000-000000000000/"* ]] ||
   fail "Replace the FOUNDRY_PROJECT_RESOURCE_ID placeholder"
 
-for name in FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME KITCHEN_AGENT_APP_NAME MCP_APP_NAME; do
+for name in FRONTEND_APP_NAME BFF_APP_NAME RESTAURANT_AGENT_APP_NAME KITCHEN_AGENT_APP_NAME \
+  CASHIER_AGENT_APP_NAME MCP_APP_NAME; do
   validate_match "$name" '^[a-z][a-z0-9-]{0,30}[a-z0-9]$' "2-32 lowercase letters, numbers, or hyphens, starting with a letter"
 done
 
@@ -146,6 +152,15 @@ if ((KITCHEN_TIMEOUT_SECONDS + 20 > WAITER_AGENT_TIMEOUT_SECONDS)); then
   printf 'WARNING: KITCHEN_TIMEOUT_SECONDS (%s) leaves less than 20 s of WAITER_AGENT_TIMEOUT_SECONDS (%s) for the waiter itself\n' \
     "$KITCHEN_TIMEOUT_SECONDS" "$WAITER_AGENT_TIMEOUT_SECONDS" >&2
 fi
+# The cashier, like the kitchen, shares the Foundry project, the model and the
+# knowledge base, and the waiter reaches it through A2A.
+CASHIER_TIMEOUT_SECONDS="${CASHIER_TIMEOUT_SECONDS:-30}"
+export CASHIER_TIMEOUT_SECONDS
+validate_match CASHIER_TIMEOUT_SECONDS '^([1-9]|[1-9][0-9]|1[01][0-9]|120)$' "a whole number of seconds from 1 to 120"
+if ((CASHIER_TIMEOUT_SECONDS + 20 > WAITER_AGENT_TIMEOUT_SECONDS)); then
+  printf 'WARNING: CASHIER_TIMEOUT_SECONDS (%s) leaves less than 20 s of WAITER_AGENT_TIMEOUT_SECONDS (%s) for the waiter itself\n' \
+    "$CASHIER_TIMEOUT_SECONDS" "$WAITER_AGENT_TIMEOUT_SECONDS" >&2
+fi
 validate_ghcr_image() {
   local name="$1"
   local image
@@ -155,13 +170,14 @@ validate_ghcr_image() {
   [[ "$image" != *:latest ]] || fail "$name cannot use the mutable latest tag"
   [[ "$image" != *replace-* ]] || fail "Replace the $name placeholder"
 }
-for name in FRONTEND_IMAGE BFF_IMAGE RESTAURANT_AGENT_IMAGE KITCHEN_AGENT_IMAGE MCP_IMAGE; do
+for name in FRONTEND_IMAGE BFF_IMAGE RESTAURANT_AGENT_IMAGE KITCHEN_AGENT_IMAGE CASHIER_AGENT_IMAGE MCP_IMAGE; do
   validate_ghcr_image "$name"
 done
 
-app_names=("$FRONTEND_APP_NAME" "$BFF_APP_NAME" "$RESTAURANT_AGENT_APP_NAME" "$KITCHEN_AGENT_APP_NAME" "$MCP_APP_NAME")
-[[ "$(printf '%s\n' "${app_names[@]}" | sort -u | wc -l)" -eq 5 ]] ||
-  fail "All five Container App names must be distinct"
+app_names=("$FRONTEND_APP_NAME" "$BFF_APP_NAME" "$RESTAURANT_AGENT_APP_NAME" "$KITCHEN_AGENT_APP_NAME"
+  "$CASHIER_AGENT_APP_NAME" "$MCP_APP_NAME")
+[[ "$(printf '%s\n' "${app_names[@]}" | sort -u | wc -l)" -eq 6 ]] ||
+  fail "All six Container App names must be distinct"
 
 if [[ "$SEATING_LAYOUT_FILE" != /* ]]; then
   SEATING_LAYOUT_FILE="$REPO_ROOT/$SEATING_LAYOUT_FILE"
@@ -348,6 +364,36 @@ az containerapp update --name "$KITCHEN_AGENT_APP_NAME" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --set-env-vars "KITCHEN_A2A_PUBLIC_URL=https://$KITCHEN_FQDN/"
 
+log "Creating or updating cashier agent (internal A2A ingress)"
+cashier_env=(
+  "FOUNDRY_PROJECT_ENDPOINT=$FOUNDRY_PROJECT_ENDPOINT"
+  "AZURE_AI_MODEL_DEPLOYMENT_NAME=$AZURE_AI_MODEL_DEPLOYMENT_NAME"
+  "AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID"
+  "APP_ENVIRONMENT=production"
+  "CASHIER_TIMEOUT_SECONDS=$CASHIER_TIMEOUT_SECONDS"
+  # The hook for the staff review of SPECS: off, it has no interface yet.
+  "CASHIER_REQUIRE_REVIEW=false"
+  "CASHIER_HOST=0.0.0.0"
+  "CASHIER_PORT=8090"
+  "CASHIER_A2A_PUBLIC_URL=https://$CASHIER_AGENT_APP_NAME/"
+)
+if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
+  cashier_env+=(
+    "AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT"
+    "KNOWLEDGE_BASE_NAME=$KNOWLEDGE_BASE_NAME"
+    "KNOWLEDGE_BASE_TIMEOUT_SECONDS=$KNOWLEDGE_BASE_TIMEOUT_SECONDS"
+  )
+fi
+apply_app "$CASHIER_AGENT_APP_NAME" \
+  "$CASHIER_AGENT_IMAGE" internal 8090 true "${cashier_env[@]}"
+CASHIER_FQDN="$(az containerapp show --name "$CASHIER_AGENT_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query properties.configuration.ingress.fqdn --output tsv)"
+[[ -n "$CASHIER_FQDN" ]] || fail "Cashier agent internal FQDN was not assigned"
+az containerapp update --name "$CASHIER_AGENT_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --set-env-vars "CASHIER_A2A_PUBLIC_URL=https://$CASHIER_FQDN/"
+
 log "Creating or updating restaurant agent (internal ingress)"
 agent_env=(
   "FOUNDRY_PROJECT_ENDPOINT=$FOUNDRY_PROJECT_ENDPOINT"
@@ -362,6 +408,8 @@ agent_env=(
   "SEATING_MCP_TIMEOUT_SECONDS=$SEATING_MCP_TIMEOUT_SECONDS"
   "KITCHEN_A2A_URL=https://$KITCHEN_FQDN"
   "KITCHEN_TIMEOUT_SECONDS=$KITCHEN_TIMEOUT_SECONDS"
+  "CASHIER_A2A_URL=https://$CASHIER_FQDN"
+  "CASHIER_TIMEOUT_SECONDS=$CASHIER_TIMEOUT_SECONDS"
 )
 if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
   log "The restaurant agent uses the knowledge base $KNOWLEDGE_BASE_NAME"
