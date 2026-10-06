@@ -77,6 +77,7 @@ pertenece a 3C. El servidor actual construye el agente directamente; no pasa por
 | `DeleteMemoryCommand` | `memory.deletion_requested` | `memory_id` |
 | `ClearMemoryCommand` | `memory.clear_requested` | Vacío |
 | `DecideTableCommand` | `table.confirmation_decided` | `proposal_id`, `version`, `decision` (`confirmed` o `rejected`) |
+| `DecidePaymentCommand` | `payment.confirmation_decided` | `bill_id`, `version`, `method` (`tarjeta` o `efectivo`) |
 
 Todos llevan versión, `event_id` y `occurred_at` con zona horaria. Salvo llegada,
 requieren `conversation_id`. Los nombres de clases son imperativos; los
@@ -208,6 +209,44 @@ tienen valores por defecto que mantienen válidos los payloads de fase 3.
 resto sigue limitado a 2.000. `WaiterTurnSuccess.kitchen` lleva el informe del
 turno. Ambos campos se omiten del JSON cuando faltan, así que los mensajes y
 turnos sin cocina mantienen su forma anterior.
+
+## Caja (cobro v1, acuerdo del 06/10)
+
+`restaurant_contracts.cashier` define lo que se cruzan el camarero y la caja,
+un agente A2A en su propio contenedor:
+
+- `ServedLine`: un plato de cocina ya servido (pedido, línea, identificador de
+  carta, nombre y cantidad). Es lo único que se cobra: el BFF lo calcula con
+  los planes de cocina cuyos pedidos están en `served_orders`; ni lo rechazado
+  ni lo que sigue en el pase. Las bebidas todavía no se cobran.
+- `BillRequest`: la cuenta pedida, con esas líneas y nada del cliente; cada
+  línea servida aparece una sola vez.
+- `Bill`: la cuenta presentada, con `bill_id`, versión, `stage`, líneas con
+  precio unitario y total de línea, total, moneda `EUR`, opciones de pago
+  (`tarjeta`, `efectivo`), fuentes y la nota «Solo platos de cocina; las
+  bebidas todavía no se cobran». Los importes son `Decimal` exactos: el total
+  es la suma de las líneas y cada línea, su precio por su cantidad.
+- `BillStage`: `awaiting_payment` ofrece tarjeta o efectivo;
+  `awaiting_review` es el gancho preparado para que una persona en caja revise
+  el ticket antes (`ReviewDecision`), desactivado por defecto y sin interfaz.
+- `PaymentChoice`: el botón del cliente, con la clave de idempotencia del
+  primer intento. `Receipt`: método, importe, referencia y hora del pago;
+  pagar otra vez la misma cuenta devuelve ese mismo recibo.
+- `CashierFailure`: el motivo explícito (precio ausente o incoherente, carta no
+  consultada, caja no disponible, cuenta inexistente...); nunca un importe
+  inventado.
+- `CashierReport`: el resultado, su texto en español y la tarea A2A
+  (`CashierTask`) que guarda la cuenta, para que el pago reanude esa misma
+  tarea. Comprueba que la cuenta cobra exactamente las líneas servidas.
+- `CashierPort`: la frontera entre camarero y caja (presentar, pagar, anular).
+
+`ChatMessage` admite el rol `cashier` con su `CashierReport`. El snapshot añade
+`pending_bill` (`BillView`) y `visit_closed`, y
+`payment.confirmation_decided` solo figura en `allowed_actions` con una cuenta
+pendiente de pago. `WaiterTurnRequest` lleva `served`, `orders_at_pass` y
+`pending_bill`; `WaiterTurnSuccess.cashier`, el informe del turno, y la
+operación `pay_bill` (`WaiterPayRequest`/`WaiterPaySuccess`) relaya el pago sin
+modelo. Todos los campos nuevos se omiten del JSON cuando faltan.
 
 ## Eventos, SSE y recuperación
 
