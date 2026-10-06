@@ -19,9 +19,20 @@ from azure.ai.agentserver.responses import (
 from azure.ai.agentserver.core import get_request_context
 
 from restaurant_contracts.activity import ActivityStep, merge_steps
+from restaurant_contracts.cashier import (
+    CashierFailureCode,
+    CashierPort,
+    CashierReport,
+    PaymentChoice,
+    PendingBill,
+    Receipt,
+    supersedes_bill,
+)
 from restaurant_contracts.waiter import (
     WAITER_REQUEST_ADAPTER,
     SeatingReport,
+    WaiterPayRequest,
+    WaiterPaySuccess,
     WaiterSeatingDecisionRequest,
     WaiterSeatingRequest,
     WaiterSeatingReleaseRequest,
@@ -34,8 +45,11 @@ from restaurant_contracts.waiter import (
     WaiterTurnSuccess,
 )
 
-from restaurant_agent.activity import recording
+from restaurant_agent.activity import recording, tracked
 from restaurant_agent.agent import create_waiter_agent
+from restaurant_agent.cashier import A2ACashier
+from restaurant_agent.cashier.rendering import BILL_CLOSED, GOODBYE, PAY_AGAIN, render_text
+from restaurant_agent.cashier_tool import BillingContext
 from restaurant_agent.config import Settings
 from restaurant_agent.conversation import (
     AgentUnavailableError,
@@ -58,6 +72,12 @@ from restaurant_agent.seating import bind_visit
 
 logger = logging.getLogger(__name__)
 _T = TypeVar("_T")
+# Payment failures after which the bill is no longer open at the cashier.
+CLOSED_BILL_FAILURES = {
+    CashierFailureCode.BILL_NOT_FOUND,
+    CashierFailureCode.REVIEW_REJECTED,
+    CashierFailureCode.CASHIER_NOT_CONFIGURED,
+}
 
 
 async def _cancel_when_signalled(
@@ -102,6 +122,7 @@ class RemoteWaiterService:
         *,
         agent_factory: Callable = create_waiter_agent,
         memory_store: DurableMemoryRepository | None = None,
+        cashier: CashierPort | None = None,
     ) -> None:
         self._settings = settings
         # Seating decisions and syncs never call the model, so they never
@@ -111,6 +132,8 @@ class RemoteWaiterService:
         )
         self._memory = memory_store or create_memory_store(settings)
         self._agent_factory = agent_factory
+        # Payments and cancellations reach the cashier without the model.
+        self._cashier = cashier or A2ACashier(settings)
 
     async def take_turn(
         self, request: WaiterTurnRequest
@@ -145,7 +168,18 @@ class RemoteWaiterService:
                     actor_id=request.actor.actor_id,
                     message=request.message,
                     correlation_id=request.correlation_id,
+                    billing=BillingContext(
+                        served=request.served,
+                        orders_at_pass=request.orders_at_pass,
+                        pending_bill=request.pending_bill,
+                    ),
                 )
+                if (
+                    request.pending_bill is not None
+                    and response.kitchen is not None
+                    and supersedes_bill(response.kitchen)
+                ):
+                    await self._supersede(request.pending_bill)
                 exported = manager.export_conversation(
                     conversation_id=request.conversation_id,
                     actor_id=request.actor.actor_id,
@@ -159,9 +193,21 @@ class RemoteWaiterService:
                     session_json=_session_to_json(exported.agent_session),
                     seating=_report(manager, request),
                     kitchen=response.kitchen,
+                    cashier=response.cashier,
                 )
         except ConversationError as exc:
             return _failure(exc)
+
+    async def _supersede(self, pending: PendingBill) -> None:
+        """New dishes make the presented bill stale: its cashier task is cancelled."""
+
+        with tracked("caja", "Caja: anula la cuenta pendiente", "Hay platos nuevos") as step:
+            cancelled = await self._cashier.cancel(pending)
+            step.detail = (
+                "Cuenta anulada: pedidla otra vez al terminar"
+                if cancelled
+                else "Caja ya no la tenía abierta"
+            )
 
     async def decide_seating(
         self, request: WaiterSeatingDecisionRequest
@@ -248,6 +294,45 @@ class RemoteWaiterService:
         """Take the cooked dishes from the pass to the table, without the model."""
 
         return WaiterServeSuccess(order_id=request.order_id, reply=served_text(request.dishes))
+
+    async def pay_bill(self, request: WaiterPayRequest) -> WaiterPaySuccess:
+        """Relay the customer's button to the cashier's same task, without the model.
+
+        Only a receipt earns the goodbye; the BFF then ends the visit as «Salir»
+        does. A retry or a double click gets the stored receipt, never a second
+        charge.
+        """
+
+        choice = PaymentChoice(
+            bill_id=request.bill.bill_id,
+            version=request.bill.version,
+            method=request.method,
+            idempotency_key=request.idempotency_key,
+        )
+        steps: list[ActivityStep] = []
+
+        def keep(step: ActivityStep) -> None:
+            steps[:] = merge_steps(steps, step)
+
+        with recording(keep):
+            answer = await self._cashier.pay(request.bill, choice)
+        result = answer.result
+        if isinstance(result, Receipt):
+            reply = GOODBYE
+        elif result.code in CLOSED_BILL_FAILURES:
+            reply = BILL_CLOSED
+        else:
+            reply = PAY_AGAIN
+        return WaiterPaySuccess(
+            reply=reply,
+            cashier=CashierReport(
+                bill_id=request.bill.bill_id,
+                result=result,
+                text=render_text(result, paying=True),
+                task=answer.task,
+            ),
+            activity=steps,
+        )
 
     @asynccontextmanager
     async def _conversation(
@@ -390,6 +475,8 @@ def create_server(
                 operation = selected_service.sync_seating(turn)
             elif isinstance(turn, WaiterServeRequest):
                 operation = selected_service.serve_order(turn)
+            elif isinstance(turn, WaiterPayRequest):
+                operation = selected_service.pay_bill(turn)
             else:
                 # A turn streams its activity steps, one JSON line each, and
                 # ends with the typed result as its last line.

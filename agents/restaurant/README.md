@@ -80,8 +80,9 @@ la confirmación pendiente) o `sync_seating` (leer el sitio y la sala sin
 llamar al modelo). El agente devuelve el resultado estructurado, con el
 informe de asientos, como texto JSON de la respuesta estándar. La aprobación
 pendiente viaja en `session_json`, que el BFF conserva, así que sobrevive a
-un reinicio. El BFF no habla con el MCP. Todavía no existen herramientas de
-inventario, cocina, cuenta o pago.
+un reinicio. El BFF no habla con el MCP. La operación `pay_bill` relaya a caja
+el botón de pago del cliente, también sin modelo (ver [Caja](#caja-externa-mediante-a2a)).
+Todavía no existen herramientas de inventario.
 
 ## Carta y base de conocimiento (Foundry IQ)
 
@@ -195,6 +196,40 @@ Límites de esta versión: los especialistas aceptan siempre, no hay tiempos ni
 despensa, el pedido no se confirma y cada cambio del cliente es un pedido nuevo
 en un turno nuevo.
 
+## Caja externa mediante A2A
+
+Acuerdo del 06/10: la caja es un agente A2A en su propio contenedor,
+[`agents/cashier`](../cashier). El camarero solo conoce la frontera
+`CashierPort` (`restaurant_contracts.cashier`) y no tiene nada que ver con los
+precios.
+
+- **Tool `pedir_la_cuenta`** (`restaurant_agent/cashier_tool.py`). La llama
+  cuando el cliente pide la cuenta y **no recibe argumentos**: el modelo no
+  elige qué se cobra. El BFF envía en el turno las líneas servidas (`served`:
+  platos aceptados de los planes de cocina ya servidos), cuántos pedidos
+  cocinados esperan aún en el pase (`orders_at_pass`) y la cuenta pendiente
+  (`pending_bill`). La tool se niega a cobrar con platos en el pase, sin nada
+  servido o con una cuenta ya presentada; si no, construye el `BillRequest` con
+  esas líneas y lo envía a caja. Como mucho una vez por turno.
+- **Puerto `A2ACashier`** (`restaurant_agent/cashier/port.py`). Abre una tarea
+  A2A por cuenta. Que la tarea quede en `input-required` con el artefacto
+  `Bill` significa «cuenta presentada», no un fallo: el informe guarda los
+  identificadores de la tarea y del contexto para que el pago reanude esa
+  misma tarea. Retransmite al panel «Bajo el capó» los pasos que caja publica
+  mientras trabaja. Sin URL, timeout (`CASHIER_TIMEOUT_SECONDS`), fallo remoto o
+  respuesta inválida, devuelve un `CashierFailure` explícito.
+- **Pago `pay_bill`** (`remote.py`). El botón «Tarjeta» o «Efectivo» llega del
+  BFF sin pasar por el modelo. El camarero lee antes la tarea: si ya está
+  completada (un reintento o un doble clic), devuelve el recibo guardado en vez
+  de pagar otra vez; si espera, la reanuda con el `PaymentChoice` y la clave de
+  idempotencia del BFF. Solo con el recibo contesta la despedida fija; el BFF
+  cierra entonces la visita por el mismo camino que «Salir».
+- **Cuenta anulada.** Si el cliente pide más platos con una cuenta pendiente, el
+  camarero cancela su tarea en caja (`tasks/cancel`) y el cliente tiene que
+  volver a pedirla.
+- **Un mensaje nunca paga.** Las instrucciones le prohíben dar por pagado un
+  «pago con tarjeta» escrito, calcular o cambiar importes y cobrar bebidas.
+
 En la CLI (`./scripts/run-waiter-cli.sh`), una propuesta pendiente se decide
 respondiendo `s` o `n`.
 
@@ -243,6 +278,9 @@ KNOWLEDGE_BASE_TIMEOUT_SECONDS="20"
 KITCHEN_A2A_URL="http://localhost:8089"
 KITCHEN_A2A_TOKEN_SCOPE=""
 KITCHEN_TIMEOUT_SECONDS="30"
+CASHIER_A2A_URL="http://localhost:8090"
+CASHIER_A2A_TOKEN_SCOPE=""
+CASHIER_TIMEOUT_SECONDS="30"
 ```
 
 Las variables de la base de conocimiento son opcionales para el camarero: la
@@ -251,7 +289,9 @@ usuario necesita el rol Search Index Data Reader sobre el servicio de búsqueda
 (`./scripts/provision-knowledge.sh` se lo asigna a quien lo ejecuta). Las dos
 de cocina configuran el endpoint A2A, un scope de autenticación opcional y el
 tiempo máximo de la llamada. El modelo y Foundry IQ del chef se configuran en
-el proyecto independiente de cocina.
+el proyecto independiente de cocina. Las tres de caja hacen lo mismo con la
+caja; sin `CASHIER_A2A_URL`, `pedir_la_cuenta` responde que caja no está
+configurada.
 
 La configuración local debe coincidir con el entorno de `azd`, porque
 `azd ai agent run` da prioridad a sus propias variables.
@@ -568,7 +608,9 @@ agents/restaurant/
     ├── restaurant_agent/
     │   ├── agent.py, instructions.md   # el camarero
     │   ├── kitchen_tool.py             # su tool pedir_a_cocina
-    │   └── kitchen/                    # el chef: agent, instructions, validación y puerto
+    │   ├── kitchen/                    # el chef: agent, instructions, validación y puerto
+    │   ├── cashier_tool.py             # su tool pedir_la_cuenta
+    │   └── cashier/                    # puerto A2A de caja y textos de la cuenta
     └── tests/
 ```
 
