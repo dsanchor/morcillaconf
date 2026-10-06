@@ -25,10 +25,12 @@ from restaurant_contracts.application import (
     Command,
     CommandResult,
     CommandStatusChanged,
+    DecidePaymentCommand,
     DecideTableCommand,
     EmptyPayload,
     EndVisitCommand,
     ErrorCode,
+    PaymentDecisionPayload,
     ResponseTextDelta,
     RestaurantSnapshot,
     SendMessageCommand,
@@ -36,6 +38,7 @@ from restaurant_contracts.application import (
     SnapshotUpdated,
     TableDecisionPayload,
 )
+from restaurant_contracts.cashier import PaymentMethod
 from restaurant_contracts.client import BffClient, BffClientError
 from restaurant_contracts.seating import RoomView
 
@@ -64,6 +67,8 @@ class ConversationView:
     outgoing: str | None = None
     provisional: tuple[tuple[str, str], ...] = ()
     waiting: bool = False
+    # The bill still waiting for card or cash, so its bubble can say so.
+    pending_bill: str | None = None
 
 
 class VisitSession:
@@ -129,7 +134,15 @@ class VisitSession:
             outgoing = None
         processing = self.snapshot is not None and self.snapshot.process_status == "processing"
         waiting = (processing or outgoing is not None) and not provisional
-        return ConversationView(messages, tuple(self.cards), outgoing, provisional, waiting)
+        bill = self.snapshot.pending_bill if self.snapshot is not None else None
+        return ConversationView(
+            messages,
+            tuple(self.cards),
+            outgoing,
+            provisional,
+            waiting,
+            bill.bill_id if bill is not None else None,
+        )
 
     def arrive(self, resume_visit_id: str | None = None) -> None:
         if self.snapshot is not None and not self.allows(Action.ARRIVE):
@@ -198,6 +211,28 @@ class VisitSession:
             ),
             on_update,
             action=Action.DECIDE_TABLE,
+        )
+
+    def decide_payment(self, method: PaymentMethod, on_update: Updater | None = None) -> None:
+        """Pay the pending bill by card or cash: the only way to pay, never a phrase."""
+
+        bill = self.snapshot.pending_bill if self.snapshot is not None else None
+        if bill is None or self.pending is not None:
+            # A second click after the first one paid: nothing to do.
+            return
+        self._send(
+            lambda event_id, at, conversation_id: DecidePaymentCommand(
+                schema_version=1,
+                event_id=event_id,
+                occurred_at=at,
+                event_type="payment.confirmation_decided",
+                conversation_id=conversation_id,
+                payload=PaymentDecisionPayload(
+                    bill_id=bill.bill_id, version=bill.version, method=method
+                ),
+            ),
+            on_update,
+            action=Action.DECIDE_PAYMENT,
         )
 
     def exit(self, on_update: Updater | None = None) -> bool:
@@ -385,8 +420,11 @@ class VisitSession:
         self._reported = None
         if result.status == "failed":
             self._notice(result.error.message)
-            if isinstance(command, DecideTableCommand) and self.snapshot is not None:
-                # An expired or stale proposal is gone: show the confirmed state.
+            if (
+                isinstance(command, (DecideTableCommand, DecidePaymentCommand))
+                and self.snapshot is not None
+            ):
+                # An expired proposal or a stale bill is gone: show the confirmed state.
                 try:
                     await self._reload(self.snapshot.conversation_id)
                 except BffClientError:

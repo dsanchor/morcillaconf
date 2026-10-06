@@ -37,6 +37,11 @@ def test_http_client_is_configured_from_the_environment() -> None:
     assert FrontendSettings.from_env({}).bff_url == "http://127.0.0.1:8000"
 
 
+def test_the_farewell_after_paying_lasts_a_few_seconds_by_default() -> None:
+    assert FrontendSettings.from_env({}).farewell_seconds == 4
+    assert FrontendSettings.from_env({"FRONTEND_FAREWELL_SECONDS": "0"}).farewell_seconds == 0
+
+
 def test_fake_client_knows_the_active_visit_and_is_simulated() -> None:
     connect = client_connector(FrontendSettings.from_env({"FRONTEND_FAKE_PAUSE_SECONDS": "0"}))
     client = connect("Ana")
@@ -53,6 +58,9 @@ def test_fake_client_knows_the_active_visit_and_is_simulated() -> None:
         {"FRONTEND_BFF_URL": "bff:8000"},
         {"FRONTEND_BFF_TIMEOUT_SECONDS": "0"},
         {"FRONTEND_BFF_TIMEOUT_SECONDS": "pronto"},
+        {"FRONTEND_FAREWELL_SECONDS": "-1"},
+        {"FRONTEND_FAREWELL_SECONDS": "31"},
+        {"FRONTEND_FAREWELL_SECONDS": "luego"},
     ],
 )
 def test_invalid_configuration_is_rejected_with_a_clear_message(environ) -> None:

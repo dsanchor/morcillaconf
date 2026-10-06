@@ -28,6 +28,7 @@ from restaurant_contracts.application import (
     CommandStatusChanged,
     CompletedCommandResult,
     CorrectMemoryCommand,
+    DecidePaymentCommand,
     DecideTableCommand,
     EndVisitCommand,
     DeleteMemoryCommand,
@@ -44,13 +45,23 @@ from restaurant_contracts.application import (
     StreamEvent,
     VisibleMemory,
 )
+from restaurant_contracts.cashier import BillView, CashierReport, served_lines
 from restaurant_contracts.client import BffClientError
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
 from restaurant_contracts.kitchen import KitchenPlan, KitchenReport
 from restaurant_contracts.memory import MemoryKind
 from restaurant_contracts.seating import RoomView
 
-from frontend.fake_kitchen import fake_kitchen_report, kitchen_reply, served_reply, served_reply
+from frontend.fake_cashier import (
+    GOODBYE,
+    NOTHING_SERVED,
+    PAY_WITH_BUTTONS,
+    SERVE_FIRST,
+    asks_for_the_bill,
+    fake_bill,
+    fake_receipt,
+)
+from frontend.fake_kitchen import fake_kitchen_report, kitchen_reply, served_reply
 from frontend.fake_seating import FakeRoom, party_size
 from frontend.greeting import greeting
 
@@ -161,6 +172,10 @@ class _Conversation:
     # Cooked orders at the pass: order id, dishes and when they left the kitchen.
     at_pass: list[tuple[str, list[str], float]] = field(default_factory=list)
     served_orders: list[str] = field(default_factory=list)
+    # The bill waiting for card or cash, and the visit ended by its payment.
+    pending_bill: CashierReport | None = None
+    paid_bills: set[str] = field(default_factory=set)
+    closed: bool = False
 
 
 class FakeRestaurant:
@@ -328,6 +343,8 @@ class FakeRestaurant:
             return self._converse(conversation, command, correlation_id)
         if isinstance(command, DecideTableCommand):
             return self._decide(conversation, command, correlation_id)
+        if isinstance(command, DecidePaymentCommand):
+            return self._pay(conversation, command, correlation_id)
         if isinstance(command, EndVisitCommand):
             self.room.exit(conversation.conversation_id)
             return None
@@ -363,12 +380,19 @@ class FakeRestaurant:
     def _converse(
         self, conversation: _Conversation, command: SendMessageCommand, correlation_id: str
     ) -> _Failure | None:
+        if conversation.closed:
+            return _Failure(
+                ErrorCode.CONFLICT,
+                "Esta visita ya está pagada y cerrada. Vuelve a entrar para empezar otra.",
+            )
         if conversation.turns >= self.max_turns:
             return _Failure(
                 ErrorCode.TURN_LIMIT_EXCEEDED,
                 "Hemos llegado al límite de mensajes de esta visita. Escribe /new para empezar otra.",
             )
         conversation.turns += 1
+        # Dishes due at the pass reach the table before the next message is read.
+        self._serve_due(conversation)
         text = command.payload.message
         self._add_message(conversation, "user", text, command.event_id)
         self._publish_snapshot(conversation, command, correlation_id, "processing")
@@ -404,8 +428,61 @@ class FakeRestaurant:
             if isinstance(kitchen.result, KitchenPlan) and kitchen.result.accepted:
                 dishes = [f"{item.quantity} × {item.name}" for item in kitchen.result.accepted]
                 conversation.at_pass.append((kitchen.result.order_id, dishes, self._monotonic()))
-        self._attach_activity(conversation, command.event_id, preferences + restrictions, kitchen)
+                # New dishes on their way: the presented bill is no longer exact.
+                conversation.pending_bill = None
+        bill: CashierReport | None = None
+        if kitchen is None and asks_for_the_bill(text):
+            bill, reply = self._bill(conversation, command.event_id)
+        self._attach_activity(conversation, command.event_id, preferences + restrictions, kitchen, bill)
         self._say(conversation, command, correlation_id, reply, pause=self.pause_seconds)
+        return None
+
+    def _bill(self, conversation: _Conversation, event_id: str) -> tuple[CashierReport | None, str]:
+        """The simulated cashier: only served kitchen dishes, never twice, never at the pass."""
+
+        if conversation.pending_bill is not None:
+            return None, PAY_WITH_BUTTONS
+        if conversation.at_pass:
+            return None, SERVE_FIRST
+        reports = [message.kitchen for message in conversation.messages if message.kitchen is not None]
+        lines = served_lines(reports, set(conversation.served_orders))
+        if not lines:
+            return None, NOTHING_SERVED
+        report = fake_bill(self._next_id("bill"), lines)
+        conversation.pending_bill = report
+        self._add_message(conversation, "cashier", report.text, event_id, cashier=report)
+        return report, "Aquí tenéis la cuenta. Elegid «Tarjeta» o «Efectivo» para pagar."
+
+    def _pay(
+        self, conversation: _Conversation, command: DecidePaymentCommand, correlation_id: str
+    ) -> _Failure | None:
+        payload = command.payload
+        if payload.bill_id in conversation.paid_bills:
+            # A second click: the receipt is already on the table.
+            return None
+        pending = conversation.pending_bill
+        if pending is None or pending.bill_id != payload.bill_id or payload.version != 1:
+            return _Failure(ErrorCode.CONFLICT, "Esa cuenta ya no está vigente. Pedid la cuenta otra vez.")
+        receipt = fake_receipt(
+            pending, payload.method, command.event_id, self._next_id("pay"), self._clock()
+        )
+        step = ActivityStep(
+            step_id=self._next_id("paso"), component="caja",
+            label=f"Caja: cobra con {payload.method.value}", detail="Pago simulado", duration_ms=40,
+        )
+        conversation.messages.append(
+            ChatMessage(
+                message_id=self._next_id("msg"), role="cashier", text=receipt.text,
+                occurred_at=self._clock(), command_event_id=command.event_id,
+                cashier=receipt, activity=[step],
+            )
+        )
+        conversation.pending_bill = None
+        conversation.paid_bills.add(payload.bill_id)
+        self._say(conversation, command, correlation_id, GOODBYE, pause=0.0)
+        # Like «Salir»: the place is released and the visit ends.
+        self.room.exit(conversation.conversation_id)
+        conversation.closed = True
         return None
 
     def _attach_activity(
@@ -414,6 +491,7 @@ class FakeRestaurant:
         command_event_id: str,
         remembered: list[str],
         kitchen: KitchenReport | None,
+        bill: CashierReport | None = None,
     ) -> None:
         """Simulated steps, shaped like the real waiter's, on the customer's message."""
 
@@ -432,6 +510,11 @@ class FakeRestaurant:
                 step("cocina", "A2A: envía la comanda a cocina", f"{lines} líneas", 1200),
                 step("chef", "Chef analiza la comanda", f"{lines} líneas", 600),
                 step("foundry_iq", "Foundry IQ: carta y recetario", "Carta simulada", 300),
+            ]
+        if bill is not None:
+            steps += [
+                step("caja", "Caja A2A: envía la cuenta", f"{len(bill.request.lines)} líneas servidas", 700),
+                step("caja", "Caja: consulta precios en la carta", "Carta simulada", 300),
             ]
         if remembered:
             steps.append(step("memoria", "Guarda en memoria", "; ".join(remembered)[:200], 5))
@@ -518,12 +601,13 @@ class FakeRestaurant:
     def _add_message(
         self,
         conversation: _Conversation,
-        role: Literal["user", "assistant", "kitchen"],
+        role: Literal["user", "assistant", "kitchen", "cashier"],
         text: str,
         command_event_id: str,
         message_id: str | None = None,
         *,
         kitchen: KitchenReport | None = None,
+        cashier: CashierReport | None = None,
     ) -> None:
         conversation.messages.append(
             ChatMessage(
@@ -533,6 +617,7 @@ class FakeRestaurant:
                 occurred_at=self._clock(),
                 command_event_id=command_event_id,
                 kitchen=kitchen,
+                cashier=cashier,
             )
         )
 
@@ -643,6 +728,12 @@ class FakeRestaurant:
             allowed_actions=self._allowed_actions(conversation, memories, process_status),
             seating=self.room.seating(conversation.conversation_id),
             served_orders=list(conversation.served_orders),
+            pending_bill=(
+                BillView.of(conversation.pending_bill.result)
+                if conversation.pending_bill is not None
+                else None
+            ),
+            visit_closed=conversation.closed,
         )
 
     def _allowed_actions(
@@ -652,6 +743,8 @@ class FakeRestaurant:
         process_status: ProcessStatus = "idle",
     ) -> list[Action]:
         actions = [Action.ARRIVE]
+        if conversation.closed:
+            return actions
         if process_status == "idle":
             actions.append(Action.END_VISIT)
         if conversation.turns < self.max_turns:
@@ -662,6 +755,8 @@ class FakeRestaurant:
                 and self.room.seating(conversation.conversation_id).status == "proposed"
             ):
                 actions.append(Action.DECIDE_TABLE)
+        if process_status == "idle" and conversation.pending_bill is not None:
+            actions.append(Action.DECIDE_PAYMENT)
         return actions
 
     def _owned(self, identity: ActorContext, conversation_id: str) -> _Conversation:

@@ -13,12 +13,14 @@ import time
 import streamlit as st
 
 from restaurant_contracts.application import Action
+from restaurant_contracts.cashier import PAYMENT_LABELS, PaymentMethod, euros
 from restaurant_contracts.client import BffClientError
 
 from frontend.config import ClientConfigurationError, FrontendSettings, client_connector
 from frontend.markup import (
     Reveal,
     activity_markup,
+    bill_card_markup,
     conversation_markup,
     door_hint_markup,
     facade_markup,
@@ -36,6 +38,9 @@ ARRIVING_NOTICE = "Un momento, que ya te abrimos."
 # The plan refreshes by itself so parallel customers see each other.
 PLAN_REFRESH_SECONDS = 3
 ENTRANCE_SECONDS = 4.5
+# While the receipt and the goodbye are on screen, check every second whether
+# it is time to go back to the door.
+FAREWELL_CHECK_SECONDS = 1
 
 
 def main() -> None:
@@ -46,10 +51,12 @@ def main() -> None:
     state = st.session_state
     if "connect" not in state:
         try:
-            state.connect = client_connector(FrontendSettings.from_env())
+            settings = FrontendSettings.from_env()
+            state.connect = client_connector(settings)
         except ClientConfigurationError as exc:
             st.error(str(exc))
             st.stop()
+        state.farewell_seconds = settings.farewell_seconds
     if "stage" not in state:
         state.stage = OUTSIDE
         state.knocks = 0
@@ -117,6 +124,7 @@ def _render_inside(*, opening: bool) -> None:
         with st.container(key="ventana", gap=None):
             window = st.empty()
             card = st.empty()
+            payment = st.empty()
             text = st.chat_input("Escribe al camarero", key="redactor", max_chars=2_000)
         if state.get("simulated", True):
             st.markdown(simulated_markup(), unsafe_allow_html=True)
@@ -136,7 +144,7 @@ def _render_inside(*, opening: bool) -> None:
         else:
             activity.empty()
 
-    seating_before = _seating_of(visit)
+    plan_before = _plan_state(visit)
     if text is not None:
         command = parse_slash_command(text)
         if command is None:
@@ -147,16 +155,22 @@ def _render_inside(*, opening: bool) -> None:
             reveal_pace = _apply_slash(visit, command) or reveal_pace
     render()
     _proposal_card(card, visit)
-    if text is not None and _seating_of(visit) != seating_before:
-        # The plan was drawn before the turn: redraw it now with the new place.
+    _bill_card(payment, visit)
+    if _farewell(visit):
+        return
+    if text is not None and _plan_state(visit) != plan_before:
+        # The plan was drawn before the turn: redraw it now with the new place
+        # or with the till lit for the new bill.
         if reveal_pace:
             state.reveal = reveal_pace
         st.rerun()
 
 
-def _seating_of(visit: VisitSession) -> object:
+def _plan_state(visit: VisitSession) -> object:
     snapshot = visit.snapshot
-    return None if snapshot is None else (snapshot.conversation_id, snapshot.seating)
+    if snapshot is None:
+        return None
+    return (snapshot.conversation_id, snapshot.seating, snapshot.pending_bill)
 
 
 def _proposal_card(slot, visit: VisitSession) -> None:
@@ -184,6 +198,59 @@ def _proposal_card(slot, visit: VisitSession) -> None:
                 on_click=_decide_table,
                 args=("rejected",),
             )
+
+
+def _bill_card(slot, visit: VisitSession) -> None:
+    """The pending bill with its two payment buttons; a phrase never pays."""
+
+    snapshot = visit.snapshot
+    bill = snapshot.pending_bill if snapshot is not None else None
+    if bill is None or not visit.allows(Action.DECIDE_PAYMENT):
+        slot.empty()
+        return
+    with slot.container(key="cuenta"):
+        st.markdown(bill_card_markup(bill), unsafe_allow_html=True)
+        with st.container(horizontal=True, key="cuenta-botones", gap=10):
+            for method in bill.payment_options:
+                st.button(
+                    PAYMENT_LABELS[method],
+                    key=f"pagar-{method.value}-{bill.bill_id}",
+                    type="primary",
+                    help=f"Pagar {euros(bill.total)} con {method.value}",
+                    on_click=_pay,
+                    args=(method,),
+                )
+
+
+def _farewell(visit: VisitSession) -> bool:
+    """After the payment, the receipt and the goodbye stay a moment; then the door.
+
+    Returns True while the farewell is on screen.
+    """
+
+    state = st.session_state
+    snapshot = visit.snapshot
+    if snapshot is None or not snapshot.visit_closed:
+        return False
+    since = state.get("farewell_since")
+    if since is None or since[0] != snapshot.conversation_id:
+        since = state.farewell_since = (snapshot.conversation_id, time.monotonic())
+    if time.monotonic() - since[1] < state.get("farewell_seconds", 0):
+        _farewell_clock()
+        return True
+    # Like «Salir»: entering again with the same name starts a new visit.
+    visit.arrive()
+    _leave()
+    st.rerun()
+    return True
+
+
+@st.fragment(run_every=FAREWELL_CHECK_SECONDS)
+def _farewell_clock() -> None:
+    state = st.session_state
+    since = state.get("farewell_since")
+    if since is not None and time.monotonic() - since[1] >= state.get("farewell_seconds", 0):
+        st.rerun()
 
 
 @st.fragment(run_every=PLAN_REFRESH_SECONDS)
@@ -231,6 +298,7 @@ def _live_plan(opening: bool) -> None:
             kitchen_served=cooked is not None and cooked.order_id in served,
             served_dishes=served_dishes,
             serve_elapsed=visit.serve_elapsed(),
+            bill_pending=visit.snapshot.pending_bill is not None,
         ),
         unsafe_allow_html=True,
     )
@@ -240,6 +308,12 @@ def _decide_table(decision: str) -> None:
     visit: VisitSession | None = st.session_state.get("visit")
     if visit is not None:
         visit.decide_table(decision)
+
+
+def _pay(method: PaymentMethod) -> None:
+    visit: VisitSession | None = st.session_state.get("visit")
+    if visit is not None:
+        visit.decide_payment(method)
 
 
 def _exit_restaurant() -> None:
@@ -297,6 +371,9 @@ def _enter() -> None:
         if resume is not None and visit.snapshot is None and visit.pending is None:
             visit.cards.clear()
             visit.arrive()
+        elif visit.snapshot is not None and visit.snapshot.visit_closed:
+            # The latest visit was paid and closed: this entrance starts a new one.
+            visit.arrive()
     state.arriving = None
     if visit.snapshot is None:
         if visit.pending is not None:
@@ -318,6 +395,7 @@ def _leave() -> None:
     state.door_notice = None
     state.arriving = None
     state.pop("reveal", None)
+    state.pop("farewell_since", None)
 
 
 def _style(css: str) -> None:

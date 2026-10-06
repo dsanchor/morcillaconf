@@ -9,6 +9,9 @@
   /* The kitchen's voice: azulejo blue under white text. */
   --azulejo: #1d4e89;
   --azulejo-hondo: #153a68;
+  /* The cashier's voice: pine green from the Burgos pinewoods under white text. */
+  --pino: #1f5b3f;
+  --pino-hondo: #164530;
 }
 /* The longest command is five characters; retain room for identity and controls. */
 .stApp {
@@ -145,6 +148,7 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .capo-paso.cocina, .stApp .capo-paso.chef, .stApp .capo-paso.especialista { --tono: #7fa3d4; }
 .stApp .capo-paso.foundry_iq { --tono: var(--luz); }
 .stApp .capo-paso.entrega { --tono: #b08457; }
+.stApp .capo-paso.caja { --tono: #86b79b; }
 .stApp .capo-componente { font-weight: 700; color: var(--tono); letter-spacing: .03em; }
 .stApp .capo-tiempo { font-family: var(--mono); font-size: .7rem; color: var(--piedra-tenue); }
 .stApp .capo-etiqueta, .stApp .capo-detalle { grid-column: 1 / -1; overflow-wrap: anywhere; }
@@ -222,6 +226,33 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .plan-cocina .plato { display: block; }
 .stApp .plan-cocina .detalle { display: block; font-size: 1rem; color: rgba(255, 255, 255, .86); }
 .stApp .plan-cocina .fuentes { margin-top: .75rem; font-size: 1rem; color: rgba(255, 255, 255, .86); }
+/* The cashier's bill: its own voice, the till and pine green, laid out like a ticket. */
+.stApp .msg.caja { max-width: min(54ch, 92%); }
+.stApp .msg.caja .icono { background: var(--pino-hondo); border-color: #86b79b; }
+.stApp .msg.caja .burbuja {
+  background: var(--pino); color: #ffffff;
+  font: 400 1.05rem/1.45 var(--sans); border-radius: 3px 12px 12px 12px;
+}
+.stApp .msg.caja.void .burbuja { opacity: .68; }
+.stApp .cuenta-caja p, .stApp .cuenta-caja ul, .stApp .cuenta-caja li {
+  margin: 0; padding: 0; font: inherit; color: inherit;
+}
+.stApp .cuenta-caja .titular { font: 500 1.2rem/1.3 var(--serif); }
+.stApp .cuenta-caja .lineas { margin-top: .45rem; list-style: none; display: grid; gap: .3rem; }
+.stApp .cuenta-caja .lineas li,
+.stApp .cuenta-caja .total { display: flex; align-items: baseline; justify-content: space-between; gap: 1.25rem; }
+.stApp .cuenta-caja .unidad { display: block; font-size: 1rem; color: rgba(255, 255, 255, .86); }
+.stApp .cuenta-caja .importe { flex: none; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stApp .cuenta-caja .total {
+  margin-top: .55rem; padding-top: .45rem;
+  border-top: 1px dashed rgba(255, 255, 255, .55);
+  font: 500 1.2rem/1.3 var(--serif);
+}
+.stApp .cuenta-caja .nota, .stApp .cuenta-caja .fuentes {
+  margin-top: .6rem; font-size: 1rem; color: rgba(255, 255, 255, .86);
+}
+.stApp .cuenta-caja .estado { margin-top: .45rem; font-weight: 700; }
+.stApp .msg.caja.pending .cuenta-caja .estado { color: var(--lumbre); }
 .stApp .msg.enviando .burbuja { opacity: .72; }
 .stApp .msg.provisional .burbuja { opacity: .85; }
 .stApp .tarjeta {
@@ -252,6 +283,20 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   border: 1px solid var(--veta) !important; background: transparent !important; color: var(--piedra) !important;
 }
 .stApp .st-key-propuesta-botones button p { margin: 0; font: 700 1rem/1 var(--sans); color: inherit; }
+/* The pending bill: paid only with its two buttons, both the lantern's amber. */
+.stApp .st-key-cuenta {
+  align-self: center; width: min(46ch, 100%); margin: .4rem auto .6rem; padding: .8rem 1.1rem;
+  border: 1px dashed #86b79b; border-radius: 4px; background: rgba(31, 91, 63, .2);
+}
+.stApp .cuenta-pendiente p { margin: 0; font: 400 1rem/1.45 var(--sans); color: var(--piedra); }
+.stApp .cuenta-pendiente p.titulo { font: 500 1.2rem/1.3 var(--serif); font-variant-numeric: tabular-nums; }
+.stApp .st-key-cuenta-botones { justify-content: center; margin-top: .5rem; }
+.stApp .st-key-cuenta-botones button {
+  min-width: 7.5rem; border: 0 !important; border-radius: 4px !important;
+  background: var(--luz) !important; color: var(--tinta) !important;
+}
+.stApp .st-key-cuenta-botones button:hover { background: #ffc766 !important; }
+.stApp .st-key-cuenta-botones button p { margin: 0; font: 700 1rem/1 var(--sans); color: inherit; }
 .stApp .escribiendo { display: inline-flex; gap: 6px; padding: 1rem 1.1rem; }
 .stApp .escribiendo i {
   width: 8px; height: 8px; border-radius: 50%; background: var(--luz);
@@ -382,6 +427,8 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   .stApp .msg.cliente .burbuja { font-size: 1.05rem; }
   .stApp .msg.cocina { max-width: 100%; }
   .stApp .msg.cocina .burbuja { font-size: 1rem; }
+  .stApp .msg.caja { max-width: 100%; }
+  .stApp .msg.caja .burbuja { font-size: 1rem; }
   .stApp .planta-marco { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 5px; }
   .stApp .planta-marco .planta { max-height: 24vh; }
   .stApp .cocina-plano .plato-cocina { display: none; }

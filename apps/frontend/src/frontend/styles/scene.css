@@ -99,7 +99,16 @@
 .planta .cliente-propio.caminando { animation-name: caminar-cliente; }
 /* The waiter walks from the kitchen pass to the customer with the tray. */
 .planta .camarero.sirviendo { animation: servir 2.6s cubic-bezier(.45, 0, .2, 1) both; }
-.planta text.pase { font-family: var(--sans); font-size: 13px; fill: var(--piedra-tenue); letter-spacing: .08em; }
+.planta text.pase,
+.planta text.rotulo-caja { font-family: var(--sans); font-size: 13px; fill: var(--piedra-tenue); letter-spacing: .08em; }
+/* The till by the door: quiet until a bill waits, then lit like the lantern. */
+.planta .caja .halo-caja { opacity: 0; transition: opacity .5s var(--ease-salida); }
+.planta .caja.pendiente .halo-caja { opacity: 1; animation: pulso-caja 1.6s ease-in-out infinite; }
+.planta .caja .pantalla-caja { fill: #8fb89c; }
+.planta .caja.pendiente .pantalla-caja { fill: var(--luz); }
+.planta .caja.pendiente text.rotulo-caja { fill: var(--luz); }
+
+@keyframes pulso-caja { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 
 @keyframes servir {
   0% { transform: translate(var(--x0), var(--y0)); }
@@ -123,6 +132,7 @@
 @media (prefers-reduced-motion: reduce) {
   .planta .comensal.caminando,
   .planta .camarero.sirviendo,
+  .planta .caja.pendiente .halo-caja,
   .escena .resplandor,
   .escena.llama .hojas,
   .escena.abriendo .hoja,
