@@ -2,7 +2,8 @@ name: Seating end to end
 
 # Test-only workflow (no image): the seating MCP, the standalone waiter with a
 # scripted model, the remote-only BFF with no MCP client, and the
-# view's HTTP client together, without Foundry.
+# view's HTTP client together, without Foundry. The cashier flow adds the A2A
+# kitchen and cashier apps with scripted services.
 on:
   push:
     paths:
@@ -10,6 +11,8 @@ on:
       - apps/bff/**
       - apps/frontend/**
       - agents/restaurant/src/restaurant_agent/**
+      - agents/kitchen/**
+      - agents/cashier/**
       - packages/contracts/**
       - tests/end_to_end/**
       - scripts/run-mcp.sh
