@@ -11,6 +11,8 @@ import json
 import logging
 from typing import Any, Protocol
 
+from restaurant_agent.cashier.rendering import BILL_CLOSED, render_text
+from restaurant_agent.cashier_tool import BillingContext
 from restaurant_agent.contracts import SessionState
 from restaurant_agent.conversation import (
     AgentUnavailableError,
@@ -24,6 +26,7 @@ from restaurant_agent.conversation import (
 from restaurant_agent.memory.store import DurableMemoryRepository
 from restaurant_agent.kitchen.rendering import served_text
 from restaurant_agent.seating import bind_visit
+from restaurant_contracts.cashier import CashierFailureCode, CashierReport, cashier_failure
 
 from bff.scripted_seating import (
     ScriptedNoPendingDecision,
@@ -35,6 +38,8 @@ from bff.waiter import (
     WaiterInvalidResponseError,
     WaiterMode,
     WaiterNoPendingDecisionError,
+    WaiterPayCall,
+    WaiterPayResult,
     WaiterSeatingCall,
     WaiterSeatingResult,
     WaiterServeCall,
@@ -130,6 +135,11 @@ class LocalWaiter:
                 actor_id=turn.actor.actor_id,
                 message=turn.message,
                 correlation_id=turn.correlation_id,
+                billing=BillingContext(
+                    served=list(turn.served),
+                    orders_at_pass=turn.orders_at_pass,
+                    pending_bill=turn.pending_bill,
+                ),
             )
         except TurnLimitExceededError as exc:
             raise WaiterTurnLimitError(str(exc)) from exc
@@ -153,6 +163,7 @@ class LocalWaiter:
             session_json=self._codec.dump(exported.agent_session),
             seating=self._report(turn.visit_id),
             kitchen=response.kitchen,
+            cashier=response.cashier,
         )
 
     async def decide_seating(
@@ -193,6 +204,17 @@ class LocalWaiter:
 
     async def serve_order(self, call: WaiterServeCall) -> str:
         return served_text(list(call.dishes))
+
+    async def pay_bill(self, call: WaiterPayCall) -> WaiterPayResult:
+        """The scripted waiter has no cashier: an explicit failure, never a charge."""
+
+        failure = cashier_failure(call.bill.bill_id, CashierFailureCode.CASHIER_NOT_CONFIGURED)
+        return WaiterPayResult(
+            reply=BILL_CLOSED,
+            cashier=CashierReport(
+                bill_id=call.bill.bill_id, result=failure, text=render_text(failure, paying=True)
+            ),
+        )
 
     def _report(self, visit_id: str | None):
         if self._seating is None or visit_id is None:
