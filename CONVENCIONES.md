@@ -13,6 +13,8 @@ morcillaconf-multiagents/
 │       ├── frontend-image.yml
 │       ├── bff-image.yml
 │       ├── restaurant-agent-image.yml
+│       ├── kitchen-agent-image.yml
+│       ├── cashier-agent-image.yml
 │       ├── mcp-image.yml
 │       └── supplier-image.yml
 ├── agents/
@@ -26,6 +28,12 @@ morcillaconf-multiagents/
 │   │   │   ├── waiter/
 │   │   │   └── kitchen/
 │   │   └── tests/
+│   ├── kitchen/
+│   │   ├── Dockerfile
+│   │   └── src/kitchen_agent/
+│   ├── cashier/
+│   │   ├── Dockerfile
+│   │   └── src/cashier_agent/
 │   └── supplier/
 │       ├── agent.yaml
 │       ├── .foundry/
@@ -78,7 +86,13 @@ del modelo, herramientas disponibles, workflows y adaptadores de Agent Framework
 y Foundry.
 
 - `restaurant` agrupa el camarero, el chef líder y los especialistas del workflow
-  desplegable del restaurante.
+  desplegable del restaurante. Desde el 02/10, el chef y sus especialistas se
+  despliegan aparte, en `kitchen`.
+- `kitchen` contiene el agente de cocina independiente (chef y especialistas),
+  que el camarero invoca mediante A2A.
+- `cashier` contiene el agente de caja independiente (acuerdo del 06/10): la
+  cuenta con los precios de la carta y el cobro simulado, que el camarero
+  invoca mediante A2A.
 - `supplier` contiene el agente proveedor independiente comunicado mediante A2A.
 - Cada unidad desplegable mantiene su configuración `.foundry/` en su raíz.
 

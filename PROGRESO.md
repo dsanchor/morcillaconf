@@ -1,6 +1,6 @@
 # Progreso de implementación
 
-Última actualización: **2026-10-01**
+Última actualización: **2026-10-06**
 
 Este documento ofrece una vista compartida del estado real del repositorio. No
 sustituye a [SPECS.md](SPECS.md) ni a
@@ -21,7 +21,7 @@ indicadas en el propio plan.
 | 1. Proyecto y primer camarero | Completada | Validada conjuntamente el 28/09 | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas |
 | 2. Memoria persistente automática | Completada | Validada conjuntamente el 28/09 | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
 | 3. Vista única, BFF y continuidad | Implementada: 3A, 3B, 3C y 3D validadas en el Codespace el 28/09 | Pendiente; validada por Jesús el 28/09 ([revisión de 3A](docs/revision-fase-3a-jesus.md), [validación de 3C y 3D](#validación-en-el-codespace-28092026)) | 3A: 133 pruebas y 15 reglas del contrato. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) e imagen Docker publicada. 3C/3D: [BFF](#fase-3c-bff) con el camarero en Foundry; 146 + 8, 123 y 96 pruebas, smoke real y recorrido manual superados |
-| 4. Mesas y recorrido local con control de caja | Parcial: flujo de asientos integrado en `main`; pedido, caja, pago y liberación pendientes | Revisión conjunta del alcance completo pendiente | Bloqueo temporal, confirmación/rechazo, concurrencia, plano y recorrido E2E implementados |
+| 4. Mesas y recorrido local con control de caja | Parcial: asientos integrados en `main`; [caja v1](#caja-v1-cuenta-y-pago-06102026) cobra lo servido con tarjeta o efectivo y cierra la visita liberando la mesa; confirmación del pedido e interfaz de la revisión humana de caja pendientes | Revisión conjunta del alcance completo pendiente | Bloqueo temporal, confirmación/rechazo, concurrencia, plano y recorrido E2E implementados; caja A2A con cuenta desde la carta, pago simulado idempotente y recorrido real con Foundry |
 | 5. Conocimiento compartido con Foundry IQ y MCP | Implementada en `main` (PR #10): base de conocimiento con carta, recetario en PDF con ficha de ingredientes y web de respaldo; el camarero la consulta por su endpoint MCP | Pendiente | [Fase 5](#fase-5-carta-con-foundry-iq-30092026): base aprovisionada y consultada por REST y MCP; camarero local con Foundry respondiendo desde cada fuente con su cita; 263 + 30 pruebas locales y recorrido E2E de asientos |
 | 6. Chef líder y especialistas | Parcial: cocina es un agente A2A independiente; el chef valida con carta/recetario y coordina parrilla, fritos y general mediante group chat; los especialistas aceptan temporalmente siempre | Pendiente | [Cocina v1](#cocina-v1-el-chef-01102026): frontera A2A, Docker propio, validación determinista y especialistas internos; despensa, tiempos y confirmación del pedido pendientes |
 | 7. Validación de Hosted Agent | Pospuesta hasta disponer de carta y orquestación representativas | Pendiente | El agente actual se ha ejecutado localmente y como contenedor remoto, pero no acredita el workflow objetivo completo |
@@ -46,15 +46,120 @@ indicadas en el propio plan.
   modelo de Foundry y a las tools MCP, y devuelve el resultado estructurado
   dentro de una respuesta estándar.
 - `scripts/deploy-container-apps.sh` despliega imágenes públicas e inmutables
-  de GHCR en cinco Container Apps independientes dentro del mismo entorno.
-  Solo el frontend tiene ingress externo; BFF, camarero, cocina y MCP usan
-  ingress interno. Camarero y cocina comparten una identidad administrada con
-  `Foundry User`.
+  de GHCR en seis Container Apps independientes dentro del mismo entorno.
+  Solo el frontend tiene ingress externo; BFF, camarero, cocina, caja y MCP
+  usan ingress interno. Camarero, cocina y caja comparten una identidad
+  administrada con `Foundry User`.
 - Mientras BFF y MCP sigan usando SQLite, cada uno lo guarda en el
   almacenamiento efímero de su propio contenedor (`/data`), sin Azure Files, y
   todas las aplicaciones quedan limitadas a una réplica. Los datos se pierden al
   reiniciar la réplica o desplegar una revisión nueva. Es una topología inicial
   de demo, no el diseño de persistencia duradera de fase 9 (Cosmos DB).
+
+## Acuerdos del 06/10/2026
+
+Jesús y dsanchor acuerdan la caja v1:
+
+- La caja es un agente A2A en su propio contenedor (`agents/cashier`), como la
+  cocina, y usa la misma base de conocimiento.
+- El cliente pide la cuenta en la conversación y elige tarjeta o efectivo con
+  dos botones; una frase nunca paga.
+- Tras el pago, el camarero se despide y la visita se cierra liberando el
+  sitio, por el mismo camino que «Salir».
+- En la v1 solo se cobran los platos de cocina ya servidos; las bebidas
+  todavía no.
+- El pago es simulado y se aprueba siempre.
+- La revisión del ticket por una persona en caja (SPECS) queda preparada como
+  etapa opcional, desactivada por defecto y sin interfaz.
+
+## Caja v1: cuenta y pago (06/10/2026)
+
+No se marca ninguna casilla del plan: queda pendiente de la revisión conjunta.
+
+### Implementado
+
+- **Contratos** (`restaurant_contracts.cashier`): líneas servidas, petición de
+  cuenta, cuenta con importes `Decimal` en euros y su etapa
+  (`awaiting_review` opcional, `awaiting_payment`), elección de pago con clave
+  de idempotencia, recibo, fallos explícitos de caja e informe con la tarea A2A.
+  `ChatMessage` admite el rol `cashier`, el snapshot lleva `pending_bill` y
+  `visit_closed`, y hay un comando nuevo, `payment.confirmation_decided`. El
+  turno del camarero lleva `served`, `orders_at_pass` y `pending_bill`, y hay
+  una operación nueva, `pay_bill`. Los campos nuevos se omiten del JSON cuando
+  faltan.
+- **Caja** (`agents/cashier`): un agente de Agent Framework cuya única
+  herramienta es la base de conocimiento (`knowledge.py` copiado de cocina).
+  El modelo solo busca las entradas de la carta; el código lee los precios de
+  los fragmentos de la carta, nunca de la web ni del recetario, y calcula la
+  cuenta con aritmética `Decimal`. Un precio ausente o incoherente es un fallo
+  explícito. La tarea A2A queda en `input-required` con la cuenta; el pago la
+  reanuda y la completa con el recibo. Cada cuenta se cobra una sola vez.
+  Tiene Dockerfile, workflow de imagen y un `uv.lock` derivado del de cocina.
+- **Camarero:** la tool `pedir_la_cuenta`, sin argumentos. Se niega con platos
+  en el pase, sin nada servido o con una cuenta ya presentada. El puerto
+  `A2ACashier` lleva la tarea y retransmite los pasos de caja. `pay_bill`
+  funciona sin modelo: lee la tarea y, si ya está pagada, devuelve el recibo
+  guardado. Con el recibo hay una despedida fija. Un pedido nuevo con platos
+  anula la cuenta pendiente. Las instrucciones dicen que un mensaje nunca paga
+  y que el camarero no calcula importes.
+- **BFF:** envía las líneas servidas (platos aceptados de pedidos en
+  `served_orders`) y los pedidos en el pase. Guarda la cuenta en la tabla
+  `bills` y el mensaje de caja entre la petición y la respuesta. El comando de
+  pago usa la clave del primer intento, de modo que un segundo clic no cobra
+  otra vez. Tras el recibo termina la visita con `release_seating`, como
+  «Salir».
+- **Vista:** la burbuja verde de caja con caja registradora y los botones
+  «Tarjeta» y «Efectivo» solo en la cuenta pendiente. Tras pagar, el recibo y
+  la despedida se ven unos segundos (`FRONTEND_FAREWELL_SECONDS`) y la vista
+  vuelve a la puerta. En el plano, el cajero junto a la salida se ilumina con
+  una cuenta pendiente. «Bajo el capó» muestra los pasos de caja.
+- **Despliegue:** sexta Container App (`CASHIER_AGENT_APP_NAME`, por defecto
+  `morcilla-cashier`; `CASHIER_AGENT_IMAGE`), ingress interno en el puerto
+  8090, `CASHIER_TIMEOUT_SECONDS` y `CASHIER_A2A_URL` en el camarero.
+
+### Evidencia
+
+- **Pruebas locales:** 364 del camarero, los contratos y la carta, y 30 del
+  MCP (`./scripts/test.sh`); 28 de caja; 5 de cocina; 159 del BFF; 165 del
+  frontend. En el recorrido E2E pasan 8 de 9, incluido el nuevo recorrido de
+  caja: la app A2A real de cocina con un chef guionizado y la app A2A real de
+  caja con los precios de la carta versionada. Solo falla
+  `test_kitchen_flow.py`, que ya fallaba en `main`: espera un texto de cocina
+  que cambió el 02/10.
+- **CI de la rama:** las imágenes de caja, camarero, cocina, BFF y frontend
+  pasan sus pruebas y se publican; el recorrido E2E en CI solo falla en
+  `test_kitchen_flow.py`.
+- **Foundry real** (`gpt-5.6-luna`), con la base `conocimiento-restaurante`, el
+  MCP de asientos, la cocina A2A real y la caja A2A real, por el BFF como el
+  navegador:
+  1. «Hola, somos dos para comer»: Mesa 1 propuesta y confirmada con el botón.
+  2. Morcilla a la brasa y croquetas de morcilla: el camarero pide
+     confirmación, cocina las acepta y el camarero las sirve tras el pase.
+  3. «La cuenta, por favor»: 8,50 € + 9,00 € = 17,50 € leídos de la carta
+     versión 1, con una consulta a la base. Burbuja de caja entre la petición y
+     la respuesta.
+  4. «Pago con tarjeta» escrito: no paga; el camarero indica el botón. Con
+     «Tarjeta» llegan el recibo y la despedida, la visita queda cerrada y la
+     Mesa 1, libre.
+  5. Un segundo clic con otro evento no añade mensajes ni cobra. Un `pay_bill`
+     repetido directamente al camarero devuelve el mismo recibo, con la misma
+     referencia y hora, leído de la tarea completada.
+
+  Tiempos: la mesa, 21 s; el turno que pasa el pedido, 59 s (chef y
+  preparación de cocina incluidos); la cuenta, 26 s (16 s de caja, de ellos
+  11 s de consulta de precios); el pago, 0,1 s. Como el turno de cocina ronda
+  los 60 s, en Azure `WAITER_AGENT_TIMEOUT_SECONDS` debe ser de al menos 80 s
+  (el ejemplo de despliegue usa 90).
+
+### Límites y pendientes
+
+- La revisión humana de caja está preparada en el agente pero desactivada y
+  sin interfaz.
+- Las bebidas no se cobran todavía; el pago es simulado y siempre aprobado.
+- Las tareas, las cuentas y los pagos de caja viven en memoria: un reinicio
+  olvida la cuenta pendiente y el cliente tiene que volver a pedirla.
+- Pendientes: la revisión conjunta, redesplegar con la sexta aplicación y
+  probar en el navegador.
 
 ## Acuerdos del sync del 01/10/2026
 
@@ -949,12 +1054,12 @@ botones y el plano muestra la sala.
 
 ## Próximo trabajo previsto
 
-1. Revisar conjuntamente la fase 5 y la cocina v1, y redesplegar el camarero
-   con la base de conocimiento y el chef.
+1. Revisar conjuntamente la fase 5, la cocina v1 y la caja v1, y redesplegar
+   con la base de conocimiento, el chef y la caja.
 2. Añadir los pinches de brasa, fritos y pinchos fríos y la despensa por MCP:
    el chef contrastará los ingredientes con el inventario.
-3. Definir el contrato y la superficie mínima del HITL de caja antes de
-   implementar cuenta y pago.
+3. Dar interfaz a la revisión humana de caja, ya preparada como etapa
+   opcional, y cobrar también las bebidas.
 4. Validar el Hosted Agent después de que carta y orquestación formen un flujo
    representativo.
 

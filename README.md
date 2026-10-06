@@ -71,13 +71,20 @@ camarero la consulta por su endpoint MCP si recibe `AZURE_SEARCH_ENDPOINT` y
 `KNOWLEDGE_BASE_NAME`; sin ellas funciona como antes y dice que no puede
 consultar la carta.
 
+Son seis contenedores: frontend, BFF, camarero, cocina, caja y MCP de
+asientos.
+
 ```mermaid
 flowchart LR
     F[Frontend Streamlit] -->|HTTP y SSE| B[BFF FastAPI]
     B -->|Responses 2.0| A[Agente camarero]
     A --> FO[Microsoft Foundry]
     A -->|Tools y aprobación| M[MCP de asientos]
+    A -->|A2A: pedir_a_cocina| CO[Agente de cocina]
+    A -->|A2A: pedir_la_cuenta y pago| CA[Agente de caja]
     A -->|MCP de solo lectura| K[Base de conocimiento Foundry IQ]
+    CO -->|MCP de solo lectura| K
+    CA -->|MCP de solo lectura, solo la carta| K
     K --> C[Carta en Blob Storage]
     K --> R[Recetario PDF e ingredientes en su índice]
     K -.->|Respaldo externo| W[Web con Bing]
@@ -237,12 +244,56 @@ Todavía no hay tiempos, despensa ni confirmación del pedido. Detalles en el
 [README de cocina](agents/kitchen/README.md) y el
 [README del camarero](agents/restaurant/README.md#cocina).
 
+## Caja: cobro v1
+
+Acuerdo del 06/10: la caja es un agente A2A en su propio contenedor,
+[`agents/cashier`](agents/cashier). Cuando el cliente pide la cuenta, el
+camarero llama a `pedir_la_cuenta`, una tool sin argumentos: el modelo no
+elige qué se cobra. El BFF le pasa en cada turno los platos de cocina ya
+servidos; lo rechazado y lo que sigue en el pase nunca se cobra, y las bebidas
+todavía no se cobran.
+
+- La caja busca esos platos en la carta con la misma base de conocimiento y es
+  el código, no el modelo, quien cobra: lee cada precio de la carta («Precio:
+  8,50 € la ración»), nunca de la web ni del recetario, y suma con `Decimal` en
+  euros. Un precio ausente o incoherente es un fallo explícito, nunca un
+  importe inventado.
+- La tarea A2A queda en `input-required` con la cuenta. En la vista aparece una
+  burbuja verde de caja, con su caja registradora, entre la petición y la
+  respuesta del camarero, y debajo dos botones, «Tarjeta» y «Efectivo». Una
+  frase nunca paga.
+- El botón llega al camarero como `pay_bill`, sin modelo, que reanuda la misma
+  tarea A2A. El pago es simulado y siempre se aprueba; repetirlo devuelve el
+  mismo recibo y nunca cobra dos veces.
+- Con el recibo, el camarero se despide con un texto fijo y el BFF cierra la
+  visita por el mismo camino que «Salir», así que el sitio queda libre. La vista
+  enseña el recibo y la despedida unos segundos y vuelve a la puerta.
+- Si el cliente pide más platos con la cuenta pendiente, esa cuenta se anula y
+  hay que volver a pedirla.
+- La revisión del ticket por una persona en caja (SPECS) queda preparada como
+  etapa opcional, `CASHIER_REQUIRE_REVIEW`, desactivada y sin interfaz.
+
+Para probarla en local, arranca la caja y pásale su URL al camarero:
+
+```bash
+cd agents/cashier/src/cashier_agent
+cp .env.example .env   # proyecto de Foundry y base de conocimiento
+uv sync --all-groups
+.venv/bin/python main.py   # puerto 8090
+# en el entorno del camarero:
+CASHIER_A2A_URL=http://127.0.0.1:8090
+```
+
+En el plano, el cajero espera junto a la puerta de salida y se ilumina mientras
+hay una cuenta pendiente. Detalles en el [README de caja](agents/cashier/README.md)
+y el [README del camarero](agents/restaurant/README.md#caja-externa-mediante-a2a).
+
 ## Despliegue en Azure Container Apps
 
 El script [`scripts/deploy-container-apps.sh`](scripts/deploy-container-apps.sh)
 crea o actualiza, dentro de un grupo de recursos que ya existe, una identidad
-administrada, un entorno de Container Apps y las cinco aplicaciones. Solo el
-frontend tiene entrada externa; BFF, camarero, cocina y MCP usan entrada
+administrada, un entorno de Container Apps y las seis aplicaciones. Solo el
+frontend tiene entrada externa; BFF, camarero, cocina, caja y MCP usan entrada
 interna y se descubren mediante sus FQDN del mismo entorno. El grupo de
 recursos y el
 proyecto de Foundry son prerrequisitos: el script no los crea, y tampoco
@@ -269,9 +320,10 @@ ${EDITOR:-vi} scripts/container-apps.env
 
 El fichero usa sintaxis simple `NOMBRE=valor`; el script lo analiza sin
 ejecutarlo como Bash. No necesita secretos ni credenciales de registro: recibe
-cinco referencias públicas completas de GHCR y las despliega directamente. Usa preferentemente digest
+seis referencias públicas completas de GHCR y las despliega directamente. Usa preferentemente digest
 `sha256` o etiquetas de commit SHA, nunca `latest`. La identidad solo se asigna
-al agente y recibe `Foundry User` sobre el proyecto Foundry indicado.
+a los agentes (camarero, cocina y caja) y recibe `Foundry User` sobre el
+proyecto Foundry indicado.
 Conviene mantener `scripts/container-apps.env` fuera del control de versiones.
 
 Para que el camarero desplegado consulte la carta, añade al fichero los tres
@@ -289,6 +341,15 @@ Card con la URL interna e inyecta `KITCHEN_A2A_URL` en el camarero.
 `KITCHEN_TIMEOUT_SECONDS` limita la llamada A2A y toda la orquestación de cocina
 (30 s por defecto) y debe dejar margen dentro de
 `WAITER_AGENT_TIMEOUT_SECONDS`; el script avisa si queda menos de 20 s.
+
+La caja es la sexta aplicación y se despliega igual que la cocina, en el puerto
+8090: necesita `CASHIER_AGENT_IMAGE`; `CASHIER_AGENT_APP_NAME` vale
+`morcilla-cashier` por defecto. Usa el mismo proyecto, modelo, identidad y base
+de conocimiento, y el script inyecta `CASHIER_A2A_URL` en el camarero.
+`CASHIER_TIMEOUT_SECONDS` (30 s por defecto) limita la consulta de precios y
+cada llamada A2A, con el mismo aviso de margen. La revisión humana en caja se
+despliega desactivada. Como las tareas y los pagos de caja viven en memoria,
+la aplicación se queda en una réplica, como las demás.
 
 El despliegue es idempotente y no construye ni publica imágenes, pero no realiza
 una previsualización: revisa el fichero de entorno antes de ejecutarlo. Para
