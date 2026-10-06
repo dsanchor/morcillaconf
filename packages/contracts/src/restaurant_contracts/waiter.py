@@ -6,6 +6,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter
 
 from .activity import MAX_ACTIVITY_STEPS, ActivityStep
 from .application import ActorContext
+from .cashier import CashierReport, PaymentMethod, PendingBill, ServedLine
 from .customer import CustomerSnapshot, OrderDraft
 from .kitchen import KitchenReport
 from .seating import PlaceKind, PlaceState, SeatingPlace
@@ -28,6 +29,16 @@ class WaiterTurnRequest(WireModel):
     session_json: str | None = None
     correlation_id: str = Field(min_length=1, max_length=200)
     visit_id: str | None = None
+    # What the bill may include: the kitchen dishes already served, how many
+    # cooked orders still wait at the pass and the bill already presented.
+    # Left out of the JSON when empty, like the kitchen's report.
+    served: list[ServedLine] = Field(
+        default_factory=list, max_length=50, exclude_if=lambda value: not value
+    )
+    orders_at_pass: int = Field(default=0, ge=0, le=50, exclude_if=lambda value: value == 0)
+    pending_bill: PendingBill | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class WaiterSeatingRequest(WireModel):
@@ -72,12 +83,25 @@ class WaiterServeRequest(WireModel):
     dishes: list[str] = Field(min_length=1, max_length=20)
 
 
+class WaiterPayRequest(WireModel):
+    """The customer's button answer to the presented bill; the waiter only relays it."""
+
+    operation: Literal["pay_bill"] = "pay_bill"
+    conversation_id: str = Field(min_length=1, max_length=200)
+    actor: ActorContext
+    correlation_id: str = Field(min_length=1, max_length=200)
+    bill: PendingBill
+    method: PaymentMethod
+    idempotency_key: str = Field(min_length=1, max_length=200)
+
+
 WaiterRequest = Annotated[
     WaiterTurnRequest
     | WaiterSeatingDecisionRequest
     | WaiterSeatingSyncRequest
     | WaiterSeatingReleaseRequest
-    | WaiterServeRequest,
+    | WaiterServeRequest
+    | WaiterPayRequest,
     Field(discriminator="operation"),
 ]
 WAITER_REQUEST_ADAPTER = TypeAdapter(WaiterRequest)
@@ -136,6 +160,8 @@ class WaiterTurnSuccess(WireModel):
     # Left out of the JSON when absent, so a BFF of the previous version still
     # reads every other turn while both are being redeployed.
     kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
+    # The cashier's answer when the customer asked for the bill in this turn.
+    cashier: CashierReport | None = Field(default=None, exclude_if=lambda value: value is None)
     activity: list[ActivityStep] = Field(
         default_factory=list, max_length=MAX_ACTIVITY_STEPS, exclude_if=lambda value: not value
     )
@@ -161,6 +187,18 @@ class WaiterServeSuccess(WireModel):
     reply: str = Field(min_length=1, max_length=2_000)
 
 
+class WaiterPaySuccess(WireModel):
+    """The cashier's receipt or failure and the waiter's fixed answer to it."""
+
+    status: Literal["completed"] = "completed"
+    operation: Literal["pay_bill"] = "pay_bill"
+    reply: str = Field(min_length=1, max_length=2_000)
+    cashier: CashierReport
+    activity: list[ActivityStep] = Field(
+        default_factory=list, max_length=MAX_ACTIVITY_STEPS, exclude_if=lambda value: not value
+    )
+
+
 class WaiterTurnFailure(WireModel):
     status: Literal["failed"] = "failed"
     code: Literal[
@@ -180,3 +218,5 @@ WaiterSeatingResponse = WaiterSeatingSuccess | WaiterTurnFailure
 WAITER_SEATING_RESPONSE_ADAPTER = TypeAdapter(WaiterSeatingResponse)
 WaiterServeResponse = WaiterServeSuccess | WaiterTurnFailure
 WAITER_SERVE_RESPONSE_ADAPTER = TypeAdapter(WaiterServeResponse)
+WaiterPayResponse = WaiterPaySuccess | WaiterTurnFailure
+WAITER_PAY_RESPONSE_ADAPTER = TypeAdapter(WaiterPayResponse)

@@ -18,6 +18,8 @@ colors:
   cuero: "#6b4a2f"
   azulejo: "#1d4e89"
   azulejo-hondo: "#153a68"
+  pino: "#1f5b3f"
+  pino-hondo: "#164530"
 typography:
   display:
     fontFamily: "Alegreya, Georgia, Times New Roman, serif"
@@ -103,6 +105,11 @@ components:
     textColor: "#ffffff"
     rounded: "3px 12px 12px 12px"
     padding: ".7rem 1rem"
+  message-cashier:
+    backgroundColor: "{colors.pino}"
+    textColor: "#ffffff"
+    rounded: "3px 12px 12px 12px"
+    padding: ".7rem 1rem"
   card-memory:
     backgroundColor: "rgba(231, 215, 181, .05)"
     textColor: "{colors.piedra}"
@@ -123,7 +130,7 @@ Dentro, la sala sigue siendo una escena de restaurante, no un chatbot con cabece
 **Key Characteristics:**
 - Fachada a sangre antes de cualquier UI interior.
 - Ámbar como único color de estado y acción.
-- Piedra clara para habla del camarero; vino Ribera para habla del cliente; azulejo para el plan del chef.
+- Piedra clara para habla del camarero; vino Ribera para habla del cliente; azulejo para el plan del chef; pino para la cuenta de caja.
 - Textos mínimos; el restaurante explica el sistema sin carteles.
 - Movimiento escénico: llamar, abrir, cruzar, saludar y acercarse.
 
@@ -135,6 +142,7 @@ La paleta es nocturna y mineral: casi todo nace de nogal, roble, piedra y forja;
 - **Luz de farol**: acción principal, estado activo, foco visual, puntos de escritura y halo de confirmación.
 - **Vino Ribera**: voz del cliente y presencia del cliente en el plano.
 - **Azulejo de cocina**: voz del chef; su plan va en blanco sobre azulejo y su gorro descansa en azulejo hondo.
+- **Pino de caja**: voz de la caja, el verde de los pinares burgaleses; la cuenta y el recibo van en blanco sobre pino y la caja registradora descansa en pino hondo. El cajero del plano viste del mismo verde.
 
 ### Neutral
 - **Noche castellana**: fondo exterior y cielo de entrada.
@@ -224,10 +232,13 @@ La geometría distintiva viene de los materiales: arco de dovelas, portón parti
 - **Waiter:** piedra clara, tinta tostada, Alegreya serif y radio direccional hacia el icono del camarero.
 - **Customer:** vino Ribera, crema cálida y radio direccional hacia el lado derecho.
 - **Chef:** azulejo con texto blanco, Alegreya Sans y gorro de cocinero en el icono; va entre el pedido del cliente y la respuesta del camarero. Muestra lo aceptado, lo rechazado con su motivo, los avisos, las partidas y las fuentes, o por qué cocina no ha podido revisar el pedido.
+- **Cashier:** pino con texto blanco, Alegreya Sans y una caja registradora en el icono, dibujada como el gorro del chef; va entre la petición del cliente y la respuesta del camarero. Se lee como un ticket: cada línea con su importe a la derecha en dígitos tabulares, una raya discontinua sobre el total en Alegreya, la nota de que las bebidas aún no se cobran y las fuentes. La cuenta pendiente lo dice en lumbre y se paga con los botones de su tarjeta; las ya pagadas lo dicen y las anuladas se atenúan. El recibo usa la misma burbuja.
+- **Payment card:** como la tarjeta de mesa, borde discontinuo y fondo de pino tenue bajo la conversación, con el total y dos botones ámbar iguales, «Tarjeta» y «Efectivo»; solo existe mientras la cuenta espera el pago.
 - **Typing:** tres puntos ámbar circulares con pulso vertical; se elimina con reducción de movimiento.
 
 ### Plan Scene
-- **Style:** plano cenital sobre baldosa de barro, muros de piedra, madera para mesas y barra, vino para cliente y negro para camarero.
+- **Style:** plano cenital sobre baldosa de barro, muros de piedra, madera para mesas y barra, vino para cliente, negro para camarero y pino para el cajero, que espera junto a la puerta de salida tras un pequeño mostrador con la caja registradora y su rótulo «caja».
+- **Till:** la caja se enciende con el halo ámbar de farol y su pantalla en ámbar solo mientras hay una cuenta pendiente de pago; sin cuenta queda en reposo.
 - **Behavior:** cliente y camarero solo se mueven cuando la entrada se confirma; el estado reducido fija el resultado sin animación.
 
 ## Do's and Don'ts

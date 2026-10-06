@@ -6,7 +6,8 @@ connection) and this chat client answers its model calls. It reads the prompt th
 ConversationManager builds, so the whole application path (turn limit,
 memory, order guard, presented name) runs exactly as with Foundry. With the
 seating tools it behaves like the waiter's instructions: «somos N», «barra»
-and «mesa» hold a place and the answer asks for the confirmation.
+and «mesa» hold a place and the answer asks for the confirmation. «Pido…»
+sends the order to the kitchen and «la cuenta» asks the cashier for the bill.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from agent_framework import (
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, OrderItemDraft
 from restaurant_contracts.memory import MemoryCandidate, MemoryKind
 
+from restaurant_agent.cashier_tool import CASHIER_TOOL
 from restaurant_agent.contracts import WaiterModelResult
 from restaurant_agent.kitchen_tool import KITCHEN_TOOL
 from restaurant_agent.memory.contracts import MemoryIntent
@@ -68,6 +70,15 @@ _USUAL = re.compile(r"\blo (?:de siempre|habitual)\b|\bcomo siempre\b", re.IGNOR
 _ARTICLE = re.compile(r"^(?:el|la|los|las|un|una|unos|unas)\s+", re.IGNORECASE)
 _SPLIT_ITEMS = re.compile(r",\s*|\s+y\s+")
 _KITCHEN_ORDER = re.compile(r"^\s*(?:pido|pedimos)\s+(?P<items>[^.;!?]+)", re.IGNORECASE)
+_BILL = re.compile(r"\bla cuenta\b", re.IGNORECASE)
+# What the waiter says to each answer of pedir_la_cuenta.
+_BILL_REPLIES = {
+    "bill_presented": "Aquí tenéis la cuenta; pagad con «Tarjeta» o «Efectivo».",
+    "dishes_at_pass": "Primero os sirvo lo que espera en el pase y luego os traigo la cuenta.",
+    "nothing_served": "Todavía no hay platos de cocina servidos que cobrar.",
+    "bill_pending": "La cuenta ya está en la mesa: pagad con sus botones.",
+    "cashier_failed": "Caja no ha podido preparar la cuenta ahora mismo.",
+}
 _HOLD = "seating_hold_seating"
 _CONFIRM = "seating_confirm_seating"
 _BUTTONS = "Confirmadlo o rechazadlo con los botones."
@@ -176,6 +187,26 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
                 "Cocina no ha podido revisar el pedido ahora mismo."
                 if answer.startswith("kitchen_failed")
                 else "Cocina ha revisado el pedido."
+            )
+            result = result.model_copy(update={"reply": reply})
+        # «La cuenta»: the bill comes from the cashier, never from the model.
+        bill_result = next(
+            (
+                content
+                for message in after
+                for content in message.contents
+                if content.type == "function_result" and content.call_id == "scripted-bill"
+            ),
+            None,
+        )
+        if _BILL.search(message) and CASHIER_TOOL in tools:
+            if bill_result is None:
+                request = Content.from_function_call(call_id="scripted-bill", name=CASHIER_TOOL, arguments="{}")
+                return ChatResponse(messages=[Message(role="assistant", contents=[request])])
+            answer = str(bill_result.result or "")
+            reply = next(
+                (text for prefix, text in _BILL_REPLIES.items() if answer.startswith(prefix)),
+                _BILL_REPLIES["cashier_failed"],
             )
             result = result.model_copy(update={"reply": reply})
         if seating is not None and _HOLD in tools:

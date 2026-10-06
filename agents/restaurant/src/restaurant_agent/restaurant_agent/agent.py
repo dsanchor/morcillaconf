@@ -5,9 +5,12 @@ from typing import Any
 
 from agent_framework import Agent, MCPStreamableHTTPTool
 
+from restaurant_contracts.cashier import CashierPort
 from restaurant_contracts.kitchen import KitchenPort
 
 from restaurant_agent.activity import ActivityToolMiddleware
+from restaurant_agent.cashier import A2ACashier
+from restaurant_agent.cashier_tool import create_cashier_tool
 from restaurant_agent.config import Settings
 from restaurant_agent.contracts import WaiterModelResult
 from restaurant_agent.kitchen import A2AKitchen
@@ -84,12 +87,14 @@ def create_waiter_agent(
     memory_store: DurableMemoryRepository | None = None,
     client: Any | None = None,
     kitchen: KitchenPort | None = None,
+    cashier: CashierPort | None = None,
 ) -> Agent:
     """Build the waiter; by default with the configured Microsoft Foundry deployment.
 
     ``client`` replaces the model (the BFF's scripted waiter), keeping the
     same tools, middleware and context providers. ``kitchen`` is where
-    ``pedir_a_cocina`` sends orders through A2A to the external kitchen.
+    ``pedir_a_cocina`` sends orders through A2A to the external kitchen, and
+    ``cashier`` where ``pedir_la_cuenta`` asks the external cashier for the bill.
     """
 
     if client is None:
@@ -136,6 +141,7 @@ def create_waiter_agent(
         *(seating_tools or []),
         *([knowledge_tool] if knowledge_tool else []),
         create_kitchen_tool(kitchen or A2AKitchen(settings)),
+        create_cashier_tool(cashier or A2ACashier(settings)),
     ]
     context_providers = [VisitContextProvider(seating_tools[0] if seating_tools else None)]
     if memory_store:

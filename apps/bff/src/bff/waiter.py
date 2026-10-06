@@ -12,13 +12,16 @@ import httpx
 
 from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ActorContext
+from restaurant_contracts.cashier import CashierReport, PaymentMethod, PendingBill, ServedLine
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 from restaurant_contracts.kitchen import KitchenReport
 from restaurant_contracts.waiter import (
+    WAITER_PAY_RESPONSE_ADAPTER,
     WAITER_SEATING_RESPONSE_ADAPTER,
     WAITER_SERVE_RESPONSE_ADAPTER,
     WAITER_TURN_RESPONSE_ADAPTER,
     SeatingReport,
+    WaiterPayRequest,
     WaiterSeatingDecisionRequest,
     WaiterSeatingReleaseRequest,
     WaiterSeatingSyncRequest,
@@ -47,6 +50,11 @@ class WaiterTurn:
     session_json: str | None
     correlation_id: str
     visit_id: str | None = None
+    # What the bill may include: served kitchen dishes, cooked orders still at
+    # the pass and the bill already waiting for card or cash.
+    served: tuple[ServedLine, ...] = ()
+    orders_at_pass: int = 0
+    pending_bill: PendingBill | None = None
 
 
 @dataclass(frozen=True)
@@ -60,6 +68,8 @@ class WaiterTurnResult:
     seating: SeatingReport | None = None
     # The kitchen's answer when the waiter sent it the order in this turn.
     kitchen: KitchenReport | None = None
+    # The cashier's answer when the customer asked for the bill in this turn.
+    cashier: CashierReport | None = None
     activity: tuple[ActivityStep, ...] = ()
 
 
@@ -92,6 +102,27 @@ class WaiterServeCall:
     correlation_id: str
     order_id: str
     dishes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class WaiterPayCall:
+    """The customer's card or cash button, relayed to the cashier's task."""
+
+    conversation_id: str
+    actor: ActorContext
+    correlation_id: str
+    bill: PendingBill
+    method: PaymentMethod
+    idempotency_key: str
+
+
+@dataclass(frozen=True)
+class WaiterPayResult:
+    """The cashier's receipt or failure, and the waiter's fixed answer to it."""
+
+    reply: str
+    cashier: CashierReport
+    activity: tuple[ActivityStep, ...] = ()
 
 
 class WaiterError(RuntimeError):
@@ -133,6 +164,8 @@ class WaiterPort(Protocol):
 
     async def serve_order(self, call: WaiterServeCall) -> str: ...
 
+    async def pay_bill(self, call: WaiterPayCall) -> WaiterPayResult: ...
+
     async def aclose(self) -> None: ...
 
 
@@ -161,6 +194,9 @@ class RemoteWaiter:
             session_json=turn.session_json,
             correlation_id=turn.correlation_id,
             visit_id=turn.visit_id,
+            served=list(turn.served),
+            orders_at_pass=turn.orders_at_pass,
+            pending_bill=turn.pending_bill,
         )
         result = await self._stream_turn(request, turn.conversation_id, turn.actor.actor_id)
         _raise_failure(result)
@@ -175,6 +211,7 @@ class RemoteWaiter:
             session_json=result.session_json,
             seating=result.seating,
             kitchen=result.kitchen,
+            cashier=result.cashier,
             activity=tuple(result.activity),
         )
 
@@ -268,6 +305,23 @@ class RemoteWaiter:
         )
         _raise_failure(result)
         return result.reply
+
+    async def pay_bill(self, call: WaiterPayCall) -> WaiterPayResult:
+        request = WaiterPayRequest(
+            conversation_id=call.conversation_id,
+            actor=call.actor,
+            correlation_id=call.correlation_id,
+            bill=call.bill,
+            method=call.method,
+            idempotency_key=call.idempotency_key,
+        )
+        result = await self._post(
+            request, call.conversation_id, call.actor.actor_id, WAITER_PAY_RESPONSE_ADAPTER
+        )
+        _raise_failure(result)
+        return WaiterPayResult(
+            reply=result.reply, cashier=result.cashier, activity=tuple(result.activity)
+        )
 
     async def _seating(
         self,

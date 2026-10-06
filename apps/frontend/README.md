@@ -42,6 +42,7 @@ variables disponibles son:
 | `FRONTEND_BFF_URL` | URL base del BFF con `http` | `http://127.0.0.1:8000` |
 | `FRONTEND_BFF_TIMEOUT_SECONDS` | Espera máxima de cada llamada y del stream SSE, 1-300 | `30` |
 | `FRONTEND_FAKE_PAUSE_SECONDS` | Pausa simulada del camarero antes de responder, 0-10 | `0.9` |
+| `FRONTEND_FAREWELL_SECONDS` | Tiempo que el recibo y la despedida siguen en pantalla tras pagar, antes de volver a la puerta, 0-30 | `4` |
 | `FRONTEND_PORT` | Puerto del servidor Streamlit dentro del contenedor | `8501` |
 
 Ejecutar la imagen:
@@ -242,6 +243,33 @@ stream hasta que termina.
   empiezan por «Pido…» o «Ponme…» reciben su burbuja, por ejemplo
   «Pido una morcilla a la brasa y una hamburguesa sin queso».
 
+### Caja (acuerdo del 06/10)
+
+- Cuando el cliente pide la cuenta, la respuesta de caja llega en el snapshot
+  como un mensaje con el rol `cashier` y la vista lo pinta como una burbuja
+  propia, entre el mensaje del cliente y la respuesta del camarero: fondo verde
+  pino con texto blanco y una caja registradora como icono, dibujada como el
+  gorro del chef. Muestra cada línea con su importe (y el precio por ración si
+  hay más de una), el total, la nota «Solo platos de cocina; las bebidas
+  todavía no se cobran» y las fuentes. Las cifras usan dígitos tabulares.
+- Solo la cuenta pendiente (`pending_bill`, con
+  `payment.confirmation_decided` permitido) lleva debajo dos botones,
+  «Tarjeta» y «Efectivo», como la tarjeta de mesa, y su burbuja dice
+  «Pendiente de pago». Una frase nunca paga. Las cuentas ya pagadas lo dicen y
+  las que dejaron de valer (por pedir más platos) se atenúan como anuladas.
+- El pago llega como otra burbuja de caja con el recibo (método, importe,
+  referencia y hora) y la despedida del camarero. Con `visit_closed`, la vista
+  los mantiene `FRONTEND_FAREWELL_SECONDS` segundos y vuelve a la puerta igual
+  que «Salir»: abre ya la visita siguiente, así que entrar de nuevo con el
+  mismo nombre no recupera la visita pagada.
+- En el plano, la caja está dentro del comedor, junto a la puerta de salida,
+  en la esquina inferior izquierda: el cajero (la misma figura cenital que el
+  resto) detrás de un pequeño mostrador con la caja registradora. Se ilumina
+  con el halo ámbar mientras hay una cuenta pendiente de pago.
+- El falso incluye una caja simulada: «la cuenta, por favor» cobra solo los
+  platos ya servidos con precios fijos (morcilla 8,50 €, croquetas 9,00 €), se
+  niega con platos en el pase y el pago siempre se aprueba.
+
 ## Fronteras de arquitectura
 
 - `app.py` solo usa el protocolo `BffClient` a través de `VisitSession`.
@@ -307,7 +335,8 @@ El sistema visual está descrito en [DESIGN.md](../../DESIGN.md) y
 
 - El camarero simulado solo entiende las frases descritas («somos N»,
   «barra», «mesa» para los asientos); con el BFF y Foundry responde el
-  camarero real. Todavía no hay cuenta, pago ni liberación de mesa.
+  camarero real. La caja simulada solo conoce los precios de la morcilla y de
+  las croquetas.
 - La vista previa estática muestra la sala decorativa, sin asientos.
 - La identidad es el nombre escrito en la puerta: identidad sintética de
   desarrollo, no autenticación.

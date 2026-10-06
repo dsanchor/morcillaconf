@@ -18,6 +18,7 @@ from restaurant_contracts.application import (
     CommandResult,
     StreamEvent,
 )
+from restaurant_contracts.cashier import Bill, CashierTask, Receipt
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 
 SCHEMA_VERSION = 3
@@ -125,6 +126,19 @@ CREATE TABLE IF NOT EXISTS served_orders (
     served_at TEXT NOT NULL,
     PRIMARY KEY(conversation_id, order_id)
 );
+CREATE TABLE IF NOT EXISTS bills (
+    bill_id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id),
+    status TEXT NOT NULL CHECK(status IN ('pending', 'paid', 'superseded', 'closed')),
+    bill_json TEXT NOT NULL,
+    task_json TEXT NOT NULL,
+    payment_key TEXT,
+    receipt_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    visit_closed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_bills_conversation ON bills(conversation_id, created_at);
 """
 
 
@@ -198,6 +212,27 @@ class SeatingDecisionRow:
     conversation_id: str
     decision: str
     outcome: str
+
+
+@dataclass
+class BillRow:
+    """A bill the cashier presented in the conversation and what became of it.
+
+    ``payment_key`` is the event id of the first payment attempt: retries
+    resend it, so the cashier never charges twice. ``visit_closed_at`` marks
+    the visit ended after the payment, as «Salir» ends it.
+    """
+
+    bill_id: str
+    conversation_id: str
+    status: str
+    bill: Bill
+    task: CashierTask
+    created_at: datetime
+    updated_at: datetime
+    payment_key: str | None = None
+    receipt: Receipt | None = None
+    visit_closed_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -385,6 +420,72 @@ class Transaction:
             (conversation_id,),
         ).fetchall()
         return [row["order_id"] for row in rows]
+
+    # Bills
+
+    def put_bill(self, bill: BillRow) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO bills VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(bill_id) DO UPDATE SET
+                status = excluded.status, bill_json = excluded.bill_json,
+                task_json = excluded.task_json, payment_key = excluded.payment_key,
+                receipt_json = excluded.receipt_json, updated_at = excluded.updated_at,
+                visit_closed_at = excluded.visit_closed_at
+            """,
+            (
+                bill.bill_id,
+                bill.conversation_id,
+                bill.status,
+                bill.bill.model_dump_json(),
+                bill.task.model_dump_json(),
+                bill.payment_key,
+                bill.receipt.model_dump_json() if bill.receipt else None,
+                bill.created_at.isoformat(),
+                bill.updated_at.isoformat(),
+                bill.visit_closed_at.isoformat() if bill.visit_closed_at else None,
+            ),
+        )
+
+    def get_bill(self, bill_id: str) -> BillRow | None:
+        row = self._connection.execute(
+            "SELECT * FROM bills WHERE bill_id = ?", (bill_id,)
+        ).fetchone()
+        return self._bill_from_row(row) if row else None
+
+    def pending_bill(self, conversation_id: str) -> BillRow | None:
+        """The conversation's bill still waiting for card or cash, if any."""
+
+        row = self._connection.execute(
+            "SELECT * FROM bills WHERE conversation_id = ? AND status = 'pending' "
+            "ORDER BY created_at DESC LIMIT 1",
+            (conversation_id,),
+        ).fetchone()
+        return self._bill_from_row(row) if row else None
+
+    def visit_closed(self, conversation_id: str) -> bool:
+        """Whether the visit ended with its payment."""
+
+        row = self._connection.execute(
+            "SELECT 1 FROM bills WHERE conversation_id = ? AND visit_closed_at IS NOT NULL",
+            (conversation_id,),
+        ).fetchone()
+        return row is not None
+
+    @staticmethod
+    def _bill_from_row(row: sqlite3.Row) -> BillRow:
+        return BillRow(
+            bill_id=row["bill_id"],
+            conversation_id=row["conversation_id"],
+            status=row["status"],
+            bill=Bill.model_validate_json(row["bill_json"]),
+            task=CashierTask.model_validate_json(row["task_json"]),
+            payment_key=row["payment_key"],
+            receipt=Receipt.model_validate_json(row["receipt_json"]) if row["receipt_json"] else None,
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+            visit_closed_at=_optional_datetime(row["visit_closed_at"]),
+        )
 
     # Stream events
 

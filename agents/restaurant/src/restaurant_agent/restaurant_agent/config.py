@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     kitchen_a2a_url: HttpUrl | None = None
     kitchen_a2a_token_scope: str | None = None
     kitchen_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    # And the independently deployed cashier, through A2A as well.
+    cashier_a2a_url: HttpUrl | None = None
+    cashier_a2a_token_scope: str | None = None
+    cashier_timeout_seconds: int = Field(default=30, ge=1, le=120)
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -43,6 +47,8 @@ class Settings(BaseSettings):
         "knowledge_base_name",
         "kitchen_a2a_url",
         "kitchen_a2a_token_scope",
+        "cashier_a2a_url",
+        "cashier_a2a_token_scope",
         mode="before",
     )
     @classmethod

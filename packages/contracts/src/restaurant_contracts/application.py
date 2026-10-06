@@ -14,6 +14,7 @@ from pydantic import (
 )
 
 from restaurant_contracts.activity import MAX_ACTIVITY_STEPS, ActivityStep
+from restaurant_contracts.cashier import BillView, CashierReport, PaymentMethod
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
 from restaurant_contracts.kitchen import RENDERED_TEXT_LIMIT, KitchenReport
 from restaurant_contracts.memory import MemoryKind
@@ -27,7 +28,7 @@ MessageText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=MESSAGE_TEXT_LIMIT),
 ]
-# A kitchen plan is longer than a chat message; the other roles keep their limit.
+# A kitchen plan or a bill is longer than a chat message; the other roles keep their limit.
 ConversationText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=RENDERED_TEXT_LIMIT),
@@ -58,6 +59,7 @@ class Action(StrEnum):
     CLEAR_MEMORY = "memory.clear_requested"
     DECIDE_TABLE = "table.confirmation_decided"
     END_VISIT = "visit.end_requested"
+    DECIDE_PAYMENT = "payment.confirmation_decided"
 
 
 class EmptyPayload(ContractModel):
@@ -87,6 +89,14 @@ class TableDecisionPayload(ContractModel):
     proposal_id: Identifier
     version: Annotated[int, Field(strict=True, ge=1)]
     decision: Literal["confirmed", "rejected"]
+
+
+class PaymentDecisionPayload(ContractModel):
+    """The customer's button answer to the presented bill: card or cash."""
+
+    bill_id: Identifier
+    version: Annotated[int, Field(strict=True, ge=1)]
+    method: PaymentMethod
 
 
 class CommandEnvelope(ContractModel):
@@ -139,6 +149,11 @@ class EndVisitCommand(ConversationCommand):
     payload: EmptyPayload
 
 
+class DecidePaymentCommand(ConversationCommand):
+    event_type: Literal["payment.confirmation_decided"]
+    payload: PaymentDecisionPayload
+
+
 Command = Annotated[
     ArriveCommand
     | SendMessageCommand
@@ -147,7 +162,8 @@ Command = Annotated[
     | DeleteMemoryCommand
     | ClearMemoryCommand
     | DecideTableCommand
-    | EndVisitCommand,
+    | EndVisitCommand
+    | DecidePaymentCommand,
     Field(discriminator="event_type"),
 ]
 COMMAND_ADAPTER = TypeAdapter(Command)
@@ -174,17 +190,18 @@ class MemoryView(ContractModel):
 
 
 class ChatMessage(ContractModel):
-    """A line of the conversation: the customer, the waiter or the kitchen's plan."""
+    """A line of the conversation: the customer, the waiter, the kitchen or the cashier."""
 
     message_id: Identifier
-    role: Literal["user", "assistant", "kitchen"]
+    role: Literal["user", "assistant", "kitchen", "cashier"]
     text: ConversationText
     occurred_at: AwareDatetime
     command_event_id: Identifier
     # Left out of the JSON when absent, so customer and waiter messages keep
     # the exact shape that earlier versions read.
     kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
-    # What the system did for this message (a customer's message or a serving).
+    cashier: CashierReport | None = Field(default=None, exclude_if=lambda value: value is None)
+    # What the system did for this message (a customer's message, a serving or a payment).
     activity: list[ActivityStep] = Field(
         default_factory=list, max_length=MAX_ACTIVITY_STEPS, exclude_if=lambda value: not value
     )
@@ -193,7 +210,9 @@ class ChatMessage(ContractModel):
     def kitchen_messages_carry_their_report(self) -> "ChatMessage":
         if (self.role == "kitchen") != (self.kitchen is not None):
             raise ValueError("Kitchen messages, and only they, carry a kitchen report")
-        if self.role != "kitchen" and len(self.text) > MESSAGE_TEXT_LIMIT:
+        if (self.role == "cashier") != (self.cashier is not None):
+            raise ValueError("Cashier messages, and only they, carry a cashier report")
+        if self.role not in ("kitchen", "cashier") and len(self.text) > MESSAGE_TEXT_LIMIT:
             raise ValueError(
                 f"Customer and waiter messages have at most {MESSAGE_TEXT_LIMIT} characters"
             )
@@ -218,6 +237,10 @@ class RestaurantSnapshot(ContractModel):
     seating: SeatingView = Field(default_factory=SeatingView)
     # Kitchen orders the waiter has already taken from the pass to the table.
     served_orders: list[Identifier] = Field(default_factory=list, max_length=50)
+    # The bill waiting for the customer's card or cash, and whether the visit
+    # ended with its payment. Left out of the JSON while absent.
+    pending_bill: BillView | None = Field(default=None, exclude_if=lambda value: value is None)
+    visit_closed: bool = Field(default=False, exclude_if=lambda value: not value)
 
     @model_validator(mode="after")
     def projection_is_consistent(self) -> "RestaurantSnapshot":
@@ -238,6 +261,10 @@ class RestaurantSnapshot(ContractModel):
             and self.seating.status != "proposed"
         ):
             raise ValueError("A seating decision needs a pending proposal")
+        if Action.DECIDE_PAYMENT in self.allowed_actions and not (
+            self.pending_bill is not None and self.pending_bill.payable
+        ):
+            raise ValueError("A payment decision needs a bill awaiting payment")
         ids = [message.message_id for message in self.messages]
         if len(ids) != len(set(ids)):
             raise ValueError("Message IDs must be unique")
@@ -251,6 +278,7 @@ class RestaurantSnapshot(ContractModel):
                     Action.SEND_MESSAGE,
                     Action.DECIDE_TABLE,
                     Action.END_VISIT,
+                    Action.DECIDE_PAYMENT,
                 )
                 for action in self.allowed_actions
             ):

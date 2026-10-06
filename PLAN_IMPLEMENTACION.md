@@ -14,6 +14,10 @@ adicional es la revision humana de caja, fuera de la conversacion del cliente:
 consultar cocina -> confirmar pedido -> recibir -> solicitar cuenta ->
 revision humana de caja (HITL) -> pagar -> solicitar liberacion de mesa`
 
+Acuerdo del 06/10: la revision humana de caja queda preparada como paso
+opcional, desactivado por defecto; el cliente paga con tarjeta o efectivo y el
+pago termina la visita y libera la mesa.
+
 El camarero habla exclusivamente con el chef lider para resolver cocina.
 El chef valida disponibilidad, consulta a los especialistas y devuelve una
 propuesta consolidada con espera estimada. El camarero la comunica, no inventa
@@ -37,6 +41,8 @@ ya realizados. Esto no implica borrar los archivos o recursos actuales.
 - El HITL de caja revisa peticion original, ticket, consumos y cargos
   adicionales antes de aprobar o rechazar el importe.
 - La liberacion la solicita el cliente despues de un pago confirmado.
+  Acuerdo del 06/10: el pago confirmado ya termina la visita y libera la mesa
+  por el mismo camino que salir; la revision de caja es opcional.
 - A2A conecta al camarero con el agente de cocina externo y, en un incremento
   posterior, al chef con un proveedor independiente. No se usa entre el chef y
   sus especialistas.
@@ -444,7 +450,8 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   con importes en centimos o Decimal y moneda; no usar aritmetica del LLM.
 - [ ] Persistir el HITL de caja sobre esa cuenta: reunir peticion original,
   ticket, consumos y cargos adicionales; una persona aprueba o rechaza el
-  importe antes del cobro.
+  importe antes del cobro. Acuerdo del 06/10: preparado como etapa opcional
+  del agente de caja, desactivada por defecto y todavia sin interfaz.
 - [ ] Implementar pago simulado aprobado, rechazado y resultado incierto;
   referencia persistida y consulta por clave antes de repetir una escritura.
 - [ ] Mientras cuenta, caja y pago no estén implementados, usar `/exit` como
@@ -457,11 +464,14 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   `/new` conserva su significado de iniciar otra visita y no libera una mesa
   ocupada.
 - [ ] Liberar mesa solo por solicitud del cliente propietario y con cuenta
-  pagada. El pago no la libera automaticamente ni lo hace cerrar el navegador.
+  pagada. Acuerdo del 06/10: tras el pago confirmado, la visita se cierra y la
+  mesa se libera por el mismo camino que «Salir»; cerrar el navegador no la
+  libera.
 - [ ] Añadir pedido, pago y liberación integrada: la liberación invoca el MCP
   solo después de verificar el pago y la pertenencia de la visita. Al completar
   este flujo, retirar el atajo temporal de `/exit`: pasará a solicitar cuenta,
   revisión humana de caja y pago antes de liberar el asiento y cerrar la visita.
+  Acuerdo del 06/10: «Salir» se mantiene y el pago reutiliza su camino.
 - [ ] Registrar decisiones y efectos, con checkpoints duraderos en local.
 
 **Aceptacion y pruebas**
@@ -761,8 +771,9 @@ no del `actor` declarado por el navegador o por el modelo.
 | `table.confirmation_decided` | Confirmar (ocupar) o rechazar (liberar) la propuesta de mesa o barra con su version |
 | `order.submitted` | Validar borrador con cocina, todavia sin preparar |
 | `order.confirmation_decided` | Confirmar/modificar/cancelar la version presentada |
-| `bill.requested` | Generar cuenta y abrir la revision humana de caja; no cobrar |
-| `payment.review_decided` | Caja aprueba o rechaza el ticket y el importe concretos |
+| `bill.requested` | Generar cuenta y abrir la revision humana de caja; no cobrar (acuerdo del 06/10: la cuenta se pide en la conversacion) |
+| `payment.review_decided` | Caja aprueba o rechaza el ticket y el importe concretos (acuerdo del 06/10: opcional, sin interfaz todavia) |
+| `payment.confirmation_decided` | Pagar la cuenta pendiente con tarjeta o efectivo; despues se cierra la visita (acuerdo del 06/10) |
 | `table.release_requested` | Liberar la asignacion propia tras verificar pago |
 
 El alcance publico de 3A incluye solo llegada, mensaje y los cuatro comandos
@@ -788,7 +799,9 @@ comando conserva su clave.
   cancelar la propuesta no crea comanda; fallos tienen estado explicito.
 - Cuenta/pago: `awaiting_payment_confirmation -> processing ->
   paid | failed | unknown`. Cancelar la autorizacion no cancela la deuda.
-  `unknown` se reconcilia antes de habilitar otro cobro.
+  `unknown` se reconcilia antes de habilitar otro cobro. Acuerdo del 06/10: la
+  caja v1 recorre `awaiting_review` (opcional) `-> awaiting_payment -> paid`; el
+  pago simulado se aprueba siempre y repetirlo devuelve el mismo recibo.
 - Persistir tanto la decision del pedido como el HITL de caja antes de notificar.
   Reanudar exige actor, tipo, recurso, version y vigencia coincidentes. Un ID
   solo no basta.

@@ -21,11 +21,13 @@ recorrido reconocible:
 8. El camarero presenta esa confirmación al cliente y solicita una confirmación
    explícita del pedido.
 9. Tras la confirmación del cliente, cocina prepara y entrega el plato.
-10. El cliente solicita la cuenta y el camarero la genera.
-11. Caja reúne la petición original, el ticket, los consumos y los posibles
-    cargos adicionales; una persona revisora aprueba o rechaza el importe antes
-    de que el camarero coordine el pago simulado.
-12. Después de un pago correcto, el cliente solicita liberar la mesa.
+10. El cliente solicita la cuenta y el camarero se la pide a caja.
+11. Caja cobra los platos servidos con los precios de la carta y el cliente
+    elige tarjeta o efectivo para el pago simulado. La revisión del importe por
+    una persona en caja queda preparada como paso opcional, desactivado por
+    defecto (acuerdo del 06/10).
+12. Después de un pago correcto, el camarero se despide y la visita termina con
+    la mesa libre, como al salir (acuerdo del 06/10).
 
 Después de este recorrido guiado, la aplicación puede quedar disponible para que
 los asistentes la prueben mientras se explican la arquitectura, las llamadas
@@ -48,7 +50,7 @@ la demo:
 - A2A: invocar el agente de cocina externo y, posteriormente, solicitar
   productos a un proveedor externo.
 - Human in the loop: una persona en caja revisa el ticket y el importe antes de
-  completar el pago.
+  completar el pago (acuerdo del 06/10: paso opcional, desactivado por defecto).
 - Application Insights: explicar qué ocurrió y cuánto tardó cada paso.
 
 ### Eventos iniciados desde el frontal
@@ -181,8 +183,8 @@ El frontal también ofrece acciones contextuales que generan eventos:
 
 - confirmar, modificar o cancelar el pedido;
 - solicitar cuenta;
-- confirmar o cancelar el pago;
-- liberar mesa.
+- pagar con tarjeta o efectivo (acuerdo del 06/10);
+- liberar mesa; tras el pago se libera sin esta acción (acuerdo del 06/10).
 
 Las acciones solo se habilitan cuando corresponden al estado actual. La
 confirmación visual se muestra después de que el camarero haya procesado la
@@ -263,9 +265,9 @@ Comandos mínimos del frontal:
 | `table.confirmation_decided` | Cliente | Propuesta de mesa o barra confirmada (ocupada) o rechazada (libre) |
 | `order.submitted` | Cliente | Propuesta enviada a cocina para validación |
 | `order.confirmation_decided` | Cliente | Pedido confirmado, modificado o cancelado |
-| `bill.requested` | Cliente | Cuenta generada y pago pendiente de confirmación |
-| `payment.confirmation_decided` | Cliente | Pago autorizado o cancelado |
-| `table.release_requested` | Cliente | Mesa liberada si el pago está confirmado |
+| `bill.requested` | Cliente | Cuenta generada y pago pendiente de confirmación (acuerdo del 06/10: la cuenta se pide en la conversación, sin este comando) |
+| `payment.confirmation_decided` | Cliente | Pago con tarjeta o efectivo de la cuenta pendiente (acuerdo del 06/10) |
+| `table.release_requested` | Cliente | Mesa liberada si el pago está confirmado (acuerdo del 06/10: el pago ya cierra la visita y libera la mesa) |
 
 En 3A el contrato público se limita a llegada, mensaje y los cuatro comandos
 de memoria anteriores. La llegada solo abre o recupera la visita; la asignación
@@ -399,12 +401,15 @@ Tras la aprobación, la interfaz muestra una progresión sencilla:
 
 ### Escena 5: cuenta, pago y liberación de mesa
 
-El frontal emite una solicitud de cuenta. El camarero valida que el pedido esté
-entregado, invoca el servicio de cuenta, presenta el desglose de los elementos
-confirmados y pausa el workflow antes del cobro.
+El cliente pide la cuenta en la conversación (acuerdo del 06/10). El camarero
+valida que lo pedido esté servido, se la pide a caja, presenta el desglose de
+los platos servidos y pausa el workflow antes del cobro hasta que el cliente
+elige tarjeta o efectivo.
 
 El sistema reúne la petición original, el ticket, los consumos y los posibles
-cargos adicionales. Una persona revisora de caja decide sobre esa versión:
+cargos adicionales. Si la revisión en caja está activada (opcional y
+desactivada por defecto, acuerdo del 06/10), una persona revisora decide sobre
+esa versión antes del cobro:
 
 - **Aprobar:** el camarero envía el importe y la referencia al proveedor de
   pago simulado.
@@ -414,9 +419,9 @@ cargos adicionales. Una persona revisora de caja decide sobre esa versión:
 Este es el human in the loop diferenciado de la demo. El proveedor comunica si
 el pago ha sido aprobado, rechazado o requiere un nuevo intento.
 
-Después de un pago correcto se habilita la acción **Liberar mesa**. El cliente la
-ejecuta, el camarero comprueba que la cuenta esté pagada, solicita la liberación
-al servicio de mesas y confirma que vuelve a estar libre.
+Después de un pago correcto, el camarero se despide y la visita termina: la mesa
+se libera por el mismo camino que al salir y vuelve a estar libre, sin una
+acción **Liberar mesa** aparte (acuerdo del 06/10).
 
 ## 5. Arquitectura objetivo
 
@@ -432,7 +437,7 @@ flowchart LR
     W --> MENU[Foundry IQ mediante MCP]
     W --> TABLES[Servicio de mesas]
     W -->|Tool pedir_a_cocina / A2A| CHEF[Agente de cocina externo]
-    W --> BILL[Servicio de cuenta]
+    W -->|Tool pedir_la_cuenta / A2A| BILL[Agente de caja externo]
 
     CHEF --> PANTRY[MCP de despensa]
     CHEF --> GRILL[Especialista de brasa]
@@ -450,7 +455,8 @@ flowchart LR
     BFF -->|Confirmar, modificar o cancelar| ORDER_DECISION
     ORDER_DECISION -->|Pedido confirmado| CHEF
     CHEF -->|Disponibilidad y espera estimada| W
-    BILL --> PAYMENT_HITL{Caja revisa ticket e importe}
+    BILL -.->|Opcional, acuerdo del 06/10| PAYMENT_HITL{Caja revisa ticket e importe}
+    BILL -->|Tarjeta o efectivo del cliente| PAY
     PAYMENT_HITL -->|Revision pendiente| BFF
     BFF -->|Aprobar o rechazar| PAYMENT_HITL
     PAYMENT_HITL -->|Pago aprobado| PAY
@@ -487,11 +493,11 @@ Responsabilidades:
 - presentar al cliente la propuesta final de cocina y esperar su confirmación
   explícita;
 - comunicar el estado y la entrega;
-- generar la cuenta cuando el frontal lo solicite;
-- presentar la cuenta y enviar a caja el ticket, la petición original, los
-  consumos y los cargos adicionales para revisión humana;
-- iniciar el cobro mediante el proveedor correspondiente;
-- mantener la mesa ocupada hasta que el cliente solicite liberarla;
+- pedir la cuenta a caja cuando el cliente la solicite (acuerdo del 06/10);
+- presentar la cuenta; la revisión humana en caja es opcional y está
+  desactivada por defecto (acuerdo del 06/10);
+- trasladar a caja el pago que el cliente elige con sus botones;
+- mantener la mesa ocupada hasta el pago o hasta que el cliente salga;
 - liberar la mesa únicamente después de validar que el pago está confirmado.
 
 El camarero no decide por sí mismo si hay mesa, si existe stock o si un plato
@@ -586,7 +592,7 @@ completo después de conocer la disponibilidad, sustituciones y tiempo estimado.
 | Suministro externo | A2A | Capacidad de otro sistema o agente |
 | Confirmación del pedido | Decisión explícita del cliente | Autoriza crear la comanda definitiva sin presentarse como HITL diferenciado |
 | Cuenta | Servicio determinista | Requiere importes y líneas exactas |
-| Revisión de ticket e importe | Human in the loop de caja | Una persona aprueba o rechaza antes del cobro |
+| Revisión de ticket e importe | Human in the loop de caja | Opcional y desactivada por defecto (acuerdo del 06/10); si se activa, una persona aprueba o rechaza antes del cobro |
 | Pago | Proveedor de pago | Confirma el resultado y devuelve una referencia verificable |
 | Liberación de mesa | Servicio operacional o MCP | Solo procede tras un pago confirmado |
 
@@ -722,12 +728,14 @@ un evento o una invocación procedente del frontal:
 16. El cliente solicita la cuenta y el camarero invoca el cálculo determinista.
 17. El camarero presenta la cuenta y reúne para caja la petición original, el
     ticket, los consumos y los posibles cargos adicionales.
-18. El workflow pausa en el HITL de caja hasta que una persona aprueba o rechaza
-    el importe.
-19. Solo una aprobación humana válida y ligada a esa versión permite iniciar el
-    cobro simulado.
-20. Tras un pago confirmado, el cliente solicita liberar la mesa.
-21. El camarero valida el pago y libera la mesa.
+18. Si la revisión de caja está activada (opcional y desactivada por defecto,
+    acuerdo del 06/10), el workflow pausa hasta que una persona aprueba o
+    rechaza el importe.
+19. El cliente elige tarjeta o efectivo y caja completa el cobro simulado sobre
+    esa versión de la cuenta.
+20. Tras un pago confirmado, el camarero se despide y la visita termina
+    (acuerdo del 06/10).
+21. El camarero valida el pago y libera la mesa por el mismo camino que al salir.
 
 Este diseño permite enseñar secuencia, delegación y paralelismo sin convertir la
 demo en una conversación libre entre agentes. El camarero no inicia por sí mismo
@@ -827,9 +835,11 @@ asociado a este repositorio; no se usa otro registro como destino del workflow.
 - confirmación explícita del cliente para confirmar, modificar o cancelar el
   pedido;
 - cuenta con cálculo determinista;
-- HITL de caja para aprobar o rechazar el ticket y el importe;
+- HITL de caja para aprobar o rechazar el ticket y el importe, opcional y
+  desactivado por defecto (acuerdo del 06/10);
 - pago simulado con resultado explícito;
-- liberación de mesa solicitada por el cliente y coordinada por el camarero;
+- liberación de mesa tras el pago o al salir, coordinada por el camarero
+  (acuerdo del 06/10);
 - eventos del frontal con claves de idempotencia;
 - vista única para todo el recorrido del cliente.
 
@@ -904,10 +914,13 @@ La demo se considera preparada cuando:
 - espera una decisión explícita del cliente para confirmar, modificar o cancelar;
 - no prepara ningún plato antes de confirmar el pedido;
 - entrega el plato y genera una cuenta exacta;
-- presenta la cuenta y pausa el workflow en la revisión humana de caja;
-- no inicia el cobro hasta que una persona aprueba el ticket y el importe;
+- presenta la cuenta y espera el pago del cliente; la revisión humana de caja
+  es opcional (acuerdo del 06/10);
+- no inicia el cobro hasta que el cliente elige tarjeta o efectivo y, si está
+  activada, una persona aprueba el ticket y el importe;
 - procesa el pago y conserva su referencia;
-- mantiene la mesa ocupada hasta que el cliente solicite liberarla;
+- mantiene la mesa ocupada hasta el pago o hasta que el cliente sale
+  (acuerdo del 06/10);
 - libera la mesa solo después de comprobar que el pago está confirmado;
 - inicia todas las transiciones mediante eventos o invocaciones del frontal;
 - evita efectos duplicados al reintentar un evento;

@@ -15,6 +15,17 @@ from typing import Literal
 
 from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ChatMessage
+from restaurant_contracts.cashier import (
+    PAYMENT_LABELS,
+    Bill,
+    BillLine,
+    BillSource,
+    BillStage,
+    BillView,
+    CashierFailure,
+    Receipt,
+    euros,
+)
 from restaurant_contracts.kitchen import (
     STATION_LABELS,
     AcceptedItem,
@@ -41,6 +52,12 @@ KITCHEN_VERDICTS = {
     "rejected": "Cocina no ha podido preparar el pedido.",
 }
 KITCHEN_FAILED = "Cocina no ha podido revisar el pedido."
+CASHIER_LABEL = "Cuenta de caja"
+BILL_STATES = {
+    "pending": "Pendiente de pago.",
+    "paid": "Pagada.",
+    "void": "Anulada: pedid la cuenta otra vez.",
+}
 
 
 @dataclass(frozen=True)
@@ -99,6 +116,7 @@ COMPONENT_LABELS = {
     "chef": "Chef",
     "especialista": "Especialista",
     "entrega": "Entrega",
+    "caja": "Caja",
 }
 ACTIVITY_TURNS = 3
 
@@ -118,6 +136,8 @@ def _activity_turn(message: ChatMessage) -> str:
     if message.role == "user":
         text = " ".join(message.text.split())
         title = f"«{text[:38]}…»" if len(text) > 38 else f"«{text}»"
+    elif message.role == "cashier":
+        title = "Cobro en caja"
     else:
         title = "Entrega en mesa"
     steps = "".join(_activity_step(step) for step in message.activity)
@@ -158,6 +178,7 @@ def plan_markup(
     kitchen_served: bool = False,
     served_dishes: int = 0,
     serve_elapsed: float | None = None,
+    bill_pending: bool = False,
 ) -> str:
     classes = "planta-marco entrando" if entering else "planta-marco"
     svg = floor_plan_svg(
@@ -168,6 +189,7 @@ def plan_markup(
         walk_elapsed=walk_elapsed,
         served_dishes=served_dishes,
         serve_elapsed=serve_elapsed,
+        bill_pending=bill_pending,
     )
     kitchen = kitchen_plan_svg(kitchen_active, kitchen_plan, kitchen_served)
     return f'<div class="{classes}">{_one_line(svg)}{_one_line(kitchen)}</div>'
@@ -193,9 +215,24 @@ def proposal_markup(proposal: SeatingProposal) -> str:
     )
 
 
+def bill_card_markup(bill: BillView) -> str:
+    """The pending bill above its two buttons: card or cash, never a phrase."""
+
+    return (
+        '<div class="cuenta-pendiente" role="group" aria-label="Cuenta pendiente de pago">'
+        f'<p class="titulo">Total {text_html(euros(bill.total))}</p>'
+        "<p>Elige cómo pagar.</p></div>"
+    )
+
+
 def conversation_markup(view: ConversationView, *, reveal: Reveal | None = None) -> str:
     """The message log in the conversation window, anchored to its latest line."""
 
+    paid = {
+        message.cashier.bill_id
+        for message in view.messages
+        if message.cashier is not None and isinstance(message.cashier.result, Receipt)
+    }
     placed: dict[str | None, list[Card]] = {}
     for card in view.cards:
         placed.setdefault(card.after_message_id, []).append(card)
@@ -209,6 +246,12 @@ def conversation_markup(view: ConversationView, *, reveal: Reveal | None = None)
                 rows.append(_waiter_row(text_html(message.text)))
         elif message.role == "kitchen":
             rows.append(kitchen_row(message))
+        elif message.role == "cashier":
+            bill_id = message.cashier.bill_id if message.cashier is not None else None
+            state = (
+                "pending" if bill_id == view.pending_bill else "paid" if bill_id in paid else "void"
+            )
+            rows.append(cashier_row(message, state=state))
         else:
             rows.append(_customer_row(message.text))
         rows.extend(_card(card) for card in placed.pop(message.message_id, []))
@@ -263,6 +306,98 @@ def kitchen_row(message: ChatMessage) -> str:
         f'<div class="msg cocina">{chef_icon_svg()}'
         f'<div class="burbuja plan-cocina" role="group" aria-label="{KITCHEN_LABEL}">'
         f"{body}</div></div>"
+    )
+
+
+def cashier_icon_svg() -> str:
+    """The till, white on the cashier's green, drawn like the chef's toque."""
+
+    return (
+        '<svg class="icono" viewBox="-16 -16 32 32" aria-hidden="true" focusable="false">'
+        '<path d="M2.5 -6 V-3" stroke="#0f2e20" stroke-width="1.6"/>'
+        '<rect x="-3" y="-13" width="12" height="7" rx="1.4" '
+        'fill="#fbf8f1" stroke="#0f2e20" stroke-width="1.4"/>'
+        '<path d="M-0.5 -9.5 H6" stroke="#6f9c80" stroke-width="1.2" stroke-linecap="round"/>'
+        '<path d="M-11.5 -3 H11.5 L13 5 H-13 Z" '
+        'fill="#fbf8f1" stroke="#0f2e20" stroke-width="1.4" stroke-linejoin="round"/>'
+        '<path d="M-8 -0.2 H-6 M-3.5 -0.2 H-1.5 M1 -0.2 H3 M-8.5 2.4 H-6.5 M-4 2.4 H-2 M0.5 2.4 H2.5" '
+        'stroke="#6f9c80" stroke-width="1.4" stroke-linecap="round"/>'
+        '<rect x="6.2" y="-1.4" width="4" height="4.8" rx=".8" fill="#6f9c80"/>'
+        '<rect x="-13" y="5" width="26" height="7" rx="1.6" '
+        'fill="#fbf8f1" stroke="#0f2e20" stroke-width="1.4"/>'
+        '<path d="M-3 8.5 H3" stroke="#6f9c80" stroke-width="1.4" stroke-linecap="round"/></svg>'
+    )
+
+
+def cashier_row(message: ChatMessage, *, state: str = "void") -> str:
+    """The cashier's own bubble: the bill, the receipt or why caja could not do it.
+
+    ``state`` says what became of a bill: ``pending`` (waiting for card or
+    cash), ``paid`` or ``void`` (superseded by new dishes or closed by caja).
+    """
+
+    report = message.cashier
+    extra = ""
+    if report is None:
+        body = f"<p>{text_html(message.text)}</p>"
+    elif isinstance(report.result, CashierFailure):
+        action = "preparar la cuenta" if report.request is not None else "cobrar"
+        body = (
+            f'<p class="titular">{text_html(f"Caja no ha podido {action}.")}</p>'
+            f"<p>{text_html(report.result.message)}</p>"
+        )
+    elif isinstance(report.result, Receipt):
+        body = _receipt_body(report.result)
+    else:
+        body = _bill_body(report.result, state)
+        extra = f" {state}"
+    return (
+        f'<div class="msg caja{extra}">{cashier_icon_svg()}'
+        f'<div class="burbuja cuenta-caja" role="group" aria-label="{CASHIER_LABEL}">'
+        f"{body}</div></div>"
+    )
+
+
+def _bill_body(bill: Bill, state: str) -> str:
+    lines = "".join(_bill_line(line) for line in bill.lines)
+    parts = [
+        '<p class="titular">Cuenta</p>',
+        f'<ul class="lineas">{lines}</ul>',
+        f'<p class="total"><span>Total</span><span class="importe">{text_html(euros(bill.total))}</span></p>',
+        f'<p class="nota">{text_html(bill.note)}</p>',
+    ]
+    if bill.stage is BillStage.AWAITING_REVIEW:
+        parts.append('<p class="estado">Pendiente de revisión en caja.</p>')
+    else:
+        parts.append(f'<p class="estado">{text_html(BILL_STATES[state])}</p>')
+    cited = " · ".join(_bill_source(source) for source in bill.sources)
+    parts.append(f'<p class="fuentes">{text_html("Fuentes: " + cited)}</p>')
+    return "".join(parts)
+
+
+def _bill_line(line: BillLine) -> str:
+    unit = (
+        f'<span class="unidad">{text_html(euros(line.unit_price) + " cada una")}</span>'
+        if line.quantity > 1
+        else ""
+    )
+    return (
+        f'<li><span class="concepto">{text_html(f"{line.quantity} × {line.name}")}{unit}</span>'
+        f'<span class="importe">{text_html(euros(line.line_total))}</span></li>'
+    )
+
+
+def _bill_source(source: BillSource) -> str:
+    return f"{source.document} (versión {source.version})" if source.version else source.document
+
+
+def _receipt_body(receipt: Receipt) -> str:
+    method = PAYMENT_LABELS[receipt.method].lower()
+    when = receipt.paid_at.strftime("%d/%m/%Y %H:%M UTC")
+    return (
+        f'<p class="titular">{text_html(f"Pagado con {method}")}</p>'
+        f'<p class="total"><span>Total</span><span class="importe">{text_html(euros(receipt.amount))}</span></p>'
+        f'<p class="nota">{text_html(f"Referencia {receipt.reference} · {when}")}</p>'
     )
 
 

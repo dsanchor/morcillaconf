@@ -165,11 +165,31 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   lo publica en el mismo snapshot y los mismos eventos. Los mensajes del
   cliente y del camarero conservan exactamente su forma anterior. El BFF no
   habla con el chef ni interpreta su plan.
+- **Cuenta y pago** (acuerdo del 06/10). En cada turno el BFF envía al
+  camarero lo que se puede cobrar: las líneas servidas (`served`, los platos
+  aceptados de los planes de cocina cuyos pedidos están en `served_orders`),
+  cuántos pedidos cocinados siguen en el pase (`orders_at_pass`) y la cuenta
+  pendiente (`pending_bill`). Lo rechazado y lo que sigue en el pase nunca se
+  cobra. Si el cliente ha pedido la cuenta, la respuesta trae el
+  `CashierReport`: el BFF lo guarda como un mensaje propio con el rol
+  `cashier`, entre el mensaje del cliente y la respuesta del camarero, y
+  guarda la cuenta (tabla `bills`) con la tarea A2A de caja. El snapshot la
+  publica en `pending_bill` y ofrece `payment.confirmation_decided` solo
+  mientras espera tarjeta o efectivo. Ese comando comprueba pertenencia,
+  cuenta, versión y método, y pide al camarero `pay_bill` con la clave de
+  idempotencia del primer intento: un reintento o un segundo clic nunca cobra
+  dos veces (si la cuenta ya está pagada, se completa sin efectos). Con el
+  recibo, el BFF guarda el mensaje de caja y la despedida fija del camarero y
+  termina la visita por el mismo camino que «Salir» (`release_seating`), así
+  que el sitio queda libre; `visit_closed` avisa a la vista y la visita ya no
+  admite mensajes. Si el cliente pide más platos con una cuenta pendiente, esa
+  cuenta queda anulada y hay que volver a pedirla.
 - **Observabilidad.** Spans `bff.command`, `bff.waiter.turn`,
   `bff.seating.decision` y `bff.seating.sync` con tipo,
   correlación, conversación y resultado, sin texto ni nombres. Un turno con
   cocina añade `bff.kitchen.outcome`: el veredicto (`accepted`, `partial` o
-  `rejected`) o el código del fallo. Solo se usa la
+  `rejected`) o el código del fallo; uno con caja, `bff.cashier.outcome`, y el
+  pago, el span `bff.payment.decision` con su método y resultado. Solo se usa la
   API de OpenTelemetry: falta configurar un exportador (Application Insights,
   fase 9).
 
@@ -188,8 +208,8 @@ persistencia compartida llega en la fase 9.
 
 - El camarero real con Foundry y el MCP de asientos se validan en el
   Codespace; en CI se usa el camarero simulado.
-- Una ocupación solo se libera tras el pago (pendiente de fase 4); para
-  demostraciones se vacía la sala con `./scripts/run-mcp.sh --reset`.
+- Una ocupación se libera con «Salir» o tras el pago; para demostraciones se
+  vacía la sala con `./scripts/run-mcp.sh --reset`.
 - El modelo puede mencionar otro nombre o saludar en su texto; la aplicación
   fija el dato, no la redacción.
 - Las reglas del saludo están duplicadas en `bff/greeting.py` y en el frontend;

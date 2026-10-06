@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from restaurant_agent import seating as seating_state
 from restaurant_agent.activity import instant, tracked
+from restaurant_agent.cashier_tool import BillingContext, set_billing, take_cashier_report
 from restaurant_agent.kitchen_tool import take_kitchen_report
 
 from restaurant_agent.contracts import (
@@ -309,6 +310,7 @@ class ConversationManager:
         actor_id: str,
         message: str,
         correlation_id: str | None = None,
+        billing: BillingContext | None = None,
     ) -> WaiterResponse:
         normalized_message = message.strip()
         if not normalized_message:
@@ -332,8 +334,10 @@ class ConversationManager:
                     if remembered
                     else "Sin recuerdos de otras visitas",
                 )
-            # Only the kitchen's answer to this turn's order reaches the response.
+            # Only the kitchen's and the cashier's answers to this turn reach the response.
             take_kitchen_report(record.agent_session.state)
+            take_cashier_report(record.agent_session.state)
+            set_billing(record.agent_session.state, billing)
             prompt = self._build_prompt(record, normalized_message)
             run_input: Any = prompt
             pending = seating_state.pending_confirm_request(record.agent_session.state)
@@ -360,6 +364,7 @@ class ConversationManager:
                     )
             finally:
                 kitchen = take_kitchen_report(record.agent_session.state)
+                cashier = take_cashier_report(record.agent_session.state)
             paused = bool(
                 seating_state.confirm_approval_requests(
                     getattr(response, "user_input_requests", None) or []
@@ -447,6 +452,7 @@ class ConversationManager:
                     for memory in record.remembered_memories
                 ],
                 kitchen=kitchen,
+                cashier=cashier,
             )
 
     def seating_report(self, *, conversation_id: str, actor_id: str) -> dict[str, Any] | None:

@@ -2,7 +2,8 @@
 
 Steps carry curated labels, counters and durations for the «bajo el capó»
 panel: which component acted (waiter model, memory, seating MCP, the A2A
-kitchen, Foundry IQ, the chef and its specialists), never raw prompts.
+kitchen, Foundry IQ, the chef and its specialists, the A2A cashier), never
+raw prompts.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ ActivityComponent = Literal[
     "chef",
     "especialista",
     "entrega",
+    "caja",
 ]
 ActivityText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)

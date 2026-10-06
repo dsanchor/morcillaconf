@@ -104,6 +104,22 @@ class Commands:
             payload={},
         )
 
+    def pay(
+        self,
+        conversation_id: str,
+        bill_id: str,
+        version: int = 1,
+        method: str = "tarjeta",
+        *,
+        event_id: str | None = None,
+    ) -> Command:
+        return self._command(
+            event_id=event_id,
+            event_type="payment.confirmation_decided",
+            conversation_id=conversation_id,
+            payload={"bill_id": bill_id, "version": version, "method": method},
+        )
+
 
 class GatedAgent(ScriptedWaiterAgent):
     """Scripted waiter that waits until the test opens the gate."""

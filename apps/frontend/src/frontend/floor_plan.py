@@ -1,5 +1,8 @@
 """Top-down plan of the dining room: tables, the bar, the groups, the customer and the waiter.
 
+The till stands inside the room by the exit door, at the bottom left: the
+cashier behind a small counter, lit while a bill waits for card or cash.
+
 Standard library and the public contracts only. The waiter's position is a CSS
 state of the ``planta`` wrapper: ``barra`` (resting), ``llegando`` (walks to
 the door once) and ``atendiendo`` (standing by the customer).
@@ -39,6 +42,10 @@ WOOD = 'fill="#6b4a2f" stroke="#9a7550" stroke-width="2"'
 SEAT = 'fill="#1f150e" stroke="#8a6644" stroke-width="2.5"'
 CUSTOMER_BODY = "#8c1c2b"
 GUEST_BODY = "#7b6553"
+CASHIER_BODY = "#1f5b3f"
+# The cashier stands against the left wall, facing the room, just above the door.
+CASHIER = (42, 181)
+TILL_COUNTER = (58, 150, 20, 62)
 # Behind the customer at the door, where companions gather before walking in.
 COMPANION_OFFSETS = ((-26, 34), (26, 34), (-52, 14), (52, 14), (0, 56), (-52, 50), (52, 50))
 # The group walks along the aisle between the left tables before sitting.
@@ -167,6 +174,28 @@ def _walls() -> str:
         f'<path d="M{gap_right},316 A{gap_right - gap_left},{gap_right - gap_left} 0 0 0 '
         f'{gap_left},{316 - (gap_right - gap_left)}" fill="none" stroke="#cdba95" '
         'stroke-opacity=".45" stroke-width="2" stroke-dasharray="5 6"/>'
+    )
+
+
+def _cashier_station(pending: bool) -> str:
+    """The till by the door: the cashier, a small counter and the till on it."""
+
+    x, y = CASHIER
+    left, top, width, height = TILL_COUNTER
+    css = "caja pendiente" if pending else "caja"
+    return (
+        f'<g class="{css}">'
+        f'<circle class="halo-caja" cx="{x + 6}" cy="{y}" r="38" fill="url(#p-halo)"/>'
+        f'<rect x="{left}" y="{top}" width="{width}" height="{height}" rx="3" {WOOD}/>'
+        f'<rect x="{left + 2.5}" y="{top + 16}" width="{width - 5}" height="24" rx="2" '
+        'fill="#1c1410" stroke="#8a6644" stroke-width="1.5"/>'
+        f'<rect class="pantalla-caja" x="{left + 5}" y="{top + 19}" width="{width - 10}" '
+        'height="7" rx="1"/>'
+        f'<g class="cajero" transform="translate({x},{y}) rotate(90)">'
+        f"{_person(CASHIER_BODY, collar=True)}</g>"
+        f'<text class="rotulo-caja" x="{left + width / 2}" y="{top - 9}" '
+        'text-anchor="middle" aria-hidden="true">caja</text>'
+        "</g>"
     )
 
 
@@ -377,6 +406,7 @@ def floor_plan_svg(
     walk_elapsed: float | None = None,
     served_dishes: int = 0,
     serve_elapsed: float | None = None,
+    bill_pending: bool = False,
 ) -> str:
     """Plan with the customer, the waiter in the given state and, with a room, every group.
 
@@ -384,6 +414,7 @@ def floor_plan_svg(
     the walk to the seats once; ``None`` draws the group already seated.
     ``served_dishes`` rest on the customer's table; ``serve_elapsed`` plays the
     waiter's walk from the pass with the tray once, before they appear.
+    ``bill_pending`` lights the till while a bill waits for card or cash.
     """
 
     if waiter not in WAITER_STATES:
@@ -422,7 +453,12 @@ def floor_plan_svg(
             "</g>"
         )
         label += f"; {escape(customer_name)} en la entrada"
-    label += f"; {WAITER_LABELS[waiter]}."
+    label += f"; {WAITER_LABELS[waiter]}"
+    label += (
+        "; la caja, junto a la puerta, con tu cuenta pendiente de pago."
+        if bill_pending
+        else "; la caja, junto a la puerta."
+    )
     bar = "" if live else _bar()
     serving = (
         seated
@@ -456,7 +492,8 @@ def floor_plan_svg(
         f'aria-label="{label}">'
         f"{_defs()}"
         '<rect x="24" y="24" width="952" height="292" fill="url(#p-baldosa)"/>'
-        f"{bar}{tables}{plates}{groups}{_walls()}{_pass_hatch()}{customer}"
+        f"{bar}{tables}{plates}{groups}{_cashier_station(bill_pending)}"
+        f"{_walls()}{_pass_hatch()}{customer}"
         f"{waiter_markup}"
         "</svg>"
     )

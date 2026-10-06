@@ -18,9 +18,12 @@ CLIENT_VARIABLE = "FRONTEND_BFF_CLIENT"
 PAUSE_VARIABLE = "FRONTEND_FAKE_PAUSE_SECONDS"
 URL_VARIABLE = "FRONTEND_BFF_URL"
 TIMEOUT_VARIABLE = "FRONTEND_BFF_TIMEOUT_SECONDS"
+FAREWELL_VARIABLE = "FRONTEND_FAREWELL_SECONDS"
 DEFAULT_PAUSE_SECONDS = 0.9
 DEFAULT_BFF_URL = "http://127.0.0.1:8000"
 DEFAULT_TIMEOUT_SECONDS = 30.0
+# After paying, the receipt and the goodbye stay on screen this long before the door.
+DEFAULT_FAREWELL_SECONDS = 4.0
 
 
 class DoorClient(BffClient, Protocol):
@@ -51,6 +54,7 @@ class FrontendSettings:
     fake_pause_seconds: float = DEFAULT_PAUSE_SECONDS
     bff_url: str = DEFAULT_BFF_URL
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
+    farewell_seconds: float = DEFAULT_FAREWELL_SECONDS
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] = os.environ) -> FrontendSettings:
@@ -85,11 +89,21 @@ class FrontendSettings:
             raise ClientConfigurationError(
                 f"{TIMEOUT_VARIABLE} debe ser un número de segundos entre 1 y 300."
             )
+        raw_farewell = environ.get(FAREWELL_VARIABLE, str(DEFAULT_FAREWELL_SECONDS))
+        try:
+            farewell = float(raw_farewell)
+        except ValueError:
+            farewell = -1.0
+        if not 0 <= farewell <= 30:
+            raise ClientConfigurationError(
+                f"{FAREWELL_VARIABLE} debe ser un número de segundos entre 0 y 30."
+            )
         return cls(
             client_kind=kind,
             fake_pause_seconds=pause,
             bff_url=url,
             timeout_seconds=timeout,
+            farewell_seconds=farewell,
         )
 
 

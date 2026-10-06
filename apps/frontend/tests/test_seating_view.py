@@ -207,7 +207,9 @@ def test_other_groups_are_anonymous_figures_and_holds_are_reserved() -> None:
     assert len(_classes(root, "asiento-reservado")) == 2 + 1  # Mesa 2 and one stool
     assert _classes(root, "reservada")
     texts = [
-        text.text for text in root.iter(f"{SVG}text") if text.get("class") not in ("numero-mesa", "pase")
+        text.text
+        for text in root.iter(f"{SVG}text")
+        if text.get("class") not in ("numero-mesa", "pase", "rotulo-caja")
     ]
     assert texts == ["Ana"]
     label = root.get("aria-label")

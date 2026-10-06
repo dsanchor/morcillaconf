@@ -1,7 +1,7 @@
 """Collect the steps of one waiter turn for the «bajo el capó» panel.
 
-Tools, middleware and the A2A transport report steps without knowing who
-listens: the remote service installs a sink for the turn in a context variable.
+Tools, middleware and the A2A transports (the cashier relays its own steps)
+report steps without knowing who listens: the remote service installs a sink for the turn in a context variable.
 """
 
 from __future__ import annotations
@@ -88,6 +88,7 @@ TOOL_STEPS: dict[str, tuple[ActivityComponent, str]] = {
     "seating_confirm_solo_seating": ("mcp", "MCP mesas: confirma el sitio"),
     "knowledge_base_retrieve": ("foundry_iq", "Foundry IQ: consulta carta y recetario"),
     "pedir_a_cocina": ("cocina", "A2A: envía la comanda a cocina"),
+    "pedir_la_cuenta": ("caja", "Caja A2A: envía la cuenta"),
 }
 
 

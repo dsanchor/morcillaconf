@@ -31,6 +31,7 @@ from restaurant_contracts.application import (
     CommandResult,
     CommandStatusChanged,
     CompletedCommandResult,
+    DecidePaymentCommand,
     DecideTableCommand,
     EndVisitCommand,
     ErrorCode,
@@ -44,6 +45,16 @@ from restaurant_contracts.application import (
     StreamEvent,
 )
 from restaurant_contracts.activity import ActivityStep, merge_steps
+from restaurant_contracts.cashier import (
+    Bill,
+    BillView,
+    CashierFailureCode,
+    PendingBill,
+    Receipt,
+    ServedLine,
+    served_lines,
+    supersedes_bill,
+)
 from restaurant_contracts.customer import CustomerSnapshot, missing_customer_fields
 from restaurant_contracts.kitchen import KitchenPlan
 from restaurant_contracts.seating import (
@@ -60,13 +71,15 @@ from restaurant_contracts.waiter import SeatingReport
 from bff.greeting import greeting
 from bff.identity import InvalidNameError, actor_id_for, presented_name
 from bff.notifier import Notifier
-from bff.storage import ConversationRow, Database, SeatingRow, Transaction
+from bff.storage import BillRow, ConversationRow, Database, SeatingRow, Transaction
 from bff.telemetry import tracer
 from bff.waiter import (
     TURN_ACTIVITY,
     WaiterError,
     WaiterInvalidResponseError,
     WaiterNoPendingDecisionError,
+    WaiterPayCall,
+    WaiterPayResult,
     WaiterPort,
     WaiterSeatingCall,
     WaiterSeatingResult,
@@ -113,6 +126,17 @@ NEW_WHILE_SEATED = (
 NEW_WHILE_PROPOSED = (
     "Antes de empezar otra visita, confirma o rechaza la propuesta de {place}."
 )
+NO_BILL = "No tengo esa cuenta pendiente."
+STALE_BILL = "Esa cuenta ya no está vigente. Pedid la cuenta otra vez."
+BILL_NOT_PAYABLE = "Esa cuenta todavía no se puede pagar así."
+CASHIER_UNAVAILABLE = "La caja no responde ahora mismo. Volved a pulsar en un momento."
+VISIT_CLOSED = "Esta visita ya está pagada y cerrada. Vuelve a entrar para empezar otra."
+# Payment failures after which the bill is no longer open at the cashier.
+BILL_CLOSING_FAILURES = {
+    CashierFailureCode.BILL_NOT_FOUND,
+    CashierFailureCode.REVIEW_REJECTED,
+    CashierFailureCode.CASHIER_NOT_CONFIGURED,
+}
 
 Recovery = Literal["none", "retry_same_command", "fetch_snapshot"]
 
@@ -291,6 +315,8 @@ class RestaurantService:
             return await self._decide_table(session, command)
         if isinstance(command, EndVisitCommand):
             return await self._end_visit(session, command)
+        if isinstance(command, DecidePaymentCommand):
+            return await self._decide_payment(session, command)
         if isinstance(command, ArriveCommand) and command.payload.resume_visit_id is None:
             refused = await self._leave_seating_for_new_visit(session, command)
             if refused is not None:
@@ -352,19 +378,7 @@ class RestaurantService:
                 )
                 self._emit_snapshot(tx, row, command.event_id, correlation_id)
             self._notifier.notify(conversation_id)
-            try:
-                released = await self._waiter.release_seating(
-                    self._seating_call(row, correlation_id)
-                )
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                logger.error(
-                    "Visit exit failed (correlation %s): %s",
-                    correlation_id,
-                    type(exc).__name__,
-                )
-                released = None
+            released = await self._release(row, correlation_id)
             with self._db.write() as tx:
                 current = tx.get_conversation(conversation_id)
                 assert current is not None
@@ -390,6 +404,23 @@ class RestaurantService:
                 tx.update_result(actor_id, outcome.result, self._clock())
         self._notifier.notify(conversation_id)
         return outcome.result
+
+    async def _release(
+        self, row: ConversationRow, correlation_id: str
+    ) -> WaiterSeatingResult | None:
+        """The waiter releases the visit's place: the path of «Salir»."""
+
+        try:
+            return await self._waiter.release_seating(self._seating_call(row, correlation_id))
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "Visit exit failed (correlation %s): %s",
+                correlation_id,
+                type(exc).__name__,
+            )
+            return None
 
     async def _submit(self, session: DemoSession, command: Command) -> CommandResult:
         actor_id = session.actor.actor_id
@@ -644,6 +675,10 @@ class RestaurantService:
     ) -> _Outcome:
         if row.process_status == "processing":
             return self._fail_in(tx, row, command, correlation_id, ErrorCode.CONFLICT, BUSY)
+        if tx.visit_closed(row.conversation_id):
+            return self._fail_in(
+                tx, row, command, correlation_id, ErrorCode.CONFLICT, VISIT_CLOSED
+            )
         if row.turn_count >= self._max_turns:
             return self._fail_in(
                 tx, row, command, correlation_id, ErrorCode.TURN_LIMIT_EXCEEDED, TURN_LIMIT
@@ -724,8 +759,9 @@ class RestaurantService:
     async def _turn_locked(self, job: _TurnJob, span: Any) -> None:
         with self._db.read() as tx:
             row = tx.get_conversation(job.conversation_id)
-        if row is None or row.pending_event_id != job.event_id:
-            return
+            if row is None or row.pending_event_id != job.event_id:
+                return
+            served, at_pass, pending_bill = self._billing(tx, row.conversation_id)
         turn = WaiterTurn(
             conversation_id=row.conversation_id,
             actor=job.actor,
@@ -738,6 +774,9 @@ class RestaurantService:
             session_json=row.agent_session_json,
             correlation_id=job.correlation_id,
             visit_id=row.visit_id,
+            served=served,
+            orders_at_pass=at_pass,
+            pending_bill=pending_bill,
         )
         outcome: WaiterTurnResult | tuple[ErrorCode, str]
         live = TURN_ACTIVITY.set(
@@ -784,11 +823,42 @@ class RestaurantService:
                     "bff.kitchen.outcome",
                     result.verdict if result.status == "cooked" else result.code.value,
                 )
+            if outcome.cashier is not None:
+                bill = outcome.cashier.result
+                span.set_attribute(
+                    "bff.cashier.outcome",
+                    bill.status if bill.status != "failed" else bill.code.value,
+                )
         self._finish_turn(job, outcome)
         if succeeded and outcome.kitchen is not None:
             cooked = outcome.kitchen.result
             if isinstance(cooked, KitchenPlan) and cooked.accepted:
                 self._start(self._serve(job.conversation_id, job.actor, cooked, job.event_id))
+
+    @staticmethod
+    def _billing(
+        tx: Transaction, conversation_id: str
+    ) -> tuple[tuple[ServedLine, ...], int, PendingBill | None]:
+        """What the bill may include: served dishes, orders at the pass, the pending bill."""
+
+        reports = [
+            message.kitchen for message in tx.list_messages(conversation_id) if message.kitchen
+        ]
+        served = set(tx.served_orders(conversation_id))
+        at_pass = sum(
+            1
+            for report in reports
+            if isinstance(report.result, KitchenPlan)
+            and report.result.accepted
+            and report.result.order_id not in served
+        )
+        bill = tx.pending_bill(conversation_id)
+        pending = (
+            PendingBill(bill_id=bill.bill_id, version=bill.bill.version, task=bill.task)
+            if bill is not None
+            else None
+        )
+        return tuple(served_lines(reports, served)), at_pass, pending
 
     def _record_activity(
         self, conversation_id: str, command_event_id: str, step: ActivityStep, correlation_id: str
@@ -937,6 +1007,14 @@ class RestaurantService:
 
                 if outcome.session_json is not None:
                     row.agent_session_json = outcome.session_json
+                # New dishes on their way: a bill presented before them is stale.
+                supersede = outcome.kitchen is not None and supersedes_bill(outcome.kitchen)
+                if supersede:
+                    stale = tx.pending_bill(row.conversation_id)
+                    if stale is not None:
+                        stale.status = "superseded"
+                        stale.updated_at = now
+                        tx.put_bill(stale)
                 if outcome.kitchen is not None:
                     # The chef's plan is its own message, between the
                     # customer's order and the waiter's answer to it.
@@ -951,6 +1029,32 @@ class RestaurantService:
                             kitchen=outcome.kitchen,
                         ),
                     )
+                if outcome.cashier is not None:
+                    # The cashier's bill, like the chef's plan, is its own message.
+                    tx.add_message(
+                        row.conversation_id,
+                        ChatMessage(
+                            message_id=new_id("msg"),
+                            role="cashier",
+                            text=outcome.cashier.text,
+                            occurred_at=now,
+                            command_event_id=job.event_id,
+                            cashier=outcome.cashier,
+                        ),
+                    )
+                    presented = outcome.cashier.pending
+                    if presented is not None and isinstance(outcome.cashier.result, Bill):
+                        tx.put_bill(
+                            BillRow(
+                                bill_id=presented.bill_id,
+                                conversation_id=row.conversation_id,
+                                status="superseded" if supersede else "pending",
+                                bill=outcome.cashier.result,
+                                task=presented.task,
+                                created_at=now,
+                                updated_at=now,
+                            )
+                        )
                 tx.add_message(
                     row.conversation_id,
                     ChatMessage(
@@ -1482,12 +1586,240 @@ class RestaurantService:
             self._emit_snapshot(tx, current, new_id("sync"), new_id("corr"))
         self._notifier.notify(conversation_id)
 
+    # Bill and payment: the waiter is the only client of the cashier. The BFF
+    # keeps the presented bill, relays the customer's card or cash button and,
+    # after the receipt, ends the visit through the same path as «Salir».
+
+    async def _decide_payment(
+        self, session: DemoSession, command: DecidePaymentCommand
+    ) -> CommandResult:
+        actor_id = session.actor.actor_id
+        digest = fingerprint(command)
+        payload = command.payload
+        conversation_id = command.conversation_id
+        with tracer.start_as_current_span(
+            "bff.payment.decision",
+            attributes={
+                "bff.command.type": command.event_type,
+                "bff.payment.method": payload.method.value,
+                "bff.conversation_id": conversation_id,
+            },
+        ) as span:
+            async with self._lock(conversation_id):
+                correlation_id = new_id("corr")
+                with self._db.write() as tx:
+                    stored = tx.get_result(actor_id, command.event_id)
+                    if stored is not None:
+                        if stored.fingerprint != digest:
+                            raise PublicFailure(
+                                ErrorCode.IDEMPOTENCY_CONFLICT, IDEMPOTENCY_CONFLICT
+                            )
+                        span.set_attribute("bff.command.replayed", True)
+                        return stored.result
+                    early, bill, row = self._check_payment(
+                        tx, session, command, correlation_id
+                    )
+                    if early is not None:
+                        tx.save_result(
+                            actor_id=actor_id,
+                            fingerprint=digest,
+                            conversation_id=early.conversation_id,
+                            result=early.result,
+                            now=self._clock(),
+                        )
+                    else:
+                        assert bill is not None and row is not None
+                        # Retries resend the first attempt's key: never a second charge.
+                        bill.payment_key = bill.payment_key or command.event_id
+                        bill.updated_at = self._clock()
+                        tx.put_bill(bill)
+                        row.process_status = "processing"
+                        row.pending_event_id = command.event_id
+                        row.updated_at = self._clock()
+                        tx.update_conversation(row)
+                        tx.save_result(
+                            actor_id=actor_id,
+                            fingerprint=digest,
+                            conversation_id=conversation_id,
+                            result=PendingCommandResult(
+                                schema_version=1,
+                                event_id=command.event_id,
+                                correlation_id=correlation_id,
+                                status="pending",
+                            ),
+                            now=self._clock(),
+                        )
+                        self._emit_snapshot(tx, row, command.event_id, correlation_id)
+                if early is not None:
+                    span.set_attribute("bff.payment.outcome", "checked")
+                    if early.conversation_id:
+                        self._notifier.notify(early.conversation_id)
+                    return early.result
+                self._notifier.notify(conversation_id)
+                assert bill is not None and row is not None and bill.payment_key is not None
+                paid: WaiterPayResult | None
+                try:
+                    paid = await self._waiter.pay_bill(
+                        WaiterPayCall(
+                            conversation_id=conversation_id,
+                            actor=session.actor,
+                            correlation_id=correlation_id,
+                            bill=PendingBill(
+                                bill_id=bill.bill_id, version=bill.bill.version, task=bill.task
+                            ),
+                            method=payload.method,
+                            idempotency_key=bill.payment_key,
+                        )
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    # Never leave the conversation processing; the cashier keeps the truth.
+                    logger.error(
+                        "Payment failed (correlation %s): %s",
+                        correlation_id,
+                        type(exc).__name__,
+                    )
+                    paid = None
+                released = None
+                if paid is not None and isinstance(paid.cashier.result, Receipt):
+                    released = await self._release(row, correlation_id)
+                with self._db.write() as tx:
+                    outcome = self._finish_payment(
+                        tx, command, correlation_id, bill.bill_id, paid, released
+                    )
+                    tx.update_result(actor_id, outcome.result, self._clock())
+            if paid is None:
+                span.set_attribute("bff.payment.outcome", "unavailable")
+            else:
+                result = paid.cashier.result
+                span.set_attribute(
+                    "bff.payment.outcome",
+                    result.status if result.status != "failed" else result.code.value,
+                )
+        self._notifier.notify(conversation_id)
+        return outcome.result
+
+    def _check_payment(
+        self,
+        tx: Transaction,
+        session: DemoSession,
+        command: DecidePaymentCommand,
+        correlation_id: str,
+    ) -> tuple[_Outcome | None, BillRow | None, ConversationRow | None]:
+        payload = command.payload
+        row = tx.get_conversation(command.conversation_id)
+        if row is None:
+            return _Outcome(
+                self._failed(
+                    command.event_id, correlation_id, ErrorCode.NOT_FOUND, NOT_FOUND_CONVERSATION
+                )
+            ), None, None
+        if row.actor_id != session.actor.actor_id:
+            return _Outcome(
+                self._failed(
+                    command.event_id, correlation_id, ErrorCode.FORBIDDEN, FORBIDDEN_CONVERSATION
+                )
+            ), None, None
+
+        def fail(code: ErrorCode, message: str) -> tuple[_Outcome, None, ConversationRow]:
+            return self._fail_in(tx, row, command, correlation_id, code, message), None, row
+
+        bill = tx.get_bill(payload.bill_id)
+        if bill is None or bill.conversation_id != row.conversation_id:
+            return fail(ErrorCode.NOT_FOUND, NO_BILL)
+        if bill.status == "paid":
+            # A double click or a retry with another event id: the receipt is
+            # already in the conversation and nothing is charged again.
+            return self._complete(tx, row, command, correlation_id), None, row
+        if bill.status != "pending" or bill.bill.version != payload.version:
+            return fail(ErrorCode.CONFLICT, STALE_BILL)
+        if (
+            not BillView.of(bill.bill).payable
+            or payload.method not in bill.bill.payment_options
+        ):
+            return fail(ErrorCode.CONFLICT, BILL_NOT_PAYABLE)
+        if row.process_status == "processing":
+            return fail(ErrorCode.CONFLICT, BUSY)
+        return None, bill, row
+
+    def _finish_payment(
+        self,
+        tx: Transaction,
+        command: DecidePaymentCommand,
+        correlation_id: str,
+        bill_id: str,
+        paid: WaiterPayResult | None,
+        released: WaiterSeatingResult | None,
+    ) -> _Outcome:
+        now = self._clock()
+        conversation_id = command.conversation_id
+        row = tx.get_conversation(conversation_id)
+        bill = tx.get_bill(bill_id)
+        assert row is not None and bill is not None
+        row.process_status = "idle"
+        row.pending_event_id = None
+        row.updated_at = now
+        if paid is None:
+            tx.update_conversation(row)
+            self._emit_snapshot(tx, row, command.event_id, correlation_id)
+            return self._fail_in(
+                tx, row, command, correlation_id, ErrorCode.UNAVAILABLE, CASHIER_UNAVAILABLE
+            )
+        result = paid.cashier.result
+        if isinstance(result, Receipt):
+            bill.status = "paid"
+            bill.receipt = result
+        elif result.status == "failed" and result.code in BILL_CLOSING_FAILURES:
+            bill.status = "closed"
+        # The receipt (or the cashier's failure) and then the waiter's answer.
+        tx.add_message(
+            conversation_id,
+            ChatMessage(
+                message_id=new_id("msg"),
+                role="cashier",
+                text=paid.cashier.text,
+                occurred_at=now,
+                command_event_id=command.event_id,
+                cashier=paid.cashier,
+                activity=list(paid.activity),
+            ),
+        )
+        tx.add_message(
+            conversation_id,
+            ChatMessage(
+                message_id=new_id("msg"),
+                role="assistant",
+                text=paid.reply,
+                occurred_at=now,
+                command_event_id=command.event_id,
+            ),
+        )
+        if isinstance(result, Receipt):
+            if released is None:
+                logger.warning(
+                    "Bill %s paid but the place was not released (correlation %s)",
+                    bill_id,
+                    correlation_id,
+                )
+            else:
+                if released.session_json is not None:
+                    row.agent_session_json = released.session_json
+                self._apply_report(tx, conversation_id, released.seating)
+                bill.visit_closed_at = now
+        bill.updated_at = now
+        tx.put_bill(bill)
+        tx.update_conversation(row)
+        return self._complete(tx, row, command, correlation_id)
+
     # Projection and events
 
     def _snapshot(
         self, tx: Transaction, row: ConversationRow, cursor: int
     ) -> RestaurantSnapshot:
         seat = tx.get_seating(row.conversation_id)
+        bill = tx.pending_bill(row.conversation_id)
+        closed = tx.visit_closed(row.conversation_id)
         return RestaurantSnapshot(
             schema_version=1,
             visit_id=row.visit_id,
@@ -1500,18 +1832,25 @@ class RestaurantService:
             pending_fields=missing_customer_fields(row.customer),
             memory=MemoryView(memories=[]),
             process_status="processing" if row.process_status == "processing" else "idle",
-            allowed_actions=self._allowed_actions(row, seat),
+            allowed_actions=self._allowed_actions(row, seat, bill, closed),
             seating=self._seating_view(seat),
             served_orders=tx.served_orders(row.conversation_id),
+            pending_bill=BillView.of(bill.bill) if bill is not None else None,
+            visit_closed=closed,
         )
 
     def _allowed_actions(
         self,
         row: ConversationRow,
         seat: SeatingRow | None = None,
+        bill: BillRow | None = None,
+        closed: bool = False,
     ) -> list[Action]:
         idle = row.process_status != "processing"
         actions = [Action.ARRIVE]
+        if closed:
+            # Paid and released: only a new visit remains.
+            return actions
         if idle and row.turn_count < self._max_turns:
             actions.append(Action.SEND_MESSAGE)
         if idle:
@@ -1519,6 +1858,8 @@ class RestaurantService:
 
         if idle and seat is not None and seat.status == "proposed":
             actions.append(Action.DECIDE_TABLE)
+        if idle and bill is not None and BillView.of(bill.bill).payable:
+            actions.append(Action.DECIDE_PAYMENT)
         return actions
 
     def _complete(
