@@ -163,6 +163,7 @@ class LocalWaiter:
             session_json=self._codec.dump(exported.agent_session),
             seating=self._report(turn.visit_id),
             kitchen=response.kitchen,
+            bar=response.bar,
             cashier=response.cashier,
         )
 

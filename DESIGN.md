@@ -20,6 +20,8 @@ colors:
   azulejo-hondo: "#153a68"
   pino: "#1f5b3f"
   pino-hondo: "#164530"
+  cerveza: "#8a520b"
+  cerveza-honda: "#6b3f08"
 typography:
   display:
     fontFamily: "Alegreya, Georgia, Times New Roman, serif"
@@ -110,6 +112,11 @@ components:
     textColor: "#ffffff"
     rounded: "3px 12px 12px 12px"
     padding: ".7rem 1rem"
+  message-bar:
+    backgroundColor: "{colors.cerveza}"
+    textColor: "#ffffff"
+    rounded: "3px 12px 12px 12px"
+    padding: ".7rem 1rem"
   card-memory:
     backgroundColor: "rgba(231, 215, 181, .05)"
     textColor: "{colors.piedra}"
@@ -130,7 +137,7 @@ Dentro, la sala sigue siendo una escena de restaurante, no un chatbot con cabece
 **Key Characteristics:**
 - Fachada a sangre antes de cualquier UI interior.
 - Ámbar como único color de estado y acción.
-- Piedra clara para habla del camarero; vino Ribera para habla del cliente; azulejo para el plan del chef; pino para la cuenta de caja.
+- Piedra clara para habla del camarero; vino Ribera para habla del cliente; azulejo para el plan del chef; cerveza tostada para la ronda de la barra; pino para la cuenta de caja.
 - Textos mínimos; el restaurante explica el sistema sin carteles.
 - Movimiento escénico: llamar, abrir, cruzar, saludar y acercarse.
 
@@ -143,6 +150,7 @@ La paleta es nocturna y mineral: casi todo nace de nogal, roble, piedra y forja;
 - **Vino Ribera**: voz del cliente y presencia del cliente en el plano.
 - **Azulejo de cocina**: voz del chef; su plan va en blanco sobre azulejo y su gorro descansa en azulejo hondo.
 - **Pino de caja**: voz de la caja, el verde de los pinares burgaleses; la cuenta y el recibo van en blanco sobre pino y la caja registradora descansa en pino hondo. El cajero del plano viste del mismo verde.
+- **Cerveza de barra**: voz de la barra, el ámbar tostado de una caña a contraluz; la ronda va en blanco sobre cerveza y la caña del icono descansa en cerveza honda. Es mucho más oscuro que la luz de farol y nunca señala acción ni estado: el ámbar de farol sigue siendo el único color de acción.
 
 ### Neutral
 - **Noche castellana**: fondo exterior y cielo de entrada.
@@ -232,7 +240,8 @@ La geometría distintiva viene de los materiales: arco de dovelas, portón parti
 - **Waiter:** piedra clara, tinta tostada, Alegreya serif y radio direccional hacia el icono del camarero.
 - **Customer:** vino Ribera, crema cálida y radio direccional hacia el lado derecho.
 - **Chef:** azulejo con texto blanco, Alegreya Sans y gorro de cocinero en el icono; va entre el pedido del cliente y la respuesta del camarero. Muestra lo aceptado, lo rechazado con su motivo, los avisos, las partidas y las fuentes, o por qué cocina no ha podido revisar el pedido.
-- **Cashier:** pino con texto blanco, Alegreya Sans y una caja registradora en el icono, dibujada como el gorro del chef; va entre la petición del cliente y la respuesta del camarero. Se lee como un ticket: cada línea con su importe a la derecha en dígitos tabulares, una raya discontinua sobre el total en Alegreya, la nota de que las bebidas aún no se cobran y las fuentes. La cuenta pendiente lo dice en lumbre y se paga con los botones de su tarjeta; las ya pagadas lo dicen y las anuladas se atenúan. El recibo usa la misma burbuja.
+- **Bar:** cerveza tostada con texto blanco, Alegreya Sans, el título «Barra» en Alegreya y una caña con su espuma en el icono, dibujada como el gorro del chef; va después del plan del chef, si lo hay, y antes de la respuesta del camarero. Se lee como el plan: lo servido con sus cantidades, lo no servido con su motivo, los avisos y las fuentes, o por qué la barra no ha podido servir.
+- **Cashier:** pino con texto blanco, Alegreya Sans y una caja registradora en el icono, dibujada como el gorro del chef; va entre la petición del cliente y la respuesta del camarero. Se lee como un ticket: cada línea con su importe a la derecha en dígitos tabulares, una raya discontinua sobre el total en Alegreya, la nota de que solo se cobra lo ya servido y las fuentes. La cuenta pendiente lo dice en lumbre y se paga con los botones de su tarjeta; las ya pagadas lo dicen y las anuladas se atenúan. El recibo usa la misma burbuja.
 - **Payment card:** como la tarjeta de mesa, borde discontinuo y fondo de pino tenue bajo la conversación, con el total y dos botones ámbar iguales, «Tarjeta» y «Efectivo»; solo existe mientras la cuenta espera el pago.
 - **Typing:** tres puntos ámbar circulares con pulso vertical; se elimina con reducción de movimiento.
 

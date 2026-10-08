@@ -151,10 +151,12 @@ async def run_cli(actor_id: str, *, authenticated: bool) -> None:
 
         if response.kitchen is not None:
             print(f"Cocina> {response.kitchen.text}")
+        if response.bar is not None:
+            print(f"Barra> {response.bar.text}")
         print(f"Camarero> {response.reply}")
         print(
             json.dumps(
-                response.model_dump(mode="json", exclude={"reply", "kitchen"}),
+                response.model_dump(mode="json", exclude={"reply", "kitchen", "bar"}),
                 ensure_ascii=False,
                 indent=2,
             )

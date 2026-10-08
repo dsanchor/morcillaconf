@@ -1,9 +1,9 @@
 """Bill and payment exchanged by the waiter and the cashier (caja).
 
 The model never chooses what is billed or how much. The BFF hands the waiter
-the kitchen dishes already served, the waiter forwards them unchanged, and the
-cashier prices every line from the carta, and only from the carta, with exact
-decimal arithmetic in code. The presented bill waits for the customer's choice
+the kitchen dishes and the bar drinks already served, the waiter forwards them
+unchanged, and the cashier prices every line from the carta, and only from the
+carta, with exact decimal arithmetic in code. The presented bill waits for the customer's choice
 of card or cash (A2A ``input-required``); the simulated payment is always
 approved in v1, and paying the same bill again returns the same receipt
 instead of charging twice.
@@ -34,6 +34,7 @@ from pydantic import (
     model_validator,
 )
 
+from .bar import BarReport, BarRound
 from .kitchen import (
     CartaId,
     KitchenIdentifier,
@@ -51,7 +52,7 @@ Money = Annotated[
     Decimal, Field(ge=0, le=Decimal("99999.99"), max_digits=7, decimal_places=2)
 ]
 Currency = Literal["EUR"]
-BILL_NOTE = "Solo platos de cocina; las bebidas todavía no se cobran."
+BILL_NOTE = "Solo lo ya servido: platos de cocina y bebidas de la barra."
 Version = Annotated[int, Field(ge=1)]
 
 
@@ -79,8 +80,9 @@ class CashierModel(BaseModel):
 
 
 class ServedLine(CashierModel):
-    """A kitchen dish the waiter has already served: the only thing billed."""
+    """A kitchen dish or a bar drink already served: the only thing billed."""
 
+    # The kitchen order or the bar round the line belongs to.
     order_id: KitchenIdentifier
     line: LineNumber
     carta_id: CartaId
@@ -235,10 +237,10 @@ FAILURE_MESSAGES: dict[CashierFailureCode, str] = {
     CashierFailureCode.KNOWLEDGE_UNAVAILABLE: "Caja no puede consultar la carta ahora mismo.",
     CashierFailureCode.CARTA_NOT_CONSULTED: "Caja no ha podido consultar los precios en la carta.",
     CashierFailureCode.PRICE_MISSING: (
-        "Caja no encuentra en la carta el precio de algún plato servido."
+        "Caja no encuentra en la carta el precio de algún plato o bebida servidos."
     ),
     CashierFailureCode.PRICE_INCONSISTENT: (
-        "La carta da precios distintos para un mismo plato; caja no cobra sin aclararlo."
+        "La carta da precios distintos para un mismo plato o bebida; caja no cobra sin aclararlo."
     ),
     CashierFailureCode.TIMEOUT: "Caja no ha respondido a tiempo.",
     CashierFailureCode.CASHIER_UNAVAILABLE: "Caja no puede responder ahora mismo.",
@@ -353,28 +355,58 @@ class BillView(CashierModel):
 
 
 def served_lines(
-    reports: Iterable[KitchenReport], served_orders: Collection[str]
+    reports: Iterable[KitchenReport | BarReport], served_orders: Collection[str]
 ) -> list[ServedLine]:
-    """The accepted dishes of the kitchen plans already served, in order."""
+    """The accepted dishes and the served drinks of the orders and rounds already served, in order."""
 
-    return [
-        ServedLine(
-            order_id=report.result.order_id,
-            line=item.line,
-            carta_id=item.carta_id,
-            name=item.name,
-            quantity=item.quantity,
+    lines: list[ServedLine] = []
+    for report in reports:
+        result = report.result
+        if isinstance(result, KitchenPlan) and result.order_id in served_orders:
+            order_id, items = result.order_id, result.accepted
+        elif isinstance(result, BarRound) and result.round_id in served_orders:
+            order_id, items = result.round_id, result.served
+        else:
+            continue
+        lines.extend(
+            ServedLine(
+                order_id=order_id,
+                line=item.line,
+                carta_id=item.carta_id,
+                name=item.name,
+                quantity=item.quantity,
+            )
+            for item in items
         )
-        for report in reports
-        if isinstance(report.result, KitchenPlan) and report.result.order_id in served_orders
-        for item in report.result.accepted
-    ]
+    return lines
 
 
-def supersedes_bill(report: KitchenReport) -> bool:
-    """New dishes are on their way: a bill presented before them is no longer exact."""
+def _new_lines(report: KitchenReport | BarReport) -> list[tuple[str, int]]:
+    """The dishes or drinks a report puts on their way to the table: (order or round, line)."""
 
-    return isinstance(report.result, KitchenPlan) and bool(report.result.accepted)
+    result = report.result
+    if isinstance(result, KitchenPlan):
+        return [(result.order_id, item.line) for item in result.accepted]
+    if isinstance(result, BarRound):
+        return [(result.round_id, item.line) for item in result.served]
+    return []
+
+
+def supersedes_bill(report: KitchenReport | BarReport) -> bool:
+    """New dishes or drinks: a bill presented before them is no longer exact."""
+
+    return bool(_new_lines(report))
+
+
+def bill_misses(request: BillRequest | None, report: KitchenReport | BarReport) -> bool:
+    """Whether a bill leaves out dishes or drinks the report put on their way to the table.
+
+    A bill presented in the same turn as a round of drinks may already include
+    them; one presented before them, or one that misses them, is stale.
+    """
+
+    billed = {(line.order_id, line.line) for line in request.lines} if request is not None else set()
+    return any(key not in billed for key in _new_lines(report))
 
 
 def euros(amount: Decimal) -> str:

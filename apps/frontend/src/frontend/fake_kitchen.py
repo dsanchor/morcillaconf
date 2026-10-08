@@ -2,7 +2,7 @@
 
 It answers messages that start with «Pido…» or «Ponme…» with a kitchen report
 that follows the public contract, so the chef's bubble can be seen and tested
-without the agent. Like the rest of the simulated restaurant, it is presented
+without the agent. Drinks go to the simulated bar instead. Like the rest of the simulated restaurant, it is presented
 as such and never imports agents, Foundry or MCP.
 """
 
@@ -24,6 +24,8 @@ from restaurant_contracts.kitchen import (
     StationTask,
 )
 
+from frontend.fake_bar import is_drink
+
 _ORDER = re.compile(r"^\s*(?:pido|pedimos|ponme|ponnos)\s+(?P<items>.+)$", re.IGNORECASE | re.DOTALL)
 _CELIAC = re.compile(r",?\s*(?:y\s+)?(?:soy|somos)\s+cel[ií]ac[oa]s?\b", re.IGNORECASE)
 _SPLIT = re.compile(r",\s*|\s+y\s+")
@@ -34,8 +36,6 @@ GLUTEN = "cereales con gluten"
 _CARTA = (
     ("croqueta", "croquetas-de-morcilla", "Croquetas de morcilla", KitchenStation.FRITOS, [GLUTEN, "leche", "huevos"]),
     ("morcilla", "morcilla-de-burgos-a-la-brasa", "Morcilla de Burgos a la brasa", KitchenStation.BRASA, []),
-    ("agua", "agua-con-gas", "Agua con gas", KitchenStation.BARRA, []),
-    ("cana", "cana-de-cerveza", "Caña de cerveza", KitchenStation.BARRA, [GLUTEN]),
 )
 
 
@@ -58,12 +58,6 @@ def _line(number: int, piece: str) -> KitchenOrderLine:
     )
 
 
-def _is_drink(piece: str) -> bool:
-    return any(
-        dish[0] in _plain(piece) and dish[3] is KitchenStation.BARRA for dish in _CARTA
-    )
-
-
 def fake_kitchen_report(message: str, order_id: str) -> KitchenReport | None:
     """The simulated chef's answer to an order, or None when the message is not one."""
 
@@ -73,7 +67,7 @@ def fake_kitchen_report(message: str, order_id: str) -> KitchenReport | None:
     items = match["items"]
     restrictions = ["celiaquía"] if _CELIAC.search(items) else []
     pieces = [piece.strip(" .;¡!¿?") for piece in _SPLIT.split(_CELIAC.sub("", items))]
-    food = [piece for piece in pieces if piece and not _is_drink(piece)]
+    food = [piece for piece in pieces if piece and not is_drink(piece)]
     lines = [_line(number, piece) for number, piece in enumerate(food, 1)][:20]
     if not lines:
         return None

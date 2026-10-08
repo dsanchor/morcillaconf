@@ -89,6 +89,7 @@ async def test_the_bill_is_priced_from_the_retrieved_carta_and_reported_as_a_ste
 
     assert isinstance(bill, Bill) and bill.total == TOTAL
     assert "croquetas-de-morcilla" in model.prompts[0]
+    assert model.prompts[0].startswith("Platos y bebidas servidos")
     assert '"cantidad"' not in model.prompts[0] and "quantity" not in model.prompts[0]
     assert [(step.component, step.label, step.status) for step in steps] == [
         ("caja", "Caja: consulta precios en la carta", "running"),

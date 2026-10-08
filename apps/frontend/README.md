@@ -243,6 +243,22 @@ stream hasta que termina.
   empiezan por «Pido…» o «Ponme…» reciben su burbuja, por ejemplo
   «Pido una morcilla a la brasa y una hamburguesa sin queso».
 
+### Barra (Barra v1, 08/10)
+
+- Cuando el camarero sirve bebidas, la ronda de la barra llega en el snapshot
+  como un mensaje con el rol `bar` y la vista lo pinta como una burbuja propia
+  de la misma familia que la del chef: fondo ámbar tostado de caña con texto
+  blanco, el título «Barra» y una caña con su espuma como icono. Va después de
+  la burbuja de cocina, si la hay, y antes de la respuesta del camarero.
+- Muestra lo servido con sus cantidades («2 × Caña de cerveza»), lo no
+  servido con su motivo (una alergia declarada, «No está en la carta.» o, si
+  el nombre es ambiguo, las opciones de la carta), los avisos y las fuentes; si
+  la barra no ha podido consultar la carta, lo dice y no hay nada servido.
+- El falso sirve las bebidas de los mensajes que empiezan por «Pido…» o
+  «Ponme…» con una carta mínima de bebidas: «un agua» es ambigua, una caña no
+  se sirve a quien dice ser celíaco y lo demás no está en la carta. Sus
+  bebidas servidas se cobran en la cuenta simulada.
+
 ### Caja (acuerdo del 06/10)
 
 - Cuando el cliente pide la cuenta, la respuesta de caja llega en el snapshot
@@ -250,13 +266,14 @@ stream hasta que termina.
   propia, entre el mensaje del cliente y la respuesta del camarero: fondo verde
   pino con texto blanco y una caja registradora como icono, dibujada como el
   gorro del chef. Muestra cada línea con su importe (y el precio por ración si
-  hay más de una), el total, la nota «Solo platos de cocina; las bebidas
-  todavía no se cobran» y las fuentes. Las cifras usan dígitos tabulares.
+  hay más de una), el total, la nota «Solo lo ya servido: platos de cocina y
+  bebidas de la barra» y las fuentes. Las cifras usan dígitos tabulares.
 - Solo la cuenta pendiente (`pending_bill`, con
   `payment.confirmation_decided` permitido) lleva debajo dos botones,
   «Tarjeta» y «Efectivo», como la tarjeta de mesa, y su burbuja dice
   «Pendiente de pago». Una frase nunca paga. Las cuentas ya pagadas lo dicen y
-  las que dejaron de valer (por pedir más platos) se atenúan como anuladas.
+  las que dejaron de valer (por pedir más platos o bebidas) se atenúan como
+  anuladas.
 - El pago llega como otra burbuja de caja con el recibo (método, importe,
   referencia y hora) y la despedida del camarero. Con `visit_closed`, la vista
   los mantiene `FRONTEND_FAREWELL_SECONDS` segundos y vuelve a la puerta igual

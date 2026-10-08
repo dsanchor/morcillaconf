@@ -120,9 +120,9 @@ class CashierService:
             knowledge_tool=knowledge_tool,
             middleware=[recorder, KnowledgeToolMiddleware()],
         )
-        dishes = len({line.carta_id for line in request.lines})
+        entries = len({line.carta_id for line in request.lines})
         step = await Step(
-            "caja", "Caja: consulta precios en la carta", f"{dishes} platos servidos"
+            "caja", "Caja: consulta precios en la carta", f"{entries} platos o bebidas servidos"
         ).start()
         async with agent:
             if getattr(knowledge_tool, "unavailable", False):

@@ -1,6 +1,6 @@
 # Progreso de implementación
 
-Última actualización: **2026-10-06**
+Última actualización: **2026-10-08**
 
 Este documento ofrece una vista compartida del estado real del repositorio. No
 sustituye a [SPECS.md](SPECS.md) ni a
@@ -21,7 +21,7 @@ indicadas en el propio plan.
 | 1. Proyecto y primer camarero | Completada | Validada conjuntamente el 28/09 | Evidencia histórica: 42 pruebas locales compartidas con fase 2; inferencia real y servidor local validados. Correcciones de la revisión validadas |
 | 2. Memoria persistente automática | Completada | Validada conjuntamente el 28/09 | 127 pruebas locales totales: memoria automática, aislamiento, migración y borrado |
 | 3. Vista única, BFF y continuidad | Implementada: 3A, 3B, 3C y 3D validadas en el Codespace el 28/09 | Pendiente; validada por Jesús el 28/09 ([revisión de 3A](docs/revision-fase-3a-jesus.md), [validación de 3C y 3D](#validación-en-el-codespace-28092026)) | 3A: 133 pruebas y 15 reglas del contrato. 3B: [vista Streamlit](#fase-3b-vista-del-cliente) e imagen Docker publicada. 3C/3D: [BFF](#fase-3c-bff) con el camarero en Foundry; 146 + 8, 123 y 96 pruebas, smoke real y recorrido manual superados |
-| 4. Mesas y recorrido local con control de caja | Parcial: asientos integrados en `main`; [caja v1](#caja-v1-cuenta-y-pago-06102026) cobra lo servido con tarjeta o efectivo y cierra la visita liberando la mesa; confirmación del pedido e interfaz de la revisión humana de caja pendientes | Revisión conjunta del alcance completo pendiente | Bloqueo temporal, confirmación/rechazo, concurrencia, plano y recorrido E2E implementados; caja A2A con cuenta desde la carta, pago simulado idempotente y recorrido real con Foundry |
+| 4. Mesas y recorrido local con control de caja | Parcial: asientos integrados en `main`; [caja v1](#caja-v1-cuenta-y-pago-06102026) cobra lo servido con tarjeta o efectivo y cierra la visita liberando la mesa; [barra v1](#barra-v1-bebidas-servidas-comprobadas-y-cobradas-08102026) sirve las bebidas comprobadas con la carta y las cobra; confirmación del pedido e interfaz de la revisión humana de caja pendientes | Revisión conjunta del alcance completo pendiente | Bloqueo temporal, confirmación/rechazo, concurrencia, plano y recorrido E2E implementados; caja A2A con cuenta desde la carta, pago simulado idempotente y recorrido real con Foundry |
 | 5. Conocimiento compartido con Foundry IQ y MCP | Implementada en `main` (PR #10): base de conocimiento con carta, recetario en PDF con ficha de ingredientes y web de respaldo; el camarero la consulta por su endpoint MCP | Pendiente | [Fase 5](#fase-5-carta-con-foundry-iq-30092026): base aprovisionada y consultada por REST y MCP; camarero local con Foundry respondiendo desde cada fuente con su cita; 263 + 30 pruebas locales y recorrido E2E de asientos |
 | 6. Chef líder y especialistas | Parcial: cocina es un agente A2A independiente; el chef valida con carta/recetario y coordina parrilla, fritos y general mediante group chat; los especialistas aceptan temporalmente siempre | Pendiente | [Cocina v1](#cocina-v1-el-chef-01102026): frontera A2A, Docker propio, validación determinista y especialistas internos; despensa, tiempos y confirmación del pedido pendientes |
 | 7. Validación de Hosted Agent | Pospuesta hasta disponer de carta y orquestación representativas | Pendiente | El agente actual se ha ejecutado localmente y como contenedor remoto, pero no acredita el workflow objetivo completo |
@@ -56,6 +56,97 @@ indicadas en el propio plan.
   reiniciar la réplica o desplegar una revisión nueva. Es una topología inicial
   de demo, no el diseño de persistencia duradera de fase 9 (Cosmos DB).
 
+## Barra v1: bebidas servidas, comprobadas y cobradas (08/10/2026)
+
+Decisión de Jesús, no un acuerdo con dsanchor. No se marca ninguna casilla del
+plan: queda pendiente de la revisión conjunta.
+
+Hasta ahora las bebidas solo se «servían» en el texto del camarero: no había
+operación tipada ni registro, la cuenta solo cobraba platos de cocina, un
+cliente que solo había tomado bebidas no podía pagar y ninguna bebida pasaba
+por la regla de alérgenos: a un celíaco se le podía «servir» una caña, y una
+bebida que no está en la carta podía servirse de palabra.
+
+### Implementado
+
+- **Contratos** (`restaurant_contracts.bar`): la ronda (`BarRequest`, con las
+  bebidas tal como se piden y las alergias declaradas), lo servido y lo no
+  servido con su motivo (`BarRound`; si el nombre es ambiguo, con las opciones
+  de la carta), el fallo explícito (`BarFailure`) y el informe (`BarReport`).
+  `ChatMessage` admite el rol `bar` y `WaiterTurnSuccess.bar` lleva la ronda;
+  ambos se omiten del JSON cuando faltan. `served_lines` cobra las bebidas de
+  las rondas servidas y una ronda nueva anula la cuenta presentada antes.
+- **Camarero:** la tool `servir_bebidas`, con el mismo estilo y control que
+  `pedir_a_cocina`. La barra es código (`restaurant_agent/bar/`): consulta la
+  base de conocimiento con la propia conexión MCP del camarero (una consulta y
+  una segunda solo si la sección de bebidas llega cortada, con
+  `BAR_TIMEOUT_SECONDS`, 15 s por defecto), lee solo entradas de la carta de la
+  casa con `Partida: barra` y resuelve cada nombre a una sola bebida sin
+  modelo. La regla de alérgenos y sus motivos están copiados a propósito de
+  cocina, como `knowledge.py`; `agents/kitchen` no cambia y no se crea un
+  paquete de dominio compartido, que es decisión de dsanchor. Las
+  instrucciones extienden a las bebidas la recapitulación y la confirmación
+  explícita, envían un pedido mixto a cocina y a la barra en el mismo turno y
+  piden aclarar una bebida ambigua antes de servirla. Tras la revisión del
+  código, la barra no sirve nada si la sección de bebidas nunca llega entera,
+  un nombre solo se resuelve si una de sus palabras nombra la bebida («una
+  sin» no es el agua sin gas) y las tools de una misma respuesta del modelo se
+  ejecutan en su orden, para que la cuenta vea las bebidas servidas antes.
+- **BFF:** guarda la ronda como su propio mensaje, después del de cocina y
+  antes de la respuesta del camarero, y la anota servida en `served_orders` en
+  la misma transacción; la cuenta incluye las bebidas servidas.
+- **Caja:** cobra las bebidas con el precio de la carta, como los platos.
+- **Vista:** la burbuja «Barra», en ámbar tostado de cerveza con texto blanco y
+  una caña como icono; el falso sirve bebidas.
+
+### Evidencia
+
+- **Pruebas locales:** 425 del camarero, los contratos y la carta, y 30 del
+  MCP (`./scripts/test.sh`); 30 de caja; 5 de cocina, que no cambia; 168 del
+  BFF; 176 del frontend. En el recorrido E2E pasan 10 de 11, incluidos los dos
+  nuevos de la barra; solo falla `test_kitchen_flow.py`, como ya fallaba en
+  `main`.
+- **Base de conocimiento real:** la sección «Barra: bebidas» es un único
+  fragmento y cada consulta de la barra devolvió las cinco bebidas completas en
+  1,1–2,0 s. La caja real cobró 2 × caña = 5,00 € y morcilla + agua con gas =
+  10,70 € con los precios de esa carta.
+- **Foundry real** (`gpt-5.6-luna`), con la base de conocimiento, el MCP de
+  asientos y la cocina y la caja A2A reales, por el BFF como el navegador y con
+  capturas de la vista:
+  1. «Dos cañas, por favor.»: el camarero recapitula y pide confirmación; con
+     «Sí» llega la burbuja de la barra con 2 × Caña de cerveza. La cuenta es de
+     5,00 €; con «Tarjeta», recibo y despedida.
+  2. «Una morcilla a la brasa y un agua con gas»: tras confirmar, cocina acepta
+     la morcilla y la barra sirve el agua, en ese orden; servida la morcilla, la
+     cuenta es 8,50 + 2,20 = 10,70 €.
+  3. «Soy celíaco; una caña»: tras confirmar, la barra no la sirve: «Contiene
+     cereales con gluten según la carta y has indicado celiaquía.».
+  4. «Un agua»: el camarero pregunta si con gas o sin gas, sin llamar a la
+     tool.
+  5. «Una coca-cola»: tras confirmar, la barra la rechaza con «No está en la
+     carta.».
+  6. Con la cuenta de 5,00 € presentada, «Otra caña» y su confirmación la anulan
+     («Anulada: pedid la cuenta otra vez») y la nueva es de 7,50 €, pagada en
+     efectivo.
+
+  Tiempos: el turno que sirve bebidas, 12–18 s (la barra con su consulta,
+  1,1–3,3 s); el mixto, 53 s con el chef; la cuenta, 20–28 s.
+
+### Límites y pendientes
+
+- Sin modificaciones de bebidas («sin hielo») ni existencias: la barra sirve
+  lo que la carta respalda.
+- La barra cuenta con que la consulta devuelva entera la sección de bebidas,
+  hoy un único fragmento; si llega cortada, hace una segunda consulta, y si
+  tampoco llega entera no sirve nada.
+- La regla de alérgenos queda duplicada en cocina y en la barra: se propondrá a
+  dsanchor llevarla a un paquete compartido.
+- `test_kitchen_flow.py` (dsanchor) envía todavía las bebidas a cocina; el
+  camarero guionizado mantiene ese comportamiento con «Pido…» para no cambiar
+  su prueba.
+- Pendientes: la revisión conjunta y redesplegar camarero, BFF, frontend y
+  caja.
+
 ## Acuerdos del 06/10/2026
 
 Jesús y dsanchor acuerdan la caja v1:
@@ -66,8 +157,9 @@ Jesús y dsanchor acuerdan la caja v1:
   dos botones; una frase nunca paga.
 - Tras el pago, el camarero se despide y la visita se cierra liberando el
   sitio, por el mismo camino que «Salir».
-- En la v1 solo se cobran los platos de cocina ya servidos; las bebidas
-  todavía no.
+- En la v1 se cobraban solo los platos de cocina ya servidos; desde
+  [Barra v1](#barra-v1-bebidas-servidas-comprobadas-y-cobradas-08102026)
+  (08/10) también las bebidas servidas.
 - El pago es simulado y se aprueba siempre.
 - La revisión del ticket por una persona en caja (SPECS) queda preparada como
   etapa opcional, desactivada por defecto y sin interfaz.
@@ -155,7 +247,8 @@ No se marca ninguna casilla del plan: queda pendiente de la revisión conjunta.
 
 - La revisión humana de caja está preparada en el agente pero desactivada y
   sin interfaz.
-- Las bebidas no se cobran todavía; el pago es simulado y siempre aprobado.
+- El pago es simulado y siempre aprobado. Las bebidas se cobran desde Barra v1
+  (08/10).
 - Las tareas, las cuentas y los pagos de caja viven en memoria: un reinicio
   olvida la cuenta pendiente y el cliente tiene que volver a pedirla.
 - Pendientes: la revisión conjunta, redesplegar con la sexta aplicación y
@@ -1054,12 +1147,12 @@ botones y el plano muestra la sala.
 
 ## Próximo trabajo previsto
 
-1. Revisar conjuntamente la fase 5, la cocina v1 y la caja v1, y redesplegar
-   con la base de conocimiento, el chef y la caja.
+1. Revisar conjuntamente la fase 5, la cocina v1, la caja v1 y la barra v1, y
+   redesplegar con la base de conocimiento, el chef, la caja y la barra.
 2. Añadir los pinches de brasa, fritos y pinchos fríos y la despensa por MCP:
    el chef contrastará los ingredientes con el inventario.
 3. Dar interfaz a la revisión humana de caja, ya preparada como etapa
-   opcional, y cobrar también las bebidas.
+   opcional.
 4. Validar el Hosted Agent después de que carta y orquestación formen un flujo
    representativo.
 

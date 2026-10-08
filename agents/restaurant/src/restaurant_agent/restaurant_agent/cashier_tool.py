@@ -1,13 +1,15 @@
 """The waiter's ``pedir_la_cuenta`` tool: it asks the cashier for the bill.
 
 The model takes no part in what is billed: the tool has no arguments. The
-application sets the turn's billing context (the kitchen dishes already
-served, how many cooked orders still wait at the pass and the bill already
-presented) and the tool builds the ``BillRequest`` from it. It refuses while
-dishes wait at the pass, when nothing has been served yet and when a bill is
-already waiting for the customer's card or cash. The cashier's typed answer
-and its Spanish text are kept for the turn, so the application shows the
-cashier's bubble before the waiter's reply.
+application sets the turn's billing context (the kitchen dishes and the bar
+drinks already served, how many cooked orders still wait at the pass and the
+bill already presented) and the tool builds the ``BillRequest`` from it, plus
+the drinks served earlier in this same turn: they never wait at the pass. It
+refuses while dishes wait at the pass (also those cooked in this turn), when
+nothing has been served yet and when a bill is already waiting for the
+customer's card or cash, unless new drinks have just made it stale. The
+cashier's typed answer and its Spanish text are kept for the turn, so the
+application shows the cashier's bubble before the waiter's reply.
 """
 
 from __future__ import annotations
@@ -33,7 +35,9 @@ from restaurant_contracts.cashier import (
     euros,
 )
 
+from restaurant_agent.bar_tool import served_this_turn
 from restaurant_agent.cashier.rendering import render_text
+from restaurant_agent.kitchen_tool import cooked_this_turn
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +59,8 @@ DISHES_AT_PASS = (
     "se los llevas a la mesa y que después podrá pedir la cuenta. No inventes importes."
 )
 NOTHING_SERVED = (
-    "nothing_served: todavía no hay platos de cocina servidos que cobrar; las bebidas aún "
-    "no se cobran. Díselo al cliente y no inventes importes."
+    "nothing_served: todavía no hay nada servido que cobrar. Díselo al cliente y no "
+    "inventes importes."
 )
 BILL_GUIDANCE = (
     "La aplicación ya muestra la cuenta al cliente en su propia burbuja, con los botones "
@@ -137,13 +141,17 @@ def create_cashier_tool(cashier: CashierPort) -> FunctionTool:
             return ALREADY_ANSWERED
         state[CASHIER_CALLED_KEY] = True
         billing = BillingContext.model_validate(state.get(BILLING_KEY) or {})
-        if billing.pending_bill is not None:
+        # Drinks served earlier in this turn: on the table already, and they
+        # make a bill presented before them stale.
+        drinks = served_this_turn(state)
+        if billing.pending_bill is not None and not drinks:
             return BILL_PENDING
-        if billing.orders_at_pass:
-            return DISHES_AT_PASS.format(count=_orders(billing.orders_at_pass))
-        if not billing.served:
+        at_pass = billing.orders_at_pass + (1 if cooked_this_turn(state) else 0)
+        if at_pass:
+            return DISHES_AT_PASS.format(count=_orders(at_pass))
+        if not billing.served and not drinks:
             return NOTHING_SERVED
-        request = BillRequest(bill_id=f"bill_{uuid4().hex}", lines=billing.served)
+        request = BillRequest(bill_id=f"bill_{uuid4().hex}", lines=[*billing.served, *drinks])
         try:
             answer = await cashier.present(request)
         except Exception as exc:
@@ -165,7 +173,7 @@ def create_cashier_tool(cashier: CashierPort) -> FunctionTool:
     return FunctionTool(
         name=CASHIER_TOOL,
         description=(
-            "Pide a caja la cuenta de los platos de cocina ya servidos. No recibe "
+            "Pide a caja la cuenta de los platos y las bebidas ya servidos. No recibe "
             "argumentos: la aplicación sabe qué se ha servido. Úsala solo cuando el "
             "cliente pida la cuenta."
         ),

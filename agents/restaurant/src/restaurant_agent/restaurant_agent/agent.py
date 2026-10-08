@@ -9,6 +9,8 @@ from restaurant_contracts.cashier import CashierPort
 from restaurant_contracts.kitchen import KitchenPort
 
 from restaurant_agent.activity import ActivityToolMiddleware
+from restaurant_agent.bar import BarService, CartaRetrieval, KnowledgeCarta
+from restaurant_agent.bar_tool import create_bar_tool
 from restaurant_agent.cashier import A2ACashier
 from restaurant_agent.cashier_tool import create_cashier_tool
 from restaurant_agent.config import Settings
@@ -88,6 +90,7 @@ def create_waiter_agent(
     client: Any | None = None,
     kitchen: KitchenPort | None = None,
     cashier: CashierPort | None = None,
+    bar_carta: CartaRetrieval | None = None,
 ) -> Agent:
     """Build the waiter; by default with the configured Microsoft Foundry deployment.
 
@@ -95,6 +98,8 @@ def create_waiter_agent(
     same tools, middleware and context providers. ``kitchen`` is where
     ``pedir_a_cocina`` sends orders through A2A to the external kitchen, and
     ``cashier`` where ``pedir_la_cuenta`` asks the external cashier for the bill.
+    ``bar_carta`` is where ``servir_bebidas`` reads the carta; by default the
+    waiter's own knowledge base connection.
     """
 
     if client is None:
@@ -106,6 +111,11 @@ def create_waiter_agent(
             model=settings.azure_ai_model_deployment_name,
             credential=DefaultAzureCredential(),
         )
+    configuration = getattr(client, "function_invocation_configuration", None)
+    if isinstance(configuration, dict):
+        # Tools of one model response run in its order, never at once: the
+        # bill must see the drinks served, and the dishes cooked, before it.
+        configuration["allow_concurrent_invocation"] = False
     intent_classifier = Agent(
         id="memory-intent-classifier",
         name="Clasificador de intención de memoria",
@@ -137,10 +147,12 @@ def create_waiter_agent(
     )
     seating_tools = create_seating_tools(settings)
     knowledge_tool = create_knowledge_tool(settings)
+    carta = bar_carta or (KnowledgeCarta(knowledge_tool) if knowledge_tool else None)
     tools: list[Any] = [
         *(seating_tools or []),
         *([knowledge_tool] if knowledge_tool else []),
         create_kitchen_tool(kitchen or A2AKitchen(settings)),
+        create_bar_tool(BarService(carta, timeout_seconds=settings.bar_timeout_seconds)),
         create_cashier_tool(cashier or A2ACashier(settings)),
     ]
     context_providers = [VisitContextProvider(seating_tools[0] if seating_tools else None)]

@@ -45,6 +45,7 @@ from restaurant_contracts.application import (
     StreamEvent,
     VisibleMemory,
 )
+from restaurant_contracts.bar import BarReport, BarRound
 from restaurant_contracts.cashier import BillView, CashierReport, served_lines
 from restaurant_contracts.client import BffClientError
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
@@ -52,6 +53,7 @@ from restaurant_contracts.kitchen import KitchenPlan, KitchenReport
 from restaurant_contracts.memory import MemoryKind
 from restaurant_contracts.seating import RoomView
 
+from frontend.fake_bar import bar_reply, fake_bar_report
 from frontend.fake_cashier import (
     GOODBYE,
     NOTHING_SERVED,
@@ -126,6 +128,10 @@ def scripted_reply(
 
 def _join(values: list[str]) -> str:
     return values[0] if len(values) == 1 else f"{', '.join(values[:-1])} y {values[-1]}"
+
+
+def _drinks(count: int) -> str:
+    return "1 bebida" if count == 1 else f"{count} bebidas"
 
 
 def _chunks(text: str, words_per_chunk: int = 3) -> list[str]:
@@ -421,30 +427,43 @@ class FakeRestaurant:
         if note:
             reply = f"{reply} {note}" if preferences or restrictions else note
         kitchen = fake_kitchen_report(text, self._next_id("ko"))
+        replies: list[str] = []
         if kitchen is not None:
             # The simulated chef's bubble goes before the waiter's summary.
             self._add_message(conversation, "kitchen", kitchen.text, command.event_id, kitchen=kitchen)
-            reply = kitchen_reply(kitchen)
+            replies.append(kitchen_reply(kitchen))
             if isinstance(kitchen.result, KitchenPlan) and kitchen.result.accepted:
                 dishes = [f"{item.quantity} × {item.name}" for item in kitchen.result.accepted]
                 conversation.at_pass.append((kitchen.result.order_id, dishes, self._monotonic()))
                 # New dishes on their way: the presented bill is no longer exact.
                 conversation.pending_bill = None
+        bar = fake_bar_report(text, self._next_id("bar"))
+        if bar is not None:
+            # The bar's round goes after the chef's plan; drinks are served at once.
+            self._add_message(conversation, "bar", bar.text, command.event_id, bar=bar)
+            replies.append(bar_reply(bar))
+            if isinstance(bar.result, BarRound) and bar.result.served:
+                conversation.served_orders.append(bar.result.round_id)
+                conversation.pending_bill = None
+        if replies:
+            reply = " ".join(replies)
         bill: CashierReport | None = None
-        if kitchen is None and asks_for_the_bill(text):
+        if kitchen is None and bar is None and asks_for_the_bill(text):
             bill, reply = self._bill(conversation, command.event_id)
-        self._attach_activity(conversation, command.event_id, preferences + restrictions, kitchen, bill)
+        self._attach_activity(conversation, command.event_id, preferences + restrictions, kitchen, bill, bar)
         self._say(conversation, command, correlation_id, reply, pause=self.pause_seconds)
         return None
 
     def _bill(self, conversation: _Conversation, event_id: str) -> tuple[CashierReport | None, str]:
-        """The simulated cashier: only served kitchen dishes, never twice, never at the pass."""
+        """The simulated cashier: only served dishes and drinks, never twice, never at the pass."""
 
         if conversation.pending_bill is not None:
             return None, PAY_WITH_BUTTONS
         if conversation.at_pass:
             return None, SERVE_FIRST
-        reports = [message.kitchen for message in conversation.messages if message.kitchen is not None]
+        reports = [
+            report for message in conversation.messages if (report := message.kitchen or message.bar)
+        ]
         lines = served_lines(reports, set(conversation.served_orders))
         if not lines:
             return None, NOTHING_SERVED
@@ -492,6 +511,7 @@ class FakeRestaurant:
         remembered: list[str],
         kitchen: KitchenReport | None,
         bill: CashierReport | None = None,
+        bar: BarReport | None = None,
     ) -> None:
         """Simulated steps, shaped like the real waiter's, on the customer's message."""
 
@@ -510,6 +530,11 @@ class FakeRestaurant:
                 step("cocina", "A2A: envía la comanda a cocina", f"{lines} líneas", 1200),
                 step("chef", "Chef analiza la comanda", f"{lines} líneas", 600),
                 step("foundry_iq", "Foundry IQ: carta y recetario", "Carta simulada", 300),
+            ]
+        if bar is not None:
+            steps += [
+                step("camarero", "Barra: sirve las bebidas", _drinks(len(bar.request.items)), 60),
+                step("foundry_iq", "Foundry IQ: bebidas de la carta", "Carta simulada", 300),
             ]
         if bill is not None:
             steps += [
@@ -601,12 +626,13 @@ class FakeRestaurant:
     def _add_message(
         self,
         conversation: _Conversation,
-        role: Literal["user", "assistant", "kitchen", "cashier"],
+        role: Literal["user", "assistant", "kitchen", "bar", "cashier"],
         text: str,
         command_event_id: str,
         message_id: str | None = None,
         *,
         kitchen: KitchenReport | None = None,
+        bar: BarReport | None = None,
         cashier: CashierReport | None = None,
     ) -> None:
         conversation.messages.append(
@@ -617,6 +643,7 @@ class FakeRestaurant:
                 occurred_at=self._clock(),
                 command_event_id=command_event_id,
                 kitchen=kitchen,
+                bar=bar,
                 cashier=cashier,
             )
         )

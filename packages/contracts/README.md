@@ -215,16 +215,17 @@ turnos sin cocina mantienen su forma anterior.
 `restaurant_contracts.cashier` define lo que se cruzan el camarero y la caja,
 un agente A2A en su propio contenedor:
 
-- `ServedLine`: un plato de cocina ya servido (pedido, línea, identificador de
-  carta, nombre y cantidad). Es lo único que se cobra: el BFF lo calcula con
-  los planes de cocina cuyos pedidos están en `served_orders`; ni lo rechazado
-  ni lo que sigue en el pase. Las bebidas todavía no se cobran.
+- `ServedLine`: un plato de cocina o una bebida de la barra ya servidos
+  (pedido o ronda, línea, identificador de carta, nombre y cantidad). Es lo
+  único que se cobra: el BFF lo calcula con los planes de cocina y las rondas
+  de barra que están en `served_orders`; ni lo rechazado ni lo que sigue en el
+  pase.
 - `BillRequest`: la cuenta pedida, con esas líneas y nada del cliente; cada
   línea servida aparece una sola vez.
 - `Bill`: la cuenta presentada, con `bill_id`, versión, `stage`, líneas con
   precio unitario y total de línea, total, moneda `EUR`, opciones de pago
-  (`tarjeta`, `efectivo`), fuentes y la nota «Solo platos de cocina; las
-  bebidas todavía no se cobran». Los importes son `Decimal` exactos: el total
+  (`tarjeta`, `efectivo`), fuentes y la nota «Solo lo ya servido: platos de
+  cocina y bebidas de la barra». Los importes son `Decimal` exactos: el total
   es la suma de las líneas y cada línea, su precio por su cantidad.
 - `BillStage`: `awaiting_payment` ofrece tarjeta o efectivo;
   `awaiting_review` es el gancho preparado para que una persona en caja revise
@@ -247,6 +248,34 @@ pendiente de pago. `WaiterTurnRequest` lleva `served`, `orders_at_pass` y
 `pending_bill`; `WaiterTurnSuccess.cashier`, el informe del turno, y la
 operación `pay_bill` (`WaiterPayRequest`/`WaiterPaySuccess`) relaya el pago sin
 modelo. Todos los campos nuevos se omiten del JSON cuando faltan.
+
+## Barra (bebidas v1, 08/10)
+
+`restaurant_contracts.bar` define lo que el camarero sirve desde la barra con
+`servir_bebidas`. Las bebidas no pasan por cocina, pero tampoco las decide el
+modelo: el código las comprueba con la carta.
+
+- `BarRequest`: una ronda (`round_id`, por ejemplo `bar_<hex>`) con las
+  bebidas numeradas tal como las pide el cliente y sus cantidades, y las
+  alergias o intolerancias declaradas en la visita. Nada más del cliente.
+- `BarRound`: lo servido (`ServedDrink`, con el identificador y el nombre de su
+  entrada de la carta y la cantidad pedida), lo no servido con su motivo
+  (`RejectedDrink`; si el nombre es ambiguo, `options` lleva las bebidas de la
+  carta entre las que elegir), los avisos y las fuentes. Ninguna línea puede
+  estar servida y rechazada a la vez.
+- `BarFailure`: el motivo explícito cuando la barra no ha podido comprobar la
+  carta (sin base de conocimiento, no disponible, sin bebidas en la carta
+  consultada, sección de bebidas incompleta, fuera de tiempo); entonces no se
+  sirve nada.
+- `BarReport`: la petición, el resultado y su texto en español; comprueba que
+  la ronda decide todas las bebidas con las cantidades pedidas.
+
+`ChatMessage` admite el rol `bar` con su `BarReport` y `WaiterTurnSuccess.bar`
+lleva la ronda del turno; ambos se omiten del JSON cuando faltan. No hay pase:
+el BFF anota la ronda servida en `served_orders` en cuanto la recibe, así que
+`served_lines` cobra sus bebidas con los platos servidos. `supersedes_bill` y
+`bill_misses` dicen cuándo una ronda o un plato nuevos dejan obsoleta una
+cuenta presentada.
 
 ## Eventos, SSE y recuperación
 

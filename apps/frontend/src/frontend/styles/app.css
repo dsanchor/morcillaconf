@@ -12,6 +12,10 @@
   /* The cashier's voice: pine green from the Burgos pinewoods under white text. */
   --pino: #1f5b3f;
   --pino-hondo: #164530;
+  /* The bar's voice: a caña's toasted amber against the light, under white text.
+     Darker than the lantern amber, which stays for actions and state. */
+  --cerveza: #8a520b;
+  --cerveza-honda: #6b3f08;
 }
 /* The longest command is five characters; retain room for identity and controls. */
 .stApp {
@@ -212,20 +216,36 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   background: var(--azulejo); color: #ffffff;
   font: 400 1.05rem/1.45 var(--sans); border-radius: 3px 12px 12px 12px;
 }
-.stApp .plan-cocina p, .stApp .plan-cocina ul, .stApp .plan-cocina li {
+/* The bar's round: its own voice, the caña and toasted amber, read like the chef's plan. */
+.stApp .msg.barra { max-width: min(54ch, 92%); }
+.stApp .msg.barra .icono { background: var(--cerveza-honda); border-color: #c9954a; }
+.stApp .msg.barra .burbuja {
+  background: var(--cerveza); color: #ffffff;
+  font: 400 1.05rem/1.45 var(--sans); border-radius: 3px 12px 12px 12px;
+}
+.stApp .plan-cocina p, .stApp .plan-cocina ul, .stApp .plan-cocina li,
+.stApp .ronda-barra p, .stApp .ronda-barra ul, .stApp .ronda-barra li {
   margin: 0; padding: 0; font: inherit; color: inherit;
 }
-.stApp .plan-cocina .titular { font: 500 1.2rem/1.3 var(--serif); }
-.stApp .plan-cocina .apartado { margin-top: .75rem; font-weight: 700; letter-spacing: .01em; }
-.stApp .plan-cocina ul { margin-top: .25rem; list-style: none; display: grid; gap: .35rem; }
-.stApp .plan-cocina li { position: relative; padding-left: .95rem; }
-.stApp .plan-cocina li::before {
+.stApp .plan-cocina .titular, .stApp .ronda-barra .titular { font: 500 1.2rem/1.3 var(--serif); }
+.stApp .plan-cocina .apartado, .stApp .ronda-barra .apartado {
+  margin-top: .75rem; font-weight: 700; letter-spacing: .01em;
+}
+.stApp .plan-cocina ul, .stApp .ronda-barra ul {
+  margin-top: .25rem; list-style: none; display: grid; gap: .35rem;
+}
+.stApp .plan-cocina li, .stApp .ronda-barra li { position: relative; padding-left: .95rem; }
+.stApp .plan-cocina li::before, .stApp .ronda-barra li::before {
   content: ""; position: absolute; left: .15rem; top: .62em;
   width: 5px; height: 5px; border-radius: 50%; background: currentColor;
 }
-.stApp .plan-cocina .plato { display: block; }
-.stApp .plan-cocina .detalle { display: block; font-size: 1rem; color: rgba(255, 255, 255, .86); }
-.stApp .plan-cocina .fuentes { margin-top: .75rem; font-size: 1rem; color: rgba(255, 255, 255, .86); }
+.stApp .plan-cocina .plato, .stApp .ronda-barra .bebida { display: block; }
+.stApp .plan-cocina .detalle, .stApp .ronda-barra .detalle {
+  display: block; font-size: 1rem; color: rgba(255, 255, 255, .86);
+}
+.stApp .plan-cocina .fuentes, .stApp .ronda-barra .fuentes {
+  margin-top: .75rem; font-size: 1rem; color: rgba(255, 255, 255, .86);
+}
 /* The cashier's bill: its own voice, the till and pine green, laid out like a ticket. */
 .stApp .msg.caja { max-width: min(54ch, 92%); }
 .stApp .msg.caja .icono { background: var(--pino-hondo); border-color: #86b79b; }
@@ -429,6 +449,8 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   .stApp .msg.cocina .burbuja { font-size: 1rem; }
   .stApp .msg.caja { max-width: 100%; }
   .stApp .msg.caja .burbuja { font-size: 1rem; }
+  .stApp .msg.barra { max-width: 100%; }
+  .stApp .msg.barra .burbuja { font-size: 1rem; }
   .stApp .planta-marco { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 5px; }
   .stApp .planta-marco .planta { max-height: 24vh; }
   .stApp .cocina-plano .plato-cocina { display: none; }

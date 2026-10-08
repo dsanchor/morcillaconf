@@ -40,6 +40,9 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
 - Permite consultar, corregir y borrar recuerdos individuales o todos.
 - El borrado total no bloquea el guardado de interacciones futuras.
 - Separa sesión, preferencias, restricciones e historial de pedidos completados.
+- Sirve las bebidas confirmadas desde la barra con `servir_bebidas`, que las
+  comprueba con la carta sin modelo (ver
+  [Barra](#barra-bebidas-servidas-por-el-camarero)).
 
 El camarero es el único cliente del MCP de asientos. `party_size` conserva `1`
 como valor técnico por defecto, pero el saludo pregunta si el cliente viene
@@ -196,6 +199,49 @@ Límites de esta versión: los especialistas aceptan siempre, no hay tiempos ni
 despensa, el pedido no se confirma y cada cambio del cliente es un pedido nuevo
 en un turno nuevo.
 
+## Barra: bebidas servidas por el camarero
+
+Barra v1 (08/10, decisión de Jesús): las bebidas siguen sin pasar por cocina y
+las sirve el propio camarero desde la barra, pero servir es ahora una operación
+tipada y determinista, no una frase. No hay otro agente ni otro contenedor.
+
+- **Tool `servir_bebidas`** (`restaurant_agent/bar_tool.py`). Como
+  `pedir_a_cocina`, recibe las bebidas (`items`, cada una con su nombre y su
+  cantidad) y las alergias o intolerancias declaradas en la visita
+  (`restrictions`), y se llama tras la confirmación explícita del cliente, como
+  mucho una vez por turno. En un pedido mixto la comida va a `pedir_a_cocina` y
+  las bebidas a `servir_bebidas`, en el mismo turno.
+- **La barra es código** (`restaurant_agent/bar/`). Consulta la base de
+  conocimiento desde el código, con la misma conexión MCP del camarero
+  (`knowledge_base_retrieve`) y no a través del modelo: una consulta, y una
+  segunda solo si la sección de bebidas no llega entera, con
+  `BAR_TIMEOUT_SECONDS` (15 s por defecto) para toda la ronda; si tampoco llega
+  entera, no sirve nada. Solo cuentan las entradas de la carta de la casa
+  (`(documento: carta)`) con `Partida: barra`; nunca la web ni otros
+  documentos. Cada nombre se resuelve sin modelo, sin acentos ni plurales, a
+  una sola bebida de la carta, y al menos una de sus palabras tiene que nombrar
+  la bebida («una sin» no es el agua sin gas): «agua» es ambigua (con gas o sin
+  gas) y se rechaza con las opciones; lo que no está en la carta se rechaza con
+  «No está en la carta.» y un plato, con su motivo.
+- **Alérgenos.** La regla y sus motivos son una copia de los de cocina
+  (`bar/allergens.py` y `bar/validation.py`, copiados a propósito de
+  `agents/kitchen`, como `knowledge.py`): una alergia declarada nunca se cruza
+  con una bebida que la contiene, puede contenerla o tiene los alérgenos
+  pendientes de verificar. Un celíaco no recibe una caña.
+- **Resultado.** Un `BarReport` (`restaurant_contracts.bar`) con lo servido
+  (identificador y nombre de la carta y cantidad), lo no servido con su motivo
+  y las fuentes. Sin base de conocimiento, si no responde o si no devuelve
+  bebidas, es un fallo explícito (`bar_failed`) y no se sirve nada. El turno
+  lo devuelve en `WaiterTurnSuccess.bar`; el BFF lo enseña en su burbuja antes
+  de la respuesta del camarero y anota la ronda como servida al momento: no
+  hay pase.
+- **Cuenta.** Las bebidas servidas se cobran como los platos servidos. Si el
+  cliente pide más bebidas y la cuenta en el mismo turno, `pedir_la_cuenta`
+  añade la ronda recién servida; una ronda nueva anula la cuenta presentada
+  antes que no la incluye. Las tools que el modelo pide en una misma respuesta
+  se ejecutan en su orden, nunca a la vez, para que la cuenta vea las bebidas
+  servidas y los platos cocinados antes que ella.
+
 ## Caja externa mediante A2A
 
 Acuerdo del 06/10: la caja es un agente A2A en su propio contenedor,
@@ -206,11 +252,13 @@ precios.
 - **Tool `pedir_la_cuenta`** (`restaurant_agent/cashier_tool.py`). La llama
   cuando el cliente pide la cuenta y **no recibe argumentos**: el modelo no
   elige qué se cobra. El BFF envía en el turno las líneas servidas (`served`:
-  platos aceptados de los planes de cocina ya servidos), cuántos pedidos
+  platos aceptados de los planes de cocina ya servidos y bebidas de las rondas
+  de barra), cuántos pedidos
   cocinados esperan aún en el pase (`orders_at_pass`) y la cuenta pendiente
   (`pending_bill`). La tool se niega a cobrar con platos en el pase, sin nada
   servido o con una cuenta ya presentada; si no, construye el `BillRequest` con
-  esas líneas y lo envía a caja. Como mucho una vez por turno.
+  esas líneas, más las bebidas servidas antes en el mismo turno, y lo envía a
+  caja. Como mucho una vez por turno.
 - **Puerto `A2ACashier`** (`restaurant_agent/cashier/port.py`). Abre una tarea
   A2A por cuenta. Que la tarea quede en `input-required` con el artefacto
   `Bill` significa «cuenta presentada», no un fallo: el informe guarda los
@@ -224,11 +272,11 @@ precios.
   de pagar otra vez; si espera, la reanuda con el `PaymentChoice` y la clave de
   idempotencia del BFF. Solo con el recibo contesta la despedida fija; el BFF
   cierra entonces la visita por el mismo camino que «Salir».
-- **Cuenta anulada.** Si el cliente pide más platos con una cuenta pendiente, el
-  camarero cancela su tarea en caja (`tasks/cancel`) y el cliente tiene que
-  volver a pedirla.
+- **Cuenta anulada.** Si el cliente pide más platos o bebidas con una cuenta
+  pendiente, el camarero cancela su tarea en caja (`tasks/cancel`) y el
+  cliente tiene que volver a pedirla.
 - **Un mensaje nunca paga.** Las instrucciones le prohíben dar por pagado un
-  «pago con tarjeta» escrito, calcular o cambiar importes y cobrar bebidas.
+  «pago con tarjeta» escrito y calcular o cambiar importes.
 
 En la CLI (`./scripts/run-waiter-cli.sh`), una propuesta pendiente se decide
 respondiendo `s` o `n`.
@@ -275,6 +323,7 @@ SEATING_MCP_TIMEOUT_SECONDS="5"
 AZURE_SEARCH_ENDPOINT="https://<servicio>.search.windows.net"
 KNOWLEDGE_BASE_NAME="conocimiento-restaurante"
 KNOWLEDGE_BASE_TIMEOUT_SECONDS="20"
+BAR_TIMEOUT_SECONDS="15"
 KITCHEN_A2A_URL="http://localhost:8089"
 KITCHEN_A2A_TOKEN_SCOPE=""
 KITCHEN_TIMEOUT_SECONDS="30"
@@ -286,7 +335,9 @@ CASHIER_TIMEOUT_SECONDS="30"
 Las variables de la base de conocimiento son opcionales para el camarero: la
 conectan. Tu
 usuario necesita el rol Search Index Data Reader sobre el servicio de búsqueda
-(`./scripts/provision-knowledge.sh` se lo asigna a quien lo ejecuta). Las dos
+(`./scripts/provision-knowledge.sh` se lo asigna a quien lo ejecuta). Sin
+ellas, `servir_bebidas` responde que la barra no puede consultar la carta y no
+sirve nada; `BAR_TIMEOUT_SECONDS` limita cada ronda de la barra. Las dos
 de cocina configuran el endpoint A2A, un scope de autenticación opcional y el
 tiempo máximo de la llamada. El modelo y Foundry IQ del chef se configuran en
 el proyecto independiente de cocina. Las tres de caja hacen lo mismo con la
@@ -609,6 +660,8 @@ agents/restaurant/
     │   ├── agent.py, instructions.md   # el camarero
     │   ├── kitchen_tool.py             # su tool pedir_a_cocina
     │   ├── kitchen/                    # el chef: agent, instructions, validación y puerto
+    │   ├── bar_tool.py                 # su tool servir_bebidas
+    │   ├── bar/                        # la barra: carta, nombres, alérgenos y textos
     │   ├── cashier_tool.py             # su tool pedir_la_cuenta
     │   └── cashier/                    # puerto A2A de caja y textos de la cuenta
     └── tests/

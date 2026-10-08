@@ -212,7 +212,7 @@ def create_agent_card(settings: Settings) -> AgentCard:
     return AgentCard(
         name="Caja",
         description=(
-            "Presenta la cuenta de los platos de cocina servidos con los precios "
+            "Presenta la cuenta de los platos y bebidas servidos con los precios "
             "de la carta y cobra con tarjeta o efectivo."
         ),
         version="1.0",

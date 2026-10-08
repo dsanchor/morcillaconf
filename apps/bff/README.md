@@ -165,12 +165,20 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   lo publica en el mismo snapshot y los mismos eventos. Los mensajes del
   cliente y del camarero conservan exactamente su forma anterior. El BFF no
   habla con el chef ni interpreta su plan.
+- **Barra** (Barra v1, 08/10). Si el camarero ha servido bebidas en ese turno
+  (`servir_bebidas`), su respuesta trae el `BarReport`: el BFF lo guarda como un
+  mensaje propio con el rol `bar`, después del de cocina si lo hay y antes de
+  la respuesta del camarero. Las bebidas no esperan en el pase: en la misma
+  transacción anota la ronda servida en `served_orders`, de modo que se cobra
+  desde ese momento. Una ronda rechazada o fallida se enseña, pero no se anota
+  ni se cobra.
 - **Cuenta y pago** (acuerdo del 06/10). En cada turno el BFF envía al
   camarero lo que se puede cobrar: las líneas servidas (`served`, los platos
-  aceptados de los planes de cocina cuyos pedidos están en `served_orders`),
-  cuántos pedidos cocinados siguen en el pase (`orders_at_pass`) y la cuenta
-  pendiente (`pending_bill`). Lo rechazado y lo que sigue en el pase nunca se
-  cobra. Si el cliente ha pedido la cuenta, la respuesta trae el
+  aceptados de los planes de cocina y las bebidas de las rondas de barra que
+  están en `served_orders`), cuántos pedidos cocinados siguen en el pase
+  (`orders_at_pass`, solo cocina) y la cuenta pendiente (`pending_bill`). Lo
+  rechazado y lo que sigue en el pase nunca se cobra; un cliente que solo ha
+  tomado bebidas puede pedir la cuenta y pagar. Si el cliente ha pedido la cuenta, la respuesta trae el
   `CashierReport`: el BFF lo guarda como un mensaje propio con el rol
   `cashier`, entre el mensaje del cliente y la respuesta del camarero, y
   guarda la cuenta (tabla `bills`) con la tarea A2A de caja. El snapshot la
@@ -182,13 +190,17 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   recibo, el BFF guarda el mensaje de caja y la despedida fija del camarero y
   termina la visita por el mismo camino que «Salir» (`release_seating`), así
   que el sitio queda libre; `visit_closed` avisa a la vista y la visita ya no
-  admite mensajes. Si el cliente pide más platos con una cuenta pendiente, esa
-  cuenta queda anulada y hay que volver a pedirla.
+  admite mensajes. Si el cliente pide más platos o le sirven más bebidas con
+  una cuenta pendiente, esa cuenta queda anulada y hay que volver a pedirla; la
+  cuenta presentada en el mismo turno que una ronda solo sigue pendiente si ya
+  incluye esas bebidas.
 - **Observabilidad.** Spans `bff.command`, `bff.waiter.turn`,
   `bff.seating.decision` y `bff.seating.sync` con tipo,
   correlación, conversación y resultado, sin texto ni nombres. Un turno con
   cocina añade `bff.kitchen.outcome`: el veredicto (`accepted`, `partial` o
-  `rejected`) o el código del fallo; uno con caja, `bff.cashier.outcome`, y el
+  `rejected`) o el código del fallo; uno con barra, `bff.bar.outcome`
+  (`served`, `partial`, `rejected` o el código del fallo); uno con caja,
+  `bff.cashier.outcome`, y el
   pago, el span `bff.payment.decision` con su método y resultado. Solo se usa la
   API de OpenTelemetry: falta configurar un exportador (Application Insights,
   fase 9).

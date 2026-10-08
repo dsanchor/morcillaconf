@@ -15,6 +15,7 @@ from typing import Literal
 
 from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ChatMessage
+from restaurant_contracts.bar import BarFailure, BarRound
 from restaurant_contracts.cashier import (
     PAYMENT_LABELS,
     Bill,
@@ -52,6 +53,8 @@ KITCHEN_VERDICTS = {
     "rejected": "Cocina no ha podido preparar el pedido.",
 }
 KITCHEN_FAILED = "Cocina no ha podido revisar el pedido."
+BAR_LABEL = "Barra"
+BAR_FAILED = "La barra no ha podido servir las bebidas."
 CASHIER_LABEL = "Cuenta de caja"
 BILL_STATES = {
     "pending": "Pendiente de pago.",
@@ -246,6 +249,8 @@ def conversation_markup(view: ConversationView, *, reveal: Reveal | None = None)
                 rows.append(_waiter_row(text_html(message.text)))
         elif message.role == "kitchen":
             rows.append(kitchen_row(message))
+        elif message.role == "bar":
+            rows.append(bar_row(message))
         elif message.role == "cashier":
             bill_id = message.cashier.bill_id if message.cashier is not None else None
             state = (
@@ -305,6 +310,43 @@ def kitchen_row(message: ChatMessage) -> str:
     return (
         f'<div class="msg cocina">{chef_icon_svg()}'
         f'<div class="burbuja plan-cocina" role="group" aria-label="{KITCHEN_LABEL}">'
+        f"{body}</div></div>"
+    )
+
+
+def bar_icon_svg() -> str:
+    """A caña with its head of foam, white on the bar's amber, drawn like the chef's toque."""
+
+    return (
+        '<svg class="icono" viewBox="-16 -16 32 32" aria-hidden="true" focusable="false">'
+        '<path d="M-7 -5.5 H7 L5.6 12 H-5.6 Z" '
+        'fill="#fbf8f1" stroke="#3b2404" stroke-width="1.4" stroke-linejoin="round"/>'
+        '<path d="M-6.4 -1.5 H6.4" stroke="#c9954a" stroke-width="1.2"/>'
+        '<circle cx="-2" cy="3.5" r="1" fill="#c9954a"/>'
+        '<circle cx="1.8" cy="6.5" r=".9" fill="#c9954a"/>'
+        '<circle cx="-.6" cy="9.4" r=".8" fill="#c9954a"/>'
+        '<path d="M-8 -5 C-10 -5.5 -9.8 -9.2 -7 -9.4 C-6.6 -12.6 -2.4 -13.2 -1 -11 '
+        'C.6 -13.4 5 -12.6 5.4 -9.8 C8.6 -10 9.8 -6.2 7.6 -5 Z" '
+        'fill="#fbf8f1" stroke="#3b2404" stroke-width="1.4" stroke-linejoin="round"/></svg>'
+    )
+
+
+def bar_row(message: ChatMessage) -> str:
+    """The bar's own bubble: what the waiter served, what not and why, or why it served nothing."""
+
+    report = message.bar
+    if report is None:
+        body = f"<p>{text_html(message.text)}</p>"
+    elif isinstance(report.result, BarFailure):
+        body = (
+            f'<p class="titular">{BAR_LABEL}</p><p>{BAR_FAILED}</p>'
+            f'<p class="detalle">{text_html(report.result.message)}</p>'
+        )
+    else:
+        body = _round_body(report.result)
+    return (
+        f'<div class="msg barra">{bar_icon_svg()}'
+        f'<div class="burbuja ronda-barra" role="group" aria-label="{BAR_LABEL}">'
         f"{body}</div></div>"
     )
 
@@ -401,6 +443,27 @@ def _receipt_body(receipt: Receipt) -> str:
     )
 
 
+def _round_body(result: BarRound) -> str:
+    parts = [f'<p class="titular">{BAR_LABEL}</p>']
+    if result.served:
+        parts.append(
+            _section("Servido", [_item(f"{item.quantity} × {item.name}", kind="bebida") for item in result.served])
+        )
+    if result.rejected:
+        parts.append(
+            _section(
+                "No servido",
+                [_item(f"{item.quantity} × {item.requested}", [item.reason], kind="bebida") for item in result.rejected],
+            )
+        )
+    if result.warnings:
+        parts.append(_section("Avisos", [_item(warning, kind="bebida") for warning in result.warnings]))
+    if result.sources:
+        cited = " · ".join(_source(source) for source in result.sources)
+        parts.append(f'<p class="fuentes">{text_html("Fuentes: " + cited)}</p>')
+    return "".join(parts)
+
+
 def _plan_body(plan: KitchenPlan) -> str:
     parts = [f'<p class="titular">{KITCHEN_VERDICTS[plan.verdict]}</p>']
     if plan.accepted:
@@ -434,9 +497,9 @@ def _section(title: str, items: list[str]) -> str:
     return f'<p class="apartado">{text_html(title)}</p><ul>{"".join(items)}</ul>'
 
 
-def _item(head: str, details: Sequence[str] = ()) -> str:
+def _item(head: str, details: Sequence[str] = (), *, kind: str = "plato") -> str:
     lines = "".join(f'<span class="detalle">{text_html(detail)}</span>' for detail in details if detail)
-    return f'<li><span class="plato">{text_html(head)}</span>{lines}</li>'
+    return f'<li><span class="{kind}">{text_html(head)}</span>{lines}</li>'
 
 
 def _accepted(item: AcceptedItem) -> str:

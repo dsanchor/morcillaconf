@@ -45,6 +45,7 @@ from restaurant_contracts.application import (
     StreamEvent,
 )
 from restaurant_contracts.activity import ActivityStep, merge_steps
+from restaurant_contracts.bar import BarRound
 from restaurant_contracts.cashier import (
     Bill,
     BillView,
@@ -52,6 +53,7 @@ from restaurant_contracts.cashier import (
     PendingBill,
     Receipt,
     ServedLine,
+    bill_misses,
     served_lines,
     supersedes_bill,
 )
@@ -823,6 +825,12 @@ class RestaurantService:
                     "bff.kitchen.outcome",
                     result.verdict if result.status == "cooked" else result.code.value,
                 )
+            if outcome.bar is not None:
+                drinks = outcome.bar.result
+                span.set_attribute(
+                    "bff.bar.outcome",
+                    drinks.verdict if drinks.status == "served" else drinks.code.value,
+                )
             if outcome.cashier is not None:
                 bill = outcome.cashier.result
                 span.set_attribute(
@@ -839,18 +847,19 @@ class RestaurantService:
     def _billing(
         tx: Transaction, conversation_id: str
     ) -> tuple[tuple[ServedLine, ...], int, PendingBill | None]:
-        """What the bill may include: served dishes, orders at the pass, the pending bill."""
+        """What the bill may include: served dishes and drinks, orders at the pass, the pending bill."""
 
-        reports = [
-            message.kitchen for message in tx.list_messages(conversation_id) if message.kitchen
-        ]
+        messages = tx.list_messages(conversation_id)
+        reports = [report for message in messages if (report := message.kitchen or message.bar)]
         served = set(tx.served_orders(conversation_id))
+        # Only cooked dishes wait at the pass: drinks are served at once.
         at_pass = sum(
             1
-            for report in reports
-            if isinstance(report.result, KitchenPlan)
-            and report.result.accepted
-            and report.result.order_id not in served
+            for message in messages
+            if message.kitchen is not None
+            and isinstance(message.kitchen.result, KitchenPlan)
+            and message.kitchen.result.accepted
+            and message.kitchen.result.order_id not in served
         )
         bill = tx.pending_bill(conversation_id)
         pending = (
@@ -1007,8 +1016,9 @@ class RestaurantService:
 
                 if outcome.session_json is not None:
                     row.agent_session_json = outcome.session_json
-                # New dishes on their way: a bill presented before them is stale.
-                supersede = outcome.kitchen is not None and supersedes_bill(outcome.kitchen)
+                # New dishes or drinks: a bill presented before them is stale.
+                fresh = [report for report in (outcome.kitchen, outcome.bar) if report is not None]
+                supersede = any(supersedes_bill(report) for report in fresh)
                 if supersede:
                     stale = tx.pending_bill(row.conversation_id)
                     if stale is not None:
@@ -1029,6 +1039,23 @@ class RestaurantService:
                             kitchen=outcome.kitchen,
                         ),
                     )
+                if outcome.bar is not None:
+                    # The bar's round, after the chef's plan: drinks never
+                    # wait at the pass, so a served round is recorded at once.
+                    tx.add_message(
+                        row.conversation_id,
+                        ChatMessage(
+                            message_id=new_id("msg"),
+                            role="bar",
+                            text=outcome.bar.text,
+                            occurred_at=now,
+                            command_event_id=job.event_id,
+                            bar=outcome.bar,
+                        ),
+                    )
+                    drinks = outcome.bar.result
+                    if isinstance(drinks, BarRound) and drinks.served:
+                        tx.mark_served(row.conversation_id, drinks.round_id, now)
                 if outcome.cashier is not None:
                     # The cashier's bill, like the chef's plan, is its own message.
                     tx.add_message(
@@ -1044,11 +1071,15 @@ class RestaurantService:
                     )
                     presented = outcome.cashier.pending
                     if presented is not None and isinstance(outcome.cashier.result, Bill):
+                        # A bill of this same turn may already include its drinks.
+                        outdated = any(
+                            bill_misses(outcome.cashier.request, report) for report in fresh
+                        )
                         tx.put_bill(
                             BillRow(
                                 bill_id=presented.bill_id,
                                 conversation_id=row.conversation_id,
-                                status="superseded" if supersede else "pending",
+                                status="superseded" if outdated else "pending",
                                 bill=outcome.cashier.result,
                                 task=presented.task,
                                 created_at=now,

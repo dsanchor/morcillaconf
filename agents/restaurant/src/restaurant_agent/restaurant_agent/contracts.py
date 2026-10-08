@@ -10,6 +10,7 @@ from restaurant_contracts.customer import (
     PendingField,
     missing_customer_fields,
 )
+from restaurant_contracts.bar import BarReport
 from restaurant_contracts.cashier import CashierReport
 from restaurant_contracts.kitchen import KitchenReport
 from restaurant_agent.memory.contracts import MemoryCandidate, MemoryIntent
@@ -76,5 +77,7 @@ class WaiterResponse(BaseModel):
     remembered_memories: list[MemoryCandidate] = Field(default_factory=list)
     # The kitchen's answer when the waiter sent it the order in this turn.
     kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
+    # The drinks the waiter served from the bar in this turn.
+    bar: BarReport | None = Field(default=None, exclude_if=lambda value: value is None)
     # The cashier's answer when the customer asked for the bill in this turn.
     cashier: CashierReport | None = Field(default=None, exclude_if=lambda value: value is None)

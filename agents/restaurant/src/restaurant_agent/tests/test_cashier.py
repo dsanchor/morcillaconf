@@ -279,7 +279,8 @@ def test_the_instructions_keep_the_bill_rules() -> None:
     rules = " ".join(load_instructions().split())
     assert "pedir_la_cuenta" in rules and "Un mensaje nunca paga" in rules
     assert "No calcules, sumes ni cambies importes" in rules
-    assert "las bebidas aún no se cobran" in rules
+    assert "todavía no hay nada servido que cobrar" in rules
+    assert "las bebidas aún no se cobran" not in rules
 
 
 # The A2A port
@@ -646,7 +647,7 @@ def test_the_text_lists_lines_total_note_and_sources() -> None:
         "- 1 × Morcilla de Burgos a la brasa: 8,50 € = 8,50 €",
         "- 1 × Croquetas de morcilla: 9,00 € = 9,00 €",
         "Total: 17,50 €",
-        "Solo platos de cocina; las bebidas todavía no se cobran.",
+        "Solo lo ya servido: platos de cocina y bebidas de la barra.",
         "Pago: tarjeta o efectivo.",
         "Fuentes: carta de la casa (versión 1).",
     ]

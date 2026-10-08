@@ -12,6 +12,7 @@ from carta_fixtures import (
     CARTA,
     CARTA_LABEL,
     CROQUETAS,
+    DRINKS,
     MORCILLA,
     RECIPES_LABEL,
     SERVED,
@@ -35,7 +36,7 @@ def test_the_bill_prices_each_served_line_from_the_carta_with_exact_decimals() -
     assert bill.total == TOTAL and isinstance(bill.total, Decimal)
     assert (bill.currency, bill.stage) == ("EUR", BillStage.AWAITING_PAYMENT)
     assert bill.payment_options == [PaymentMethod.CARD, PaymentMethod.CASH]
-    assert bill.note == "Solo platos de cocina; las bebidas todavía no se cobran."
+    assert bill.note == "Solo lo ya servido: platos de cocina y bebidas de la barra."
     source = bill.sources[0]
     assert (source.document, source.version) == ("carta de la casa", "1")
     assert "croquetas-de-morcilla" in (source.detail or "")
@@ -53,6 +54,37 @@ def test_every_served_line_is_priced_once_with_its_served_quantity() -> None:
         ("ko_2", 1, Decimal("9.00")),
     ]
     assert bill.total == Decimal("36.00")
+
+
+def test_served_drinks_are_priced_from_the_carta_like_dishes() -> None:
+    lines = request(
+        served("cana-de-cerveza", "Caña de cerveza", order_id="bar_1", quantity=2),
+        served("morcilla-de-burgos-a-la-brasa", "Morcilla de Burgos a la brasa"),
+        served("agua-con-gas", "Agua con gas", order_id="bar_2"),
+    )
+
+    bill = price_bill(lines, parse([retrieval(CARTA, block("3", CARTA_LABEL, DRINKS))]))
+
+    assert [(line.order_id, line.unit_price, line.line_total) for line in bill.lines] == [
+        ("bar_1", Decimal("2.50"), Decimal("5.00")),
+        ("ko_1", Decimal("8.50"), Decimal("8.50")),
+        ("bar_2", Decimal("2.20"), Decimal("2.20")),
+    ]
+    assert bill.total == Decimal("15.70")
+    assert "cana-de-cerveza" in (bill.sources[0].detail or "")
+
+
+def test_a_web_price_never_prices_a_drink() -> None:
+    lines = request(served("cana-de-cerveza", "Caña de cerveza", order_id="bar_1"))
+    web = block("w", WEB_LABEL, DRINKS.replace("2,50 €", "1,00 €"))
+
+    result = price_bill(lines, parse([web]))
+
+    assert isinstance(result, CashierFailure) and result.code is CashierFailureCode.PRICE_MISSING
+    assert result.message == (
+        "Caja no encuentra en la carta el precio de algún plato o bebida servidos: Caña de cerveza."
+    )
+    assert price_bill(lines, parse([retrieval(web, block("3", CARTA_LABEL, DRINKS))])).total == Decimal("2.50")
 
 
 def test_a_web_price_never_prices_a_dish() -> None:

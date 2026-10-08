@@ -12,6 +12,7 @@ import httpx
 
 from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ActorContext
+from restaurant_contracts.bar import BarReport
 from restaurant_contracts.cashier import CashierReport, PaymentMethod, PendingBill, ServedLine
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft
 from restaurant_contracts.kitchen import KitchenReport
@@ -50,8 +51,8 @@ class WaiterTurn:
     session_json: str | None
     correlation_id: str
     visit_id: str | None = None
-    # What the bill may include: served kitchen dishes, cooked orders still at
-    # the pass and the bill already waiting for card or cash.
+    # What the bill may include: served kitchen dishes and bar drinks, cooked
+    # orders still at the pass and the bill already waiting for card or cash.
     served: tuple[ServedLine, ...] = ()
     orders_at_pass: int = 0
     pending_bill: PendingBill | None = None
@@ -68,6 +69,8 @@ class WaiterTurnResult:
     seating: SeatingReport | None = None
     # The kitchen's answer when the waiter sent it the order in this turn.
     kitchen: KitchenReport | None = None
+    # The drinks the waiter served from the bar in this turn.
+    bar: BarReport | None = None
     # The cashier's answer when the customer asked for the bill in this turn.
     cashier: CashierReport | None = None
     activity: tuple[ActivityStep, ...] = ()
@@ -211,6 +214,7 @@ class RemoteWaiter:
             session_json=result.session_json,
             seating=result.seating,
             kitchen=result.kitchen,
+            bar=result.bar,
             cashier=result.cashier,
             activity=tuple(result.activity),
         )
