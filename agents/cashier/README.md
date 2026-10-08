@@ -2,29 +2,32 @@
 
 Proyecto independiente que publica la caja del restaurante mediante A2A
 JSON-RPC (acuerdo del 06/10). El camarero no importa ni ejecuta la caja: su
-tool `pedir_la_cuenta` envía un `BillRequest` con los platos de cocina ya
-servidos y relaya después el botón de pago del cliente a la misma tarea A2A.
+tool `pedir_la_cuenta` envía un `BillRequest` con los platos de cocina y las
+bebidas de la barra ya servidos y relaya después el botón de pago del cliente a
+la misma tarea A2A.
 
 ## Flujo
 
 1. **Cuenta.** El primer mensaje es un `BillRequest`: las líneas servidas
-   (pedido, línea, identificador de carta, nombre y cantidad) que el BFF calcula
-   con los planes de cocina ya servidos. Solo platos de cocina; las bebidas
-   todavía no se cobran.
+   (pedido o ronda, línea, identificador de carta, nombre y cantidad) que el BFF
+   calcula con los planes de cocina y las rondas de barra ya servidos. Desde
+   Barra v1 (08/10) también se cobran las bebidas servidas.
 2. **Consulta.** Un agente de Agent Framework sin sesión ni memoria busca esas
    entradas en la carta con su única herramienta, la base de conocimiento de
    Foundry IQ. El modelo solo consulta: no recibe cantidades ni calcula nada.
-3. **Importes.** El código lee el precio de cada plato en los fragmentos de la
-   carta recuperados («Precio: 8,50 € la ración»). Solo vale la carta de la
-   casa: fragmentos de un documento de la casa cuya entrada declara
-   «(documento: carta)». La web, el recetario y la ficha de ingredientes nunca
-   ponen precio. Cada línea se cobra una vez con su cantidad servida, con
+3. **Importes.** El código lee el precio de cada plato o bebida en los
+   fragmentos de la carta recuperados («Precio: 8,50 € la ración», «Precio:
+   2,50 € la caña de 20 cl»; las bebidas están en la sección «Barra:
+   bebidas»). Solo vale la carta de la casa: fragmentos de un documento de la
+   casa cuya entrada declara «(documento: carta)». La web, el recetario y la
+   ficha de ingredientes nunca ponen precio. Cada línea se cobra una vez con su cantidad servida, con
    aritmética `Decimal` en euros. Un precio ausente, ilegible o distinto en dos
    fragmentos da un `CashierFailure` explícito, nunca un importe inventado.
 4. **`input-required`.** La tarea A2A queda en `TASK_STATE_INPUT_REQUIRED` con
    el artefacto `Bill`: `bill_id`, versión, etapa, líneas con precio unitario y
    total de línea, total, `EUR`, opciones de pago (`tarjeta`, `efectivo`),
-   fuentes y la nota «Solo platos de cocina; las bebidas todavía no se cobran».
+   fuentes y la nota «Solo lo ya servido: platos de cocina y bebidas de la
+   barra».
 5. **Pago.** El botón del cliente llega como `PaymentChoice` a la misma tarea
    (mismos `task_id` y `context_id`). Caja registra el pago simulado, siempre
    aprobado en esta versión, y completa la tarea con el artefacto `Receipt`:
@@ -33,8 +36,9 @@ servidos y relaya después el botón de pago del cliente a la misma tarea A2A.
    misma clave de idempotencia u otra, devuelve el mismo recibo. Una tarea
    completada no admite más mensajes; el camarero lee entonces el recibo
    guardado con `tasks/get`.
-7. **Anulación.** Si el cliente pide más platos con la cuenta pendiente, el
-   camarero cancela la tarea (`tasks/cancel`) y esa cuenta ya no se puede pagar.
+7. **Anulación.** Si el cliente pide más platos o le sirven más bebidas con la
+   cuenta pendiente, el camarero cancela la tarea (`tasks/cancel`) y esa cuenta
+   ya no se puede pagar.
 
 ### Revisión en caja (preparada, desactivada)
 

@@ -37,6 +37,27 @@ def retrieval(*blocks: str) -> str:
 
 
 CARTA = retrieval(block("1", CARTA_LABEL, MORCILLA), block("2", CARTA_LABEL, CROQUETAS))
+# The bar's drinks, in the carta's own «Barra: bebidas» section.
+DRINKS = """## Barra: bebidas
+
+Las bebidas se sirven en la barra y no pasan por ninguna partida de cocina.
+
+### agua-con-gas · Agua con gas
+
+- Fuente: carta de la casa, versión 1 (documento: carta)
+- Partida: barra
+- Precio: 2,20 € la botella de 50 cl
+- Contiene: ninguno de los 14.
+
+### cana-de-cerveza · Caña de cerveza
+
+- Fuente: carta de la casa, versión 1 (documento: carta)
+- Partida: barra
+- Precio: 2,50 € la caña de 20 cl
+- Contiene: cereales con gluten (cebada).
+
+## Notas de la casa
+"""
 
 
 def served(carta_id: str, name: str, *, line: int = 1, order_id: str = "ko_1", quantity: int = 1) -> ServedLine:

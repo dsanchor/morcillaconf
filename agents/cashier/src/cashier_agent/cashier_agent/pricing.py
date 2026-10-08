@@ -1,10 +1,11 @@
 """The bill, computed by code from the carta prices the cashier retrieved.
 
-No language model touches an amount: each served line is priced exactly once,
-with its served quantity, from the single price its carta entry declares, and
-the total is their exact ``Decimal`` sum in euros. A dish without a readable
-carta price, or with two different ones, makes the whole bill an explicit
-``CashierFailure``; nothing is estimated in its place.
+No language model touches an amount: each served line, a kitchen dish or a
+bar drink, is priced exactly once, with its served quantity, from the single
+price its carta entry declares, and the total is their exact ``Decimal`` sum in
+euros. A line without a readable carta price, or with two different ones,
+makes the whole bill an explicit ``CashierFailure``; nothing is estimated in
+its place.
 """
 
 from __future__ import annotations
@@ -29,8 +30,8 @@ from cashier_agent.evidence import PriceEvidence
 CARTA = "carta de la casa"
 
 
-def _failure(request: BillRequest, code: CashierFailureCode, dish: str) -> CashierFailure:
-    message = f"{FAILURE_MESSAGES[code]} Plato: {dish}."
+def _failure(request: BillRequest, code: CashierFailureCode, served: str) -> CashierFailure:
+    message = f"{FAILURE_MESSAGES[code].rstrip('.')}: {served}."
     return CashierFailure(bill_id=request.bill_id, code=code, message=message[:300])
 
 

@@ -293,7 +293,7 @@ async def test_a_bill_the_carta_cannot_price_completes_with_an_explicit_failure(
     (failure,) = answered.results
     assert isinstance(failure, CashierFailure)
     assert failure.code is CashierFailureCode.PRICE_MISSING
-    assert failure.message.endswith("Plato: Morcilla de Burgos a la brasa.")
+    assert failure.message.endswith(": Morcilla de Burgos a la brasa.")
 
 
 async def test_with_review_on_card_or_cash_come_only_after_the_approval(ledger: Ledger) -> None:
