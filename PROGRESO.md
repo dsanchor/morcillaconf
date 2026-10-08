@@ -87,7 +87,11 @@ bebida que no está en la carta podía servirse de palabra.
   paquete de dominio compartido, que es decisión de dsanchor. Las
   instrucciones extienden a las bebidas la recapitulación y la confirmación
   explícita, envían un pedido mixto a cocina y a la barra en el mismo turno y
-  piden aclarar una bebida ambigua antes de servirla.
+  piden aclarar una bebida ambigua antes de servirla. Tras la revisión del
+  código, la barra no sirve nada si la sección de bebidas nunca llega entera,
+  un nombre solo se resuelve si una de sus palabras nombra la bebida («una
+  sin» no es el agua sin gas) y las tools de una misma respuesta del modelo se
+  ejecutan en su orden, para que la cuenta vea las bebidas servidas antes.
 - **BFF:** guarda la ronda como su propio mensaje, después del de cocina y
   antes de la respuesta del camarero, y la anota servida en `served_orders` en
   la misma transacción; la cuenta incluye las bebidas servidas.
@@ -97,7 +101,7 @@ bebida que no está en la carta podía servirse de palabra.
 
 ### Evidencia
 
-- **Pruebas locales:** 416 del camarero, los contratos y la carta, y 30 del
+- **Pruebas locales:** 425 del camarero, los contratos y la carta, y 30 del
   MCP (`./scripts/test.sh`); 30 de caja; 5 de cocina, que no cambia; 168 del
   BFF; 176 del frontend. En el recorrido E2E pasan 10 de 11, incluidos los dos
   nuevos de la barra; solo falla `test_kitchen_flow.py`, como ya fallaba en
@@ -133,7 +137,8 @@ bebida que no está en la carta podía servirse de palabra.
 - Sin modificaciones de bebidas («sin hielo») ni existencias: la barra sirve
   lo que la carta respalda.
 - La barra cuenta con que la consulta devuelva entera la sección de bebidas,
-  hoy un único fragmento; si llega cortada, hace una segunda consulta.
+  hoy un único fragmento; si llega cortada, hace una segunda consulta, y si
+  tampoco llega entera no sirve nada.
 - La regla de alérgenos queda duplicada en cocina y en la barra: se propondrá a
   dsanchor llevarla a un paquete compartido.
 - `test_kitchen_flow.py` (dsanchor) envía todavía las bebidas a cocina; el
