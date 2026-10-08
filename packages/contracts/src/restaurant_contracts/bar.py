@@ -114,6 +114,7 @@ class BarFailureCode(StrEnum):
     NOT_CONFIGURED = "knowledge_not_configured"
     KNOWLEDGE_UNAVAILABLE = "knowledge_unavailable"
     CARTA_NOT_CONSULTED = "carta_not_consulted"
+    CARTA_INCOMPLETE = "carta_incomplete"
     TIMEOUT = "timeout"
     BAR_UNAVAILABLE = "bar_unavailable"
 
@@ -124,6 +125,7 @@ BAR_FAILURE_MESSAGES: dict[BarFailureCode, str] = {
     ),
     BarFailureCode.KNOWLEDGE_UNAVAILABLE: "La barra no puede consultar la carta ahora mismo.",
     BarFailureCode.CARTA_NOT_CONSULTED: "La barra no encuentra las bebidas en la carta consultada.",
+    BarFailureCode.CARTA_INCOMPLETE: "La barra no ha podido leer entera la carta de bebidas.",
     BarFailureCode.TIMEOUT: "La carta no ha respondido a tiempo.",
     BarFailureCode.BAR_UNAVAILABLE: "La barra no puede servir ahora mismo.",
 }

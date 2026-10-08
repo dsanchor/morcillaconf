@@ -265,7 +265,8 @@ modelo: el código las comprueba con la carta.
   estar servida y rechazada a la vez.
 - `BarFailure`: el motivo explícito cuando la barra no ha podido comprobar la
   carta (sin base de conocimiento, no disponible, sin bebidas en la carta
-  consultada, fuera de tiempo); entonces no se sirve nada.
+  consultada, sección de bebidas incompleta, fuera de tiempo); entonces no se
+  sirve nada.
 - `BarReport`: la petición, el resultado y su texto en español; comprueba que
   la ronda decide todas las bebidas con las cantidades pedidas.
 

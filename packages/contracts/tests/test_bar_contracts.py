@@ -104,6 +104,9 @@ def test_a_failed_round_serves_nothing_and_says_why() -> None:
     failure = bar_failure("bar_1", BarFailureCode.NOT_CONFIGURED)
     assert failure.message == "La barra no puede consultar la carta: la base de conocimiento no está configurada."
     assert set(BAR_FAILURE_MESSAGES) == set(BarFailureCode)
+    assert bar_failure("bar_1", BarFailureCode.CARTA_INCOMPLETE).message == (
+        "La barra no ha podido leer entera la carta de bebidas."
+    )
     report = BarReport(request=request(("caña", 1)), result=failure, text="La barra no ha podido servir.")
     assert BarReport.model_validate_json(report.model_dump_json()) == report
     assert served_lines([report], {"bar_1"}) == []
