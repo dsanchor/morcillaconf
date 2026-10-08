@@ -76,7 +76,7 @@ def test_the_bill_reads_like_a_ticket_with_exact_euros() -> None:
     ]
     text = _text(bubble)
     assert "Total26,50 €" in text
-    assert "Solo platos de cocina; las bebidas todavía no se cobran." in text
+    assert "Solo lo ya servido: platos de cocina y bebidas de la barra." in text
     assert "Pendiente de pago." in text
     assert text.endswith("Fuentes: carta de la casa (versión 1)")
 

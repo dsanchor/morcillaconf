@@ -1,8 +1,9 @@
 """Simulated cashier for the simulated waiter: fixed carta prices and no model.
 
-It prices the kitchen dishes already served when the customer asks for the
-bill, and records the payment chosen with the buttons, following the public
-contract, so the cashier's bubble can be seen and tested without the agent.
+It prices the kitchen dishes and the bar drinks already served when the
+customer asks for the bill, and records the payment chosen with the buttons,
+following the public contract, so the cashier's bubble can be seen and tested
+without the agent.
 Like the rest of the simulated restaurant, it never imports agents, Foundry,
 A2A or MCP.
 """
@@ -31,11 +32,16 @@ _BILL = re.compile(r"\b(?:la cuenta|cobra(?:me|nos)?|qu[eé] (?:te|os) debo)\b",
 PRICES = {
     "morcilla-de-burgos-a-la-brasa": Decimal("8.50"),
     "croquetas-de-morcilla": Decimal("9.00"),
+    "agua-con-gas": Decimal("2.20"),
+    "agua-sin-gas": Decimal("1.80"),
+    "cana-de-cerveza": Decimal("2.50"),
+    "vino-tinto-ribera-del-duero": Decimal("3.50"),
+    "mosto-de-uva": Decimal("2.50"),
 }
 GOODBYE = "Pago recibido, ¡muchas gracias por venir! Os acompaño a la puerta. ¡Hasta pronto!"
 PAY_WITH_BUTTONS = "La cuenta ya está en la mesa: pagad con «Tarjeta» o «Efectivo»."
 SERVE_FIRST = "Primero os llevo lo que espera en el pase y después os traigo la cuenta."
-NOTHING_SERVED = "Todavía no hay platos de cocina servidos que cobrar; las bebidas aún no se cobran."
+NOTHING_SERVED = "Todavía no hay nada servido que cobrar."
 
 
 def asks_for_the_bill(message: str) -> bool:
