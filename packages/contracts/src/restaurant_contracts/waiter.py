@@ -6,6 +6,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter
 
 from .activity import MAX_ACTIVITY_STEPS, ActivityStep
 from .application import ActorContext
+from .bar import BarReport
 from .cashier import CashierReport, PaymentMethod, PendingBill, ServedLine
 from .customer import CustomerSnapshot, OrderDraft
 from .kitchen import KitchenReport
@@ -29,8 +30,9 @@ class WaiterTurnRequest(WireModel):
     session_json: str | None = None
     correlation_id: str = Field(min_length=1, max_length=200)
     visit_id: str | None = None
-    # What the bill may include: the kitchen dishes already served, how many
-    # cooked orders still wait at the pass and the bill already presented.
+    # What the bill may include: the kitchen dishes and the bar drinks already
+    # served, how many cooked orders still wait at the pass and the bill
+    # already presented.
     # Left out of the JSON when empty, like the kitchen's report.
     served: list[ServedLine] = Field(
         default_factory=list, max_length=50, exclude_if=lambda value: not value
@@ -160,6 +162,9 @@ class WaiterTurnSuccess(WireModel):
     # Left out of the JSON when absent, so a BFF of the previous version still
     # reads every other turn while both are being redeployed.
     kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
+    # The drinks the waiter served from the bar in this turn, also left out
+    # of the JSON when absent.
+    bar: BarReport | None = Field(default=None, exclude_if=lambda value: value is None)
     # The cashier's answer when the customer asked for the bill in this turn.
     cashier: CashierReport | None = Field(default=None, exclude_if=lambda value: value is None)
     activity: list[ActivityStep] = Field(

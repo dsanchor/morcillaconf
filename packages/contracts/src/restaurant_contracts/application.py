@@ -14,6 +14,7 @@ from pydantic import (
 )
 
 from restaurant_contracts.activity import MAX_ACTIVITY_STEPS, ActivityStep
+from restaurant_contracts.bar import BarReport
 from restaurant_contracts.cashier import BillView, CashierReport, PaymentMethod
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, PendingField
 from restaurant_contracts.kitchen import RENDERED_TEXT_LIMIT, KitchenReport
@@ -28,7 +29,8 @@ MessageText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=MESSAGE_TEXT_LIMIT),
 ]
-# A kitchen plan or a bill is longer than a chat message; the other roles keep their limit.
+# A kitchen plan, a bar round or a bill is longer than a chat message; the
+# other roles keep their limit.
 ConversationText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=RENDERED_TEXT_LIMIT),
@@ -190,16 +192,17 @@ class MemoryView(ContractModel):
 
 
 class ChatMessage(ContractModel):
-    """A line of the conversation: the customer, the waiter, the kitchen or the cashier."""
+    """A line of the conversation: the customer, the waiter, the kitchen, the bar or the cashier."""
 
     message_id: Identifier
-    role: Literal["user", "assistant", "kitchen", "cashier"]
+    role: Literal["user", "assistant", "kitchen", "bar", "cashier"]
     text: ConversationText
     occurred_at: AwareDatetime
     command_event_id: Identifier
     # Left out of the JSON when absent, so customer and waiter messages keep
     # the exact shape that earlier versions read.
     kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
+    bar: BarReport | None = Field(default=None, exclude_if=lambda value: value is None)
     cashier: CashierReport | None = Field(default=None, exclude_if=lambda value: value is None)
     # What the system did for this message (a customer's message, a serving or a payment).
     activity: list[ActivityStep] = Field(
@@ -210,9 +213,11 @@ class ChatMessage(ContractModel):
     def kitchen_messages_carry_their_report(self) -> "ChatMessage":
         if (self.role == "kitchen") != (self.kitchen is not None):
             raise ValueError("Kitchen messages, and only they, carry a kitchen report")
+        if (self.role == "bar") != (self.bar is not None):
+            raise ValueError("Bar messages, and only they, carry a bar report")
         if (self.role == "cashier") != (self.cashier is not None):
             raise ValueError("Cashier messages, and only they, carry a cashier report")
-        if self.role not in ("kitchen", "cashier") and len(self.text) > MESSAGE_TEXT_LIMIT:
+        if self.role not in ("kitchen", "bar", "cashier") and len(self.text) > MESSAGE_TEXT_LIMIT:
             raise ValueError(
                 f"Customer and waiter messages have at most {MESSAGE_TEXT_LIMIT} characters"
             )
@@ -235,7 +240,8 @@ class RestaurantSnapshot(ContractModel):
     process_status: Literal["idle", "processing", "awaiting_customer"]
     allowed_actions: list[Action]
     seating: SeatingView = Field(default_factory=SeatingView)
-    # Kitchen orders the waiter has already taken from the pass to the table.
+    # Kitchen orders the waiter has already taken from the pass to the table,
+    # and bar rounds, served at once.
     served_orders: list[Identifier] = Field(default_factory=list, max_length=50)
     # The bill waiting for the customer's card or cash, and whether the visit
     # ended with its payment. Left out of the JSON while absent.
