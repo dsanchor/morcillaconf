@@ -17,6 +17,7 @@ from uuid import uuid4
 from agent_framework import FunctionInvocationContext, FunctionTool
 from pydantic import BaseModel, ConfigDict, Field
 
+from restaurant_contracts.cashier import supersedes_bill
 from restaurant_contracts.kitchen import (
     DishName,
     KitchenFailure,
@@ -60,7 +61,7 @@ class OrderLineRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: DishName = Field(description="El plato tal como lo pide el cliente; nunca una bebida.")
-    quantity: Quantity = Field(default=1, description="Raciones, unidades o bebidas.")
+    quantity: Quantity = Field(default=1, description="Raciones o unidades.")
     modifications: list[KitchenText] = Field(
         default_factory=list, max_length=10, description="Cambios pedidos, como «sin cebolla»."
     )
@@ -98,6 +99,13 @@ def take_kitchen_report(state: dict[str, Any]) -> KitchenReport | None:
     return KitchenReport.model_validate(stored) if stored is not None else None
 
 
+def cooked_this_turn(state: dict[str, Any]) -> bool:
+    """Whether the kitchen cooked dishes earlier in this turn: they wait at the pass."""
+
+    stored = state.get(KITCHEN_REPORT_KEY)
+    return stored is not None and supersedes_bill(KitchenReport.model_validate(stored))
+
+
 def create_kitchen_tool(kitchen: KitchenPort) -> FunctionTool:
     async def pedir_a_cocina(
         ctx: FunctionInvocationContext,
@@ -131,7 +139,7 @@ def create_kitchen_tool(kitchen: KitchenPort) -> FunctionTool:
         description=(
             "Envía a cocina sólo la comida confirmada: platos con su cantidad, sus "
             "modificaciones y las alergias o intolerancias declaradas. Nunca incluyas "
-            "bebidas: las sirve el camarero desde la barra."
+            "bebidas: las sirve el camarero desde la barra con servir_bebidas."
         ),
         func=pedir_a_cocina,
         input_model=KitchenRequest,

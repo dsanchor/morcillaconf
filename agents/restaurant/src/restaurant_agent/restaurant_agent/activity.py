@@ -36,7 +36,10 @@ def recording(sink: ActivitySink) -> Iterator[None]:
 
 
 class Tracked:
-    """A step reported as running on entry and as done or failed on exit."""
+    """A step reported as running on entry and as done or failed on exit.
+
+    It fails when an exception leaves it or when ``failed`` is set inside.
+    """
 
     def __init__(self, component: ActivityComponent, label: str, detail: str | None = None) -> None:
         self.step = ActivityStep(
@@ -47,6 +50,7 @@ class Tracked:
             status="running",
         )
         self.detail = detail
+        self.failed = False
         self._started = 0.0
 
     def __enter__(self) -> "Tracked":
@@ -58,7 +62,7 @@ class Tracked:
         report(
             self.step.model_copy(
                 update={
-                    "status": "failed" if exc_type else "done",
+                    "status": "failed" if exc_type or self.failed else "done",
                     "detail": self.detail[:200] if self.detail else None,
                     "duration_ms": int((time.monotonic() - self._started) * 1000),
                 }
@@ -88,6 +92,8 @@ TOOL_STEPS: dict[str, tuple[ActivityComponent, str]] = {
     "seating_confirm_solo_seating": ("mcp", "MCP mesas: confirma el sitio"),
     "knowledge_base_retrieve": ("foundry_iq", "Foundry IQ: consulta carta y recetario"),
     "pedir_a_cocina": ("cocina", "A2A: envía la comanda a cocina"),
+    # The waiter serves the drinks himself: no other agent takes part.
+    "servir_bebidas": ("camarero", "Barra: sirve las bebidas"),
     "pedir_la_cuenta": ("caja", "Caja A2A: envía la cuenta"),
 }
 

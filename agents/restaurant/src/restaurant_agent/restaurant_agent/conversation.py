@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from restaurant_agent import seating as seating_state
 from restaurant_agent.activity import instant, tracked
+from restaurant_agent.bar_tool import take_bar_report
 from restaurant_agent.cashier_tool import BillingContext, set_billing, take_cashier_report
 from restaurant_agent.kitchen_tool import take_kitchen_report
 
@@ -334,8 +335,10 @@ class ConversationManager:
                     if remembered
                     else "Sin recuerdos de otras visitas",
                 )
-            # Only the kitchen's and the cashier's answers to this turn reach the response.
+            # Only the kitchen's, the bar's and the cashier's answers to this
+            # turn reach the response.
             take_kitchen_report(record.agent_session.state)
+            take_bar_report(record.agent_session.state)
             take_cashier_report(record.agent_session.state)
             set_billing(record.agent_session.state, billing)
             prompt = self._build_prompt(record, normalized_message)
@@ -364,6 +367,7 @@ class ConversationManager:
                     )
             finally:
                 kitchen = take_kitchen_report(record.agent_session.state)
+                bar = take_bar_report(record.agent_session.state)
                 cashier = take_cashier_report(record.agent_session.state)
             paused = bool(
                 seating_state.confirm_approval_requests(
@@ -452,6 +456,7 @@ class ConversationManager:
                     for memory in record.remembered_memories
                 ],
                 kitchen=kitchen,
+                bar=bar,
                 cashier=cashier,
             )
 

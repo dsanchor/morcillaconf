@@ -27,6 +27,9 @@ class Settings(BaseSettings):
         default=None, pattern=r"^[a-z0-9]([a-z0-9-]{0,126}[a-z0-9])?$"
     )
     knowledge_base_timeout_seconds: int = Field(default=20, ge=1, le=60)
+    # The bar reads the drinks of the carta from that knowledge base; its
+    # whole round (one or two retrievals) is bounded by this.
+    bar_timeout_seconds: int = Field(default=15, ge=1, le=60)
     # The waiter reaches the independently deployed kitchen through A2A.
     kitchen_a2a_url: HttpUrl | None = None
     kitchen_a2a_token_scope: str | None = None

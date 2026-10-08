@@ -26,6 +26,7 @@ from restaurant_contracts.cashier import (
     PaymentChoice,
     PendingBill,
     Receipt,
+    bill_misses,
     supersedes_bill,
 )
 from restaurant_contracts.waiter import (
@@ -174,12 +175,17 @@ class RemoteWaiterService:
                         pending_bill=request.pending_bill,
                     ),
                 )
-                if (
-                    request.pending_bill is not None
-                    and response.kitchen is not None
-                    and supersedes_bill(response.kitchen)
+                fresh = [report for report in (response.kitchen, response.bar) if report is not None]
+                if request.pending_bill is not None and any(
+                    supersedes_bill(report) for report in fresh
                 ):
                     await self._supersede(request.pending_bill)
+                presented = response.cashier.pending if response.cashier is not None else None
+                if presented is not None and any(
+                    bill_misses(response.cashier.request, report) for report in fresh
+                ):
+                    # Presented in this turn before new dishes or drinks: stale at once.
+                    await self._supersede(presented)
                 exported = manager.export_conversation(
                     conversation_id=request.conversation_id,
                     actor_id=request.actor.actor_id,
@@ -193,15 +199,16 @@ class RemoteWaiterService:
                     session_json=_session_to_json(exported.agent_session),
                     seating=_report(manager, request),
                     kitchen=response.kitchen,
+                    bar=response.bar,
                     cashier=response.cashier,
                 )
         except ConversationError as exc:
             return _failure(exc)
 
     async def _supersede(self, pending: PendingBill) -> None:
-        """New dishes make the presented bill stale: its cashier task is cancelled."""
+        """New dishes or drinks make the presented bill stale: its cashier task is cancelled."""
 
-        with tracked("caja", "Caja: anula la cuenta pendiente", "Hay platos nuevos") as step:
+        with tracked("caja", "Caja: anula la cuenta pendiente", "Hay platos o bebidas nuevos") as step:
             cancelled = await self._cashier.cancel(pending)
             step.detail = (
                 "Cuenta anulada: pedidla otra vez al terminar"
