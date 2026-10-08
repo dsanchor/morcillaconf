@@ -20,9 +20,13 @@ recorrido reconocible:
    confirma al camarero el pedido viable con su tiempo de espera estimado.
 8. El camarero presenta esa confirmación al cliente y solicita una confirmación
    explícita del pedido.
-9. Tras la confirmación del cliente, cocina prepara y entrega el plato.
+9. Tras la confirmación del cliente, cocina prepara y entrega el plato. Las
+   bebidas confirmadas no pasan por cocina: el camarero las sirve desde la
+   barra con `servir_bebidas`, que las comprueba con la carta y con las
+   alergias declaradas (nota del 08/10, Barra v1).
 10. El cliente solicita la cuenta y el camarero se la pide a caja.
-11. Caja cobra los platos servidos con los precios de la carta y el cliente
+11. Caja cobra los platos y las bebidas servidos (nota del 08/10) con los
+    precios de la carta y el cliente
     elige tarjeta o efectivo para el pago simulado. La revisión del importe por
     una persona en caja queda preparada como paso opcional, desactivado por
     defecto (acuerdo del 06/10).
@@ -493,6 +497,9 @@ Responsabilidades:
 - presentar al cliente la propuesta final de cocina y esperar su confirmación
   explícita;
 - comunicar el estado y la entrega;
+- servir desde la barra las bebidas confirmadas con `servir_bebidas`: el código
+  las comprueba con la carta y con las alergias declaradas, y el camarero
+  resume el resultado sin alterarlo (nota del 08/10, Barra v1);
 - pedir la cuenta a caja cuando el cliente la solicite (acuerdo del 06/10);
 - presentar la cuenta; la revisión humana en caja es opcional y está
   desactivada por defecto (acuerdo del 06/10);

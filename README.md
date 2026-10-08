@@ -244,14 +244,39 @@ Todavía no hay tiempos, despensa ni confirmación del pedido. Detalles en el
 [README de cocina](agents/kitchen/README.md) y el
 [README del camarero](agents/restaurant/README.md#cocina).
 
+## Barra: bebidas v1
+
+Las bebidas no pasan por cocina: las sirve el propio camarero desde la barra,
+sin otro agente ni otro contenedor. Desde Barra v1 (08/10) servir es una
+operación tipada y determinista: tras la confirmación del cliente, el camarero
+llama a `servir_bebidas` con las bebidas y las alergias declaradas, y en un
+pedido mixto envía la comida a `pedir_a_cocina` en el mismo turno.
+
+- La barra es código, no un modelo. Consulta la base de conocimiento con la
+  misma conexión MCP del camarero, lee solo las entradas de la carta de la casa
+  con `Partida: barra` y resuelve cada nombre, sin acentos ni plurales, a una
+  sola bebida: «agua» es ambigua (con gas o sin gas) y se rechaza con las
+  opciones, y lo que no está en la carta se rechaza con su motivo.
+- Aplica la misma regla de alérgenos que cocina: a quien declara celiaquía no
+  se le sirve una caña, que contiene cereales con gluten (cebada).
+- Sin base de conocimiento, si no responde o si no devuelve bebidas, no sirve
+  nada y lo dice.
+- La ronda aparece en la conversación como una burbuja propia, ámbar tostado
+  con texto blanco y una caña, después de la del chef y antes de la respuesta
+  del camarero. No hay pase: el BFF la anota como servida al momento y sus
+  bebidas se cobran con los platos servidos.
+
+Detalles en el
+[README del camarero](agents/restaurant/README.md#barra-bebidas-servidas-por-el-camarero).
+
 ## Caja: cobro v1
 
 Acuerdo del 06/10: la caja es un agente A2A en su propio contenedor,
 [`agents/cashier`](agents/cashier). Cuando el cliente pide la cuenta, el
 camarero llama a `pedir_la_cuenta`, una tool sin argumentos: el modelo no
-elige qué se cobra. El BFF le pasa en cada turno los platos de cocina ya
-servidos; lo rechazado y lo que sigue en el pase nunca se cobra, y las bebidas
-todavía no se cobran.
+elige qué se cobra. El BFF le pasa en cada turno los platos de cocina y las
+bebidas de la barra ya servidos; lo rechazado y lo que sigue en el pase nunca
+se cobra.
 
 - La caja busca esos platos en la carta con la misma base de conocimiento y es
   el código, no el modelo, quien cobra: lee cada precio de la carta («Precio:

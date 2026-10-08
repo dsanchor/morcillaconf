@@ -446,6 +446,10 @@ simulados, identificados como tales. Los efectos y las pausas ya son reales.
   Si cambia disponibilidad durante la pausa, presentar una nueva propuesta.
 - [ ] Simular preparacion y entrega con eventos del servicio, nunca con frases
   generadas por el modelo. Bebidas siguen la misma confirmacion del pedido.
+  Nota del 08/10 (Barra v1): tras esa confirmacion, el camarero sirve las
+  bebidas desde la barra con `servir_bebidas`, comprobadas por codigo con la
+  carta y las alergias declaradas; el BFF registra la ronda servida al momento
+  y la cuenta la incluye.
 - [ ] Generar cuenta inmutable/versionada desde lineas confirmadas y entregadas,
   con importes en centimos o Decimal y moneda; no usar aritmetica del LLM.
 - [ ] Persistir el HITL de caja sobre esa cuenta: reunir peticion original,
