@@ -111,6 +111,11 @@ def create_waiter_agent(
             model=settings.azure_ai_model_deployment_name,
             credential=DefaultAzureCredential(),
         )
+    configuration = getattr(client, "function_invocation_configuration", None)
+    if isinstance(configuration, dict):
+        # Tools of one model response run in its order, never at once: the
+        # bill must see the drinks served, and the dishes cooked, before it.
+        configuration["allow_concurrent_invocation"] = False
     intent_classifier = Agent(
         id="memory-intent-classifier",
         name="Clasificador de intención de memoria",

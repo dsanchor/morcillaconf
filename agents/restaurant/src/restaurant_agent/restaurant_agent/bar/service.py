@@ -3,9 +3,10 @@
 No model takes part. The service asks the knowledge base for the carta's
 drinks through the waiter's own connection: one retrieval, and a second one
 only when the first did not bring the whole drinks section. The whole round
-is bounded by ``BAR_TIMEOUT_SECONDS``. Without a knowledge base, or when it
-cannot answer or returns no drinks, the round is an explicit failure and
-nothing is served.
+is bounded by ``BAR_TIMEOUT_SECONDS``. Without a knowledge base, when it
+cannot answer or returns no drinks, and when the drinks section never comes
+back whole, the round is an explicit failure and nothing is served: a name is
+only resolved against every drink of the carta.
 """
 
 from __future__ import annotations
@@ -81,19 +82,24 @@ class BarService:
             return bar_failure(request.round_id, BarFailureCode.NOT_CONFIGURED)
         names = list(dict.fromkeys(item.name for item in request.items))[:QUERY_NAMES]
         evidence = BarEvidence()
+        timed_out = False
         try:
             async with asyncio.timeout(self._timeout):
                 await self._lookup([DRINKS_QUERY, *names], evidence)
                 if evidence.retrievals and not (evidence.drinks and evidence.bar_section_complete):
                     await self._lookup([SECTION_QUERY, *names], evidence)
         except TimeoutError:
-            if not evidence.drinks:
-                return bar_failure(request.round_id, BarFailureCode.TIMEOUT)
-            logger.info("Round %s: the second retrieval timed out", request.round_id)
+            timed_out = True
+        if timed_out and not (evidence.drinks and evidence.bar_section_complete):
+            return bar_failure(request.round_id, BarFailureCode.TIMEOUT)
         if not evidence.retrievals:
             return bar_failure(request.round_id, BarFailureCode.KNOWLEDGE_UNAVAILABLE)
         if not evidence.drinks:
             return bar_failure(request.round_id, BarFailureCode.CARTA_NOT_CONSULTED)
+        if not evidence.bar_section_complete:
+            # A name is ambiguous or not on the carta only against every drink.
+            logger.info("Round %s: the drinks section came back cut", request.round_id)
+            return bar_failure(request.round_id, BarFailureCode.CARTA_INCOMPLETE)
         try:
             return build_round(request, evidence)
         except ValidationError as exc:

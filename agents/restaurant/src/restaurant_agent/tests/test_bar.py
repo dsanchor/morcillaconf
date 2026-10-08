@@ -223,6 +223,9 @@ def test_only_the_carta_entries_of_house_documents_count() -> None:
         ("un tinto", "drink", ["vino-tinto-ribera-del-duero"]),
         ("una copa de vino", "drink", ["vino-tinto-ribera-del-duero"]),
         ("mosto", "drink", ["mosto-de-uva"]),
+        ("un mosto sin alcohol", "drink", ["mosto-de-uva"]),
+        ("zumo de uva", "drink", ["mosto-de-uva"]),
+        ("gas", "ambiguous", ["agua-con-gas", "agua-sin-gas"]),
         ("agua", "ambiguous", ["agua-con-gas", "agua-sin-gas"]),
         ("agua mineral", "ambiguous", ["agua-con-gas", "agua-sin-gas"]),
         ("una botella de agua", "ambiguous", ["agua-con-gas", "agua-sin-gas"]),
@@ -231,6 +234,11 @@ def test_only_the_carta_entries_of_house_documents_count() -> None:
         ("vino blanco", "unknown", []),
         ("cerveza sin alcohol", "unknown", []),
         ("dos", "unknown", []),
+        # A word must name the drink itself: «una sin» is a beer without alcohol.
+        ("una sin", "unknown", []),
+        ("una con", "unknown", []),
+        ("alcohol", "unknown", []),
+        ("un vaso", "unknown", []),
     ],
 )
 def test_a_name_resolves_deterministically_to_one_carta_drink(name, kind, ids) -> None:
@@ -381,6 +389,25 @@ async def test_without_the_drinks_of_the_carta_nothing_is_served(carta, code, re
     assert len(carta.queries if carta else []) == retrievals
     if code is BarFailureCode.KNOWLEDGE_UNAVAILABLE:
         assert steps[-1].status == "failed" and steps[-1].detail == "Foundry IQ no disponible"
+
+
+async def test_a_drinks_section_that_never_comes_back_whole_serves_nothing() -> None:
+    cut = passage(CARTA_LABEL, DRINKS.split("### agua-sin-gas")[0])
+
+    incomplete = await BarService(FakeCarta(cut), timeout_seconds=5).serve(request("agua"))
+    slow = await BarService(SlowSecondCarta(cut), timeout_seconds=0.3).serve(request("agua"))
+
+    assert incomplete.status == "failed" and incomplete.code is BarFailureCode.CARTA_INCOMPLETE
+    assert slow.status == "failed" and slow.code is BarFailureCode.TIMEOUT
+
+
+class SlowSecondCarta(FakeCarta):
+    """Answers the first retrieval at once and never the second in time."""
+
+    async def retrieve(self, query_variants: list[str]) -> str:
+        if self.queries:
+            await asyncio.sleep(5)
+        return await super().retrieve(query_variants)
 
 
 async def test_the_round_is_bounded_by_its_timeout() -> None:
@@ -627,6 +654,25 @@ async def test_drinks_served_in_the_turn_are_billed_at_once_and_replace_a_stale_
         (response.bar.request.round_id, "cana-de-cerveza"),
     ]
     assert response.cashier.result.total == Decimal("11.00")
+
+
+async def test_tools_of_one_response_run_in_its_order_so_the_bill_sees_the_drinks() -> None:
+    cashier = FakeCashier()
+    model = ScriptedModel([
+        {"calls": [serve_drinks({"name": "caña"}), ASK_BILL]},
+        say("Aquí tenéis la caña y la cuenta."),
+    ])
+
+    response = await say_to(
+        waiter(model, FakeCarta(CARTA, delay=0.05), cashier=cashier),
+        "Sí, una caña y la cuenta",
+        BillingContext(served=[MORCILLA]),
+    )
+
+    [bill] = cashier.requests
+    assert [line.carta_id for line in bill.lines] == ["morcilla-de-burgos-a-la-brasa", "cana-de-cerveza"]
+    assert response.cashier.result.total == Decimal("11.00")
+    assert model.function_invocation_configuration["allow_concurrent_invocation"] is False
 
 
 async def test_without_new_drinks_a_presented_bill_still_waits_for_its_buttons() -> None:

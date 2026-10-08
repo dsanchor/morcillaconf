@@ -3,9 +3,11 @@
 A name resolves to a drink when every significant word of it is in the drink's
 carta name or identifier («caña», «cañas», «una cerveza», «cana-de-cerveza»);
 failing that, in its description or serving unit («agua mineral», «una
-botella de agua»). Exactly one drink is a match and several are an ambiguity
-the waiter must ask about. When no drink fits, a kitchen dish of the carta is
-not a drink and anything else is not on the carta.
+botella de agua»). Either way, at least one of those words must name the drink
+itself, so «una sin», «alcohol» or «un vaso» resolve to nothing. Exactly one
+drink is a match and several are an ambiguity the waiter must ask about. When
+no drink fits, a kitchen dish of the carta is not a drink and anything else is
+not on the carta.
 """
 
 from __future__ import annotations
@@ -31,6 +33,8 @@ STOPWORDS = frozenset(
         "helada", "helado",
     }
 )
+# They tell two names apart but never name a drink on their own.
+JOINERS = frozenset({"con", "sin"})
 NUMBERS = frozenset(
     {"dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce"}
 )
@@ -72,6 +76,12 @@ def _described(entry: CartaEntry) -> set[str]:
     return {*_named(entry), *words(entry.description), *words(entry.unit)}
 
 
+def _fits(wanted: set[str], entry: CartaEntry, vocabulary) -> bool:
+    """Every asked word is in the vocabulary and one of them names the entry itself."""
+
+    return wanted <= vocabulary(entry) and bool(wanted & (_named(entry) - JOINERS))
+
+
 def resolve(name: str, evidence: BarEvidence) -> Resolution:
     """The carta drink a requested name is, if exactly one."""
 
@@ -83,10 +93,10 @@ def resolve(name: str, evidence: BarEvidence) -> Resolution:
     if len(exact) == 1:
         return Resolution("drink", (exact[0],))
     for vocabulary in (_named, _described):
-        matches = [drink for drink in drinks if set(wanted) <= vocabulary(drink)]
+        matches = [drink for drink in drinks if _fits(set(wanted), drink, vocabulary)]
         if matches:
             return Resolution("drink" if len(matches) == 1 else "ambiguous", tuple(matches))
-    dishes = [dish for dish in evidence.dishes if set(wanted) <= _named(dish)]
+    dishes = [dish for dish in evidence.dishes if _fits(set(wanted), dish, _named)]
     if dishes:
         return Resolution("dish", tuple(dishes))
     return Resolution("unknown")

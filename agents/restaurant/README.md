@@ -215,12 +215,14 @@ tipada y determinista, no una frase. No hay otro agente ni otro contenedor.
   conocimiento desde el código, con la misma conexión MCP del camarero
   (`knowledge_base_retrieve`) y no a través del modelo: una consulta, y una
   segunda solo si la sección de bebidas no llega entera, con
-  `BAR_TIMEOUT_SECONDS` (15 s por defecto) para toda la ronda. Solo cuentan las
-  entradas de la carta de la casa (`(documento: carta)`) con `Partida: barra`;
-  nunca la web ni otros documentos. Cada nombre se resuelve sin modelo, sin
-  acentos ni plurales, a una sola bebida de la carta: «agua» es ambigua (con
-  gas o sin gas) y se rechaza con las opciones; lo que no está en la carta se
-  rechaza con «No está en la carta.» y un plato, con su motivo.
+  `BAR_TIMEOUT_SECONDS` (15 s por defecto) para toda la ronda; si tampoco llega
+  entera, no sirve nada. Solo cuentan las entradas de la carta de la casa
+  (`(documento: carta)`) con `Partida: barra`; nunca la web ni otros
+  documentos. Cada nombre se resuelve sin modelo, sin acentos ni plurales, a
+  una sola bebida de la carta, y al menos una de sus palabras tiene que nombrar
+  la bebida («una sin» no es el agua sin gas): «agua» es ambigua (con gas o sin
+  gas) y se rechaza con las opciones; lo que no está en la carta se rechaza con
+  «No está en la carta.» y un plato, con su motivo.
 - **Alérgenos.** La regla y sus motivos son una copia de los de cocina
   (`bar/allergens.py` y `bar/validation.py`, copiados a propósito de
   `agents/kitchen`, como `knowledge.py`): una alergia declarada nunca se cruza
@@ -236,7 +238,9 @@ tipada y determinista, no una frase. No hay otro agente ni otro contenedor.
 - **Cuenta.** Las bebidas servidas se cobran como los platos servidos. Si el
   cliente pide más bebidas y la cuenta en el mismo turno, `pedir_la_cuenta`
   añade la ronda recién servida; una ronda nueva anula la cuenta presentada
-  antes que no la incluye.
+  antes que no la incluye. Las tools que el modelo pide en una misma respuesta
+  se ejecutan en su orden, nunca a la vez, para que la cuenta vea las bebidas
+  servidas y los platos cocinados antes que ella.
 
 ## Caja externa mediante A2A
 
