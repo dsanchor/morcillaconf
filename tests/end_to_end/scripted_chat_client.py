@@ -7,7 +7,9 @@ ConversationManager builds, so the whole application path (turn limit,
 memory, order guard, presented name) runs exactly as with Foundry. With the
 seating tools it behaves like the waiter's instructions: «somos N», «barra»
 and «mesa» hold a place and the answer asks for the confirmation. «Pido…»
-sends the order to the kitchen and «la cuenta» asks the cashier for the bill.
+sends the whole order to the kitchen, as dsanchor's kitchen end to end
+expects; «Ponme…» splits it as the waiter does since Barra v1: dishes to the
+kitchen and drinks to the bar. «la cuenta» asks the cashier for the bill.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from agent_framework import (
 from restaurant_contracts.customer import CustomerSnapshot, OrderDraft, OrderItemDraft
 from restaurant_contracts.memory import MemoryCandidate, MemoryKind
 
+from restaurant_agent.bar_tool import BAR_TOOL
 from restaurant_agent.cashier_tool import CASHIER_TOOL
 from restaurant_agent.contracts import WaiterModelResult
 from restaurant_agent.kitchen_tool import KITCHEN_TOOL
@@ -70,6 +73,17 @@ _USUAL = re.compile(r"\blo (?:de siempre|habitual)\b|\bcomo siempre\b", re.IGNOR
 _ARTICLE = re.compile(r"^(?:el|la|los|las|un|una|unos|unas)\s+", re.IGNORECASE)
 _SPLIT_ITEMS = re.compile(r",\s*|\s+y\s+")
 _KITCHEN_ORDER = re.compile(r"^\s*(?:pido|pedimos)\s+(?P<items>[^.;!?]+)", re.IGNORECASE)
+_SPLIT_ORDER = re.compile(r"^\s*(?:ponme|ponnos)\s+(?P<items>[^.;!?]+)", re.IGNORECASE)
+_CELIAC = re.compile(r",?\s*(?:y\s+)?soy\s+cel[ií]ac[oa]\b", re.IGNORECASE)
+_DRINK = re.compile(r"\b(?:agua|caña|cana|cerveza|vino|tinto|mosto|refresco|coca|zumo)", re.IGNORECASE)
+_COUNTS = {"un": 1, "una": 1, "uno": 1, "otra": 1, "otro": 1, "dos": 2, "tres": 3, "cuatro": 4}
+# What the waiter says to each answer of servir_bebidas.
+_BAR_REPLIES = {
+    "bar_served: served": "Aquí tenéis las bebidas.",
+    "bar_served: partial": "Aquí tenéis lo que he podido serviros; lo demás os lo explico.",
+    "bar_served: rejected": "No he podido serviros esas bebidas.",
+    "bar_failed": "La barra no puede servir ahora mismo.",
+}
 _BILL = re.compile(r"\bla cuenta\b", re.IGNORECASE)
 # What the waiter says to each answer of pedir_la_cuenta.
 _BILL_REPLIES = {
@@ -173,22 +187,55 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
             None,
         )
         order = _KITCHEN_ORDER.search(message)
-        if order and KITCHEN_TOOL in tools:
+        split = _SPLIT_ORDER.search(message)
+        restrictions = ["celiaquía"] if _CELIAC.search(message) else []
+        items = [
+            _clean(item)
+            for item in _SPLIT_ITEMS.split(_CELIAC.sub("", (order or split)["items"]))
+        ] if order or split else []
+        items = [item for item in items if item]
+        food = [item for item in items if not (split and _DRINK.search(item))]
+        drinks = [item for item in items if split and _DRINK.search(item)]
+        replies: list[str] = []
+        if food and KITCHEN_TOOL in tools:
             if kitchen_result is None:
-                items = [_clean(item) for item in _SPLIT_ITEMS.split(order["items"])]
+                arguments: dict[str, Any] = {"items": [{"name": item} for item in food]}
+                if restrictions:
+                    arguments["restrictions"] = restrictions
                 request = Content.from_function_call(
-                    call_id="scripted-kitchen",
-                    name=KITCHEN_TOOL,
-                    arguments=json.dumps({"items": [{"name": item} for item in items if item]}),
+                    call_id="scripted-kitchen", name=KITCHEN_TOOL, arguments=json.dumps(arguments),
                 )
                 return ChatResponse(messages=[Message(role="assistant", contents=[request])])
             answer = str(kitchen_result.result or "")
-            reply = (
+            replies.append(
                 "Cocina no ha podido revisar el pedido ahora mismo."
                 if answer.startswith("kitchen_failed")
                 else "Cocina ha revisado el pedido."
             )
-            result = result.model_copy(update={"reply": reply})
+        bar_result = next(
+            (
+                content
+                for message in after
+                for content in message.contents
+                if content.type == "function_result" and content.call_id == "scripted-bar"
+            ),
+            None,
+        )
+        if drinks and BAR_TOOL in tools:
+            if bar_result is None:
+                arguments = {"items": [self._drink(item) for item in drinks]}
+                if restrictions:
+                    arguments["restrictions"] = restrictions
+                request = Content.from_function_call(
+                    call_id="scripted-bar", name=BAR_TOOL, arguments=json.dumps(arguments),
+                )
+                return ChatResponse(messages=[Message(role="assistant", contents=[request])])
+            answer = str(bar_result.result or "")
+            replies.append(
+                next((text for prefix, text in _BAR_REPLIES.items() if answer.startswith(prefix)), _BAR_REPLIES["bar_failed"])
+            )
+        if replies:
+            result = result.model_copy(update={"reply": " ".join(replies)})
         # «La cuenta»: the bill comes from the cashier, never from the model.
         bill_result = next(
             (
@@ -228,6 +275,14 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
                 )
                 return self._json(result.model_dump(mode="json"), confirm)
         return self._json(result.model_dump(mode="json"))
+
+    @staticmethod
+    def _drink(item: str) -> dict[str, Any]:
+        """A drink with its quantity: «dos cañas» is two of «cañas»."""
+
+        first, _, rest = item.partition(" ")
+        count = _COUNTS.get(first.casefold()) or _NUMBERS.get(first.casefold())
+        return {"name": rest or item, "quantity": count} if count and rest else {"name": item, "quantity": 1}
 
     # Seating, as the instructions tell the waiter
 

@@ -3,7 +3,8 @@
 # the standalone waiter (scripted model, test code only), the BFF with its
 # remote adapter and no MCP client, and the view's HTTP client, each on its own
 # temporary database. A second waiter and BFF add the A2A kitchen and cashier
-# apps (scripted chef, cashier priced from the versioned carta) for the bill.
+# apps (scripted chef, cashier priced from the versioned carta) for the bill,
+# and the bar of that waiter reads the same versioned carta.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -110,6 +111,7 @@ wait_for "http://127.0.0.1:$cashier_port/health" "La caja A2A" "$work/cashier.lo
     KNOWLEDGE_BASE_NAME="" \
     KITCHEN_A2A_URL="http://127.0.0.1:$kitchen_port" \
     CASHIER_A2A_URL="http://127.0.0.1:$cashier_port" \
+    E2E_BAR_CARTA="$repo_root/data/knowledge/menu/carta.md" \
     OTEL_SDK_DISABLED=true \
     exec uv run --frozen python "$repo_root/tests/end_to_end/scripted_agent_server.py"
 ) >"$work/cashier-agent.log" 2>&1 &
