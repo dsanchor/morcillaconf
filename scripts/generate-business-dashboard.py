@@ -462,22 +462,6 @@ items
         h=8,
         unit="s",
     )
-    add(
-        "Fallos por componente y código",
-        "table",
-        """customMetrics
-| where name == "restaurant.business.failures"
-| summarize Fallos=sum(valueSum), ['Último']=max(timestamp)
-  by Componente=tostring(customDimensions["failure.component"]),
-     ['Código']=tostring(customDimensions["failure.code"])
-| order by Fallos desc""",
-        x=12,
-        y=69,
-        w=12,
-        h=8,
-        result_format="table",
-    )
-
     add_row("Facturación e ingresos", 77)
     add(
         "Métodos de pago",
@@ -538,22 +522,6 @@ items
         h=8,
         unit="currencyEUR",
     )
-    add(
-        "Pagos fallidos",
-        "table",
-        """customMetrics
-| where name == "restaurant.payments.failed"
-| summarize Fallos=sum(valueSum), ['Último']=max(timestamp)
-  by ['Método']=tostring(customDimensions["payment.method"]),
-     ['Código']=tostring(customDimensions["failure.code"])
-| order by Fallos desc""",
-        x=12,
-        y=86,
-        w=12,
-        h=8,
-        result_format="table",
-    )
-
     add_row("Fidelización y experiencia", 94)
     add(
         "Primera visita frente a recurrentes",
@@ -588,7 +556,8 @@ items
 | where name == "restaurant.conversation.turn_completed"
 | summarize arg_max(timestamp, customDimensions) by visit=tostring(customDimensions["restaurant.visit.id"])
 | summarize Visitas=count() by Turnos=toint(customDimensions["restaurant.conversation.turn_count"])
-| order by Turnos asc""",
+| order by Turnos asc
+| project Turnos=tostring(Turnos), Visitas""",
         x=16,
         y=95,
         w=8,
