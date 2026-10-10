@@ -1,4 +1,4 @@
-"""Shared trace-only OpenTelemetry setup for the restaurant services."""
+"""Shared OpenTelemetry setup for the restaurant services."""
 
 from __future__ import annotations
 
@@ -7,7 +7,10 @@ from threading import Lock
 from typing import Any
 
 from agent_framework.observability import configure_otel_providers
-from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
+from azure.monitor.opentelemetry.exporter import (
+    AzureMonitorMetricExporter,
+    AzureMonitorTraceExporter,
+)
 from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
@@ -44,7 +47,8 @@ def configure_tracing(service_name: str) -> bool:
             enable_sensitive_data=False,
             enable_message_events=False,
             exporters=[
-                AzureMonitorTraceExporter(connection_string=connection_string)
+                AzureMonitorTraceExporter(connection_string=connection_string),
+                AzureMonitorMetricExporter(connection_string=connection_string),
             ],
         )
         HTTPXClientInstrumentor().instrument()

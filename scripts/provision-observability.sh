@@ -142,6 +142,6 @@ Observability resources are ready.
 APPLICATIONINSIGHTS_RESOURCE_ID="$APPLICATIONINSIGHTS_RESOURCE_ID"
 APPLICATIONINSIGHTS_CONNECTION_STRING="$APPLICATIONINSIGHTS_CONNECTION_STRING"
 
-Copy APPLICATIONINSIGHTS_CONNECTION_STRING into container-apps.env and redeploy.
-Only traces are exported; prompts, responses, logs and metrics are disabled.
+Copy both values into container-apps.env and redeploy.
+Traces and privacy-safe metrics are exported; prompts, responses and logs remain disabled.
 EOF

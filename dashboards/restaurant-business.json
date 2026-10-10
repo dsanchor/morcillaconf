@@ -1,0 +1,2332 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_AZURE_MONITOR",
+      "label": "Azure Monitor",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "grafana-azure-monitor-datasource",
+      "pluginName": "Azure Monitor"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "11.6.3"
+    },
+    {
+      "type": "datasource",
+      "id": "grafana-azure-monitor-datasource",
+      "name": "Azure Monitor",
+      "version": "12.4.3"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "KPIs de negocio del restaurante multiagente MorcillaConf.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "panels": [],
+      "title": "Resumen ejecutivo",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name == \"restaurant.guests.seated\"\n| summarize Asistentes=sum(valueSum)",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Asistentes",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name == \"restaurant.visits.started\"\n| summarize Visitas=sum(valueSum)",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Visitas",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "currencyEUR"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name == \"restaurant.revenue\"\n| summarize Ingresos=sum(valueSum)",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Ingresos",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "currencyEUR"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name == \"restaurant.bill.total\"\n| summarize total=sum(valueSum), bills=sum(valueCount)\n| project ['Ticket medio']=iff(bills == 0, 0.0, total / bills)",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Ticket medio",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "currencyEUR"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 5
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name in (\"restaurant.revenue\", \"restaurant.guests.paid\")\n| summarize amount=sumif(valueSum, name == \"restaurant.revenue\"),\n            guests=sumif(valueSum, name == \"restaurant.guests.paid\")\n| project ['Coste por comensal']=iff(guests == 0, 0.0, amount / guests)",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Coste por comensal",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 5
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name in (\"restaurant.visits.started\", \"restaurant.payments.completed\")\n| summarize started=sumif(valueSum, name == \"restaurant.visits.started\"),\n            paid=sumif(valueSum, name == \"restaurant.payments.completed\")\n| project ['Conversión']=iff(started == 0, 0.0, 100.0 * paid / started)",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Conversión a pago",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 5
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name in (\"restaurant.seating.confirmed\", \"restaurant.seating.released\")\n| summarize arg_max(timestamp, name, customDimensions) by visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| where name == \"restaurant.seating.confirmed\"\n| summarize Ocupación=sum(toint(customDimensions[\"restaurant.party.size\"]))",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Ocupación actual",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 5
+      },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name in (\"restaurant.visits.started\", \"restaurant.visits.abandoned\")\n| summarize started=sumif(valueSum, name == \"restaurant.visits.started\"),\n            abandoned=sumif(valueSum, name == \"restaurant.visits.abandoned\")\n| project Abandono=iff(started == 0, 0.0, 100.0 * abandoned / started)",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Abandono",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 10,
+      "panels": [],
+      "title": "Afluencia, ocupación y recorrido",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name == \"restaurant.guests.seated\"\n| summarize Asistentes=sum(valueSum) by bin(timestamp, $interval)\n| order by timestamp asc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Asistentes por intervalo",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "currencyEUR"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name == \"restaurant.revenue\"\n| summarize Ingresos=sum(valueSum) by bin(timestamp, $interval)\n| order by timestamp asc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Ingresos por intervalo",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet visits=BusinessEvents | extend visit=tostring(customDimensions[\"restaurant.visit.id\"]);\nunion\n(visits | where name == \"restaurant.visit.started\" | summarize Valor=dcount(visit) | extend Etapa=\"1. Entrada\"),\n(visits | where name == \"restaurant.seating.confirmed\" | summarize Valor=dcount(visit) | extend Etapa=\"2. Sentados\"),\n(visits | where name == \"restaurant.order.submitted\" | summarize Valor=dcount(visit) | extend Etapa=\"3. Pedido\"),\n(visits | where name == \"restaurant.item.served\" | summarize Valor=dcount(visit) | extend Etapa=\"4. Servido\"),\n(visits | where name == \"restaurant.bill.presented\" | summarize Valor=dcount(visit) | extend Etapa=\"5. Cuenta\"),\n(visits | where name == \"restaurant.payment.completed\" | summarize Valor=dcount(visit) | extend Etapa=\"6. Pago\")\n| project Etapa, Valor | order by Etapa asc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Embudo de conversión",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 18
+      },
+      "id": 14,
+      "options": {
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name in (\"restaurant.seating.confirmed\", \"restaurant.seating.released\")\n| summarize arg_max(timestamp, name, customDimensions) by visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| where name == \"restaurant.seating.confirmed\"\n| summarize Personas=sum(toint(customDimensions[\"restaurant.party.size\"]))\n  by Tipo=tostring(customDimensions[\"place.kind\"])",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Ocupación por tipo",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 18
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.seating.confirmed\"\n| summarize Grupos=count() by Comensales=toint(customDimensions[\"restaurant.party.size\"])\n| order by Comensales asc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Tamaño de los grupos",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet started=BusinessEvents | where name == \"restaurant.visit.started\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]), arrived=timestamp;\nlet seated=BusinessEvents | where name == \"restaurant.seating.confirmed\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]), seated=timestamp;\nstarted | join kind=inner seated on visit\n| extend seconds=datetime_diff(\"millisecond\", seated, arrived) / 1000.0\n| summarize Media=avg(seconds), P95=percentile(seconds, 95) by bin(seated, $interval)\n| project timestamp=seated, Media, P95",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Tiempo hasta sentarse",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet started=BusinessEvents | where name == \"restaurant.visit.started\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]), arrived=timestamp;\nlet closed=BusinessEvents | where name == \"restaurant.visit.closed\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]), closed=timestamp;\nstarted | join kind=inner closed on visit\n| extend seconds=datetime_diff(\"millisecond\", closed, arrived) / 1000.0\n| summarize Media=avg(seconds), P95=percentile(seconds, 95) by bin(closed, $interval)\n| project timestamp=closed, Media, P95",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Duración de las visitas",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 18,
+      "panels": [],
+      "title": "Demanda gastronómica",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.served\"\n| summarize Unidades=sum(toint(customDimensions[\"restaurant.item.quantity\"]))\n  by Producto=tostring(customDimensions[\"carta_id\"])\n| top 15 by Unidades desc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Productos servidos",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "currencyEUR"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.paid\"\n| summarize Ingresos=sum(todouble(customDimensions[\"restaurant.item.line_total\"]))\n  by Producto=tostring(customDimensions[\"carta_id\"])\n| top 15 by Ingresos desc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Ingresos por producto",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 43
+      },
+      "id": 21,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name in (\"restaurant.item.accepted\", \"restaurant.item.rejected\",\n                 \"restaurant.item.served\", \"restaurant.item.paid\")\n| extend Producto=tostring(customDimensions[\"carta_id\"]),\n         Cantidad=toint(customDimensions[\"restaurant.item.quantity\"])\n| where isnotempty(Producto)\n| summarize Aceptadas=sumif(Cantidad, name == \"restaurant.item.accepted\"),\n            Rechazadas=sumif(Cantidad, name == \"restaurant.item.rejected\"),\n            Servidas=sumif(Cantidad, name == \"restaurant.item.served\"),\n            Pagadas=sumif(Cantidad, name == \"restaurant.item.paid\") by Producto\n| extend ['Conversión servido/pagado %']=round(100.0 * Pagadas / iff(Servidas == 0, 1, Servidas), 1)\n| order by Pagadas desc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Embudo por producto",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 43
+      },
+      "id": 22,
+      "options": {
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.paid\"\n| summarize Unidades=sum(toint(customDimensions[\"restaurant.item.quantity\"]))\n  by Tipo=tostring(customDimensions[\"item.type\"])",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Mix platos/bebidas",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.rejected\"\n| extend Producto=tostring(customDimensions[\"carta_id\"])\n| where isnotempty(Producto)\n| summarize Rechazadas=sum(toint(customDimensions[\"restaurant.item.quantity\"])) by Producto\n| top 15 by Rechazadas desc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Productos rechazados",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 52
+      },
+      "id": 24,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet items=BusinessEvents\n| where name == \"restaurant.item.paid\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]),\n          product=tostring(customDimensions[\"carta_id\"])\n| where isnotempty(product) | distinct visit, product;\nitems | join kind=inner items on visit\n| where product < product1\n| summarize Visitas=dcount(visit) by Combinación=strcat(product, \" + \", product1)\n| top 15 by Visitas desc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Combinaciones frecuentes",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "id": 25,
+      "panels": [],
+      "title": "Cocina y barra",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 61
+      },
+      "id": 26,
+      "options": {
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.kitchen.completed\"\n| summarize Órdenes=count() by Resultado=tostring(customDimensions[\"verdict\"])",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Resultado de cocina",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 61
+      },
+      "id": 27,
+      "options": {
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.bar.completed\"\n| summarize Rondas=count() by Resultado=tostring(customDimensions[\"verdict\"])",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Resultado de barra",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 61
+      },
+      "id": 28,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.accepted\" and tostring(customDimensions[\"item.type\"]) == \"dish\"\n| summarize Unidades=sum(toint(customDimensions[\"restaurant.item.quantity\"]))\n  by Estación=tostring(customDimensions[\"station\"])",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Carga por estación",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 61
+      },
+      "id": 29,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.rejected\"\n  and tostring(customDimensions[\"item.type\"]) == \"drink\"\n  and tostring(customDimensions[\"reason.code\"]) == \"ambiguous\"\n| summarize Ambiguas=sum(toint(customDimensions[\"restaurant.item.quantity\"]))",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Solicitudes ambiguas de barra",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 69
+      },
+      "id": 30,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name in (\"restaurant.kitchen.completed\", \"restaurant.bar.completed\")\n| extend Componente=iff(name == \"restaurant.kitchen.completed\", \"cocina\", \"barra\"),\n         seconds=todouble(iff(name == \"restaurant.kitchen.completed\",\n                    customDimensions[\"restaurant.kitchen.duration_seconds\"],\n                    customDimensions[\"restaurant.bar.duration_seconds\"]))\n| summarize Media=avg(seconds), P95=percentile(seconds, 95)\n  by bin(timestamp, $interval), Componente",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Duración de cocina y barra",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 69
+      },
+      "id": 31,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name endswith \".failed\"\n| summarize Fallos=count(), Último=max(timestamp)\n  by Componente=tostring(customDimensions[\"failure.component\"]),\n     Código=tostring(customDimensions[\"failure.code\"])\n| order by Fallos desc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Fallos por componente y código",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 77
+      },
+      "id": 32,
+      "panels": [],
+      "title": "Facturación e ingresos",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 78
+      },
+      "id": 33,
+      "options": {
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name == \"restaurant.payments.completed\"\n| summarize Pagos=sum(valueSum) by Método=tostring(customDimensions[\"payment.method\"])",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Métodos de pago",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 6,
+        "y": 78
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.payment.completed\"\n| extend Importe=todouble(customDimensions[\"restaurant.payment.amount\"])\n| extend Tramo=case(Importe < 10, \"< 10 €\", Importe < 20, \"10-20 €\",\n                    Importe < 40, \"20-40 €\", Importe < 60, \"40-60 €\", \">= 60 €\")\n| summarize Tickets=count() by Tramo",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Distribución de tickets",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 15,
+        "y": 78
+      },
+      "id": 35,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name in (\"restaurant.bills.presented\", \"restaurant.bills.superseded\")\n| summarize Total=sum(valueSum)\n  by Estado=iff(name == \"restaurant.bills.presented\", \"Presentadas\", \"Recalculadas\")",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Cuentas presentadas y recalculadas",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "currencyEUR"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 86
+      },
+      "id": 36,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.payment.completed\"\n| extend amount=todouble(customDimensions[\"restaurant.payment.amount\"]),\n         guests=toint(customDimensions[\"restaurant.party.size\"])\n| summarize ['Ticket medio']=avg(amount),\n            ['Coste por comensal']=sum(amount) / sum(guests)\n  by bin(timestamp, $interval)",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "time_series",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Ticket y coste por comensal",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 86
+      },
+      "id": 37,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.payment.failed\"\n| summarize Fallos=count(), Último=max(timestamp)\n  by Método=tostring(customDimensions[\"payment.method\"]),\n     Código=tostring(customDimensions[\"failure.code\"])\n| order by Fallos desc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Pagos fallidos",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 94
+      },
+      "id": 38,
+      "panels": [],
+      "title": "Fidelización y experiencia",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 95
+      },
+      "id": 39,
+      "options": {
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name in (\"restaurant.customers.first_visit\", \"restaurant.customers.returning_visit\")\n| summarize Visitas=sum(valueSum)\n  by Tipo=iff(name == \"restaurant.customers.first_visit\", \"Primera visita\", \"Recurrente\")",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Primera visita frente a recurrentes",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 95
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "customMetrics\n| where name in (\"restaurant.memory.updated\", \"restaurant.memory.reuse_requested\",\n                 \"restaurant.memory.reuse_applied\", \"restaurant.memory.reuse_abandoned\")\n| summarize Total=sum(valueSum) by Acción=replace_string(name, \"restaurant.memory.\", \"\")",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Uso de memoria",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 95
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.conversation.turn_completed\"\n| summarize arg_max(timestamp, customDimensions) by visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| summarize Visitas=count() by Turnos=toint(customDimensions[\"restaurant.conversation.turn_count\"])\n| order by Turnos asc",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Turnos por visita",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 0,
+        "y": 103
+      },
+      "id": 42,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet stages=BusinessEvents\n| where name in (\"restaurant.visit.started\", \"restaurant.seating.confirmed\",\n                 \"restaurant.order.submitted\", \"restaurant.item.served\",\n                 \"restaurant.bill.presented\", \"restaurant.payment.completed\")\n| extend visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| summarize Entrada=minif(timestamp, name == \"restaurant.visit.started\"),\n            Asiento=minif(timestamp, name == \"restaurant.seating.confirmed\"),\n            Pedido=minif(timestamp, name == \"restaurant.order.submitted\"),\n            Servido=minif(timestamp, name == \"restaurant.item.served\"),\n            Cuenta=minif(timestamp, name == \"restaurant.bill.presented\"),\n            Pago=minif(timestamp, name == \"restaurant.payment.completed\") by visit;\nstages\n| summarize ['Entrada → asiento (s)']=avg(datetime_diff(\"millisecond\", Asiento, Entrada))/1000.0,\n            ['Asiento → pedido (s)']=avg(datetime_diff(\"millisecond\", Pedido, Asiento))/1000.0,\n            ['Pedido → servido (s)']=avg(datetime_diff(\"millisecond\", Servido, Pedido))/1000.0,\n            ['Servido → cuenta (s)']=avg(datetime_diff(\"millisecond\", Cuenta, Servido))/1000.0,\n            ['Cuenta → pago (s)']=avg(datetime_diff(\"millisecond\", Pago, Cuenta))/1000.0",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Tiempo entre etapas",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${DS_AZURE_MONITOR}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 103
+      },
+      "id": 43,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "azureLogAnalytics": {
+            "dashboardTime": true,
+            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.visit.closed\"\n  and tostring(customDimensions[\"restaurant.visit.paid\"]) == \"False\"\n| summarize Total=count()\n  by Resultado=iff(tostring(customDimensions[\"restaurant.visit.had_served_items\"]) == \"True\",\n                   \"Servido sin pago\", \"Sin pedido\")",
+            "resources": [
+              "$applicationInsightsResourceId"
+            ],
+            "resultFormat": "table",
+            "timeColumn": "timestamp"
+          },
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${DS_AZURE_MONITOR}"
+          },
+          "queryType": "Azure Log Analytics",
+          "refId": "A"
+        }
+      ],
+      "title": "Visitas sin pedido o sin pago",
+      "type": "barchart"
+    }
+  ],
+  "preload": false,
+  "refresh": "1m",
+  "schemaVersion": 42,
+  "tags": [
+    "morcillaconf",
+    "business",
+    "restaurant",
+    "agent-framework"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${DS_AZURE_MONITOR}"
+        },
+        "description": "Suscripción de Application Insights",
+        "label": "Subscription",
+        "name": "subscriptionId",
+        "options": [],
+        "query": {
+          "grafanaTemplateVariableFn": {
+            "kind": "SubscriptionsQuery",
+            "rawQuery": "subscriptions()"
+          },
+          "queryType": "Azure Subscriptions",
+          "refId": "A"
+        },
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${DS_AZURE_MONITOR}"
+        },
+        "description": "Recurso de Application Insights",
+        "label": "Application Insights",
+        "name": "applicationInsightsResourceId",
+        "options": [],
+        "query": {
+          "azureLogAnalytics": {
+            "query": "",
+            "resources": []
+          },
+          "azureResourceGraph": {
+            "query": "resources | where [\"type\"] =~ \"microsoft.insights/components\" | distinct id"
+          },
+          "queryType": "Azure Resource Graph",
+          "refId": "A",
+          "subscriptions": [
+            "$subscriptionId"
+          ]
+        },
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "auto": true,
+        "auto_count": 30,
+        "auto_min": "1m",
+        "current": {
+          "text": "$__auto",
+          "value": "$__auto"
+        },
+        "label": "Interval",
+        "name": "interval",
+        "options": [],
+        "query": "5m,15m,30m,1h,6h,12h,1d",
+        "refresh": 2,
+        "type": "interval"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "MorcillaConf · Negocio del restaurante",
+  "uid": "morcillaconf-business",
+  "version": 1,
+  "weekStart": ""
+}

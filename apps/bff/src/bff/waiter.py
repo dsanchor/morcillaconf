@@ -66,6 +66,8 @@ class WaiterTurnResult:
     turn_count: int
     persisted_order_preferences: tuple[str, ...]
     session_json: str | None
+    memory_intent: Literal["none", "reuse_latest_order"] = "none"
+    remembered_memory_count: int = 0
     seating: SeatingReport | None = None
     # The kitchen's answer when the waiter sent it the order in this turn.
     kitchen: KitchenReport | None = None
@@ -211,6 +213,8 @@ class RemoteWaiter:
             persisted_order_preferences=tuple(
                 result.persisted_order_preferences
             ),
+            memory_intent=result.memory_intent,
+            remembered_memory_count=result.remembered_memory_count,
             session_json=result.session_json,
             seating=result.seating,
             kitchen=result.kitchen,

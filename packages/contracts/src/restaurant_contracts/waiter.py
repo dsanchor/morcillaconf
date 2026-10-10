@@ -156,6 +156,12 @@ class WaiterTurnSuccess(WireModel):
     order_draft: OrderDraft
     turn_count: int = Field(ge=1)
     persisted_order_preferences: list[str] = Field(default_factory=list)
+    memory_intent: Literal["none", "reuse_latest_order"] = Field(
+        default="none", exclude_if=lambda value: value == "none"
+    )
+    remembered_memory_count: int = Field(
+        default=0, ge=0, le=100, exclude_if=lambda value: value == 0
+    )
     session_json: str | None = None
     seating: SeatingReport | None = None
     # The kitchen's answer when the waiter sent it the order in this turn.

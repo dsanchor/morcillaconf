@@ -376,22 +376,28 @@ cada llamada A2A, con el mismo aviso de margen. La revisión humana en caja se
 despliega desactivada. Como las tareas y los pagos de caja viven en memoria,
 la aplicación se queda en una réplica, como las demás.
 
-### Trazas distribuidas en Application Insights
+### Observabilidad distribuida y métricas de negocio
 
 La observabilidad usa los spans nativos de Agent Framework y OpenTelemetry,
 siguiendo la
 [documentación oficial](https://learn.microsoft.com/agent-framework/agents/observability?pivots=programming-language-python).
-El BFF, el camarero, cocina y caja exportan únicamente trazas a un Application
-Insights basado en Log Analytics. La instrumentación ASGI extrae el contexto
+El BFF, el camarero, cocina y caja exportan trazas y métricas OpenTelemetry a
+un Application Insights basado en Log Analytics. La instrumentación ASGI extrae el contexto
 entrante y la de `httpx` inyecta `traceparent` y `tracestate`, por lo que una
 petición conserva el mismo trace ID a través de BFF, camarero y llamadas A2A.
 Los agentes auxiliares que viven en el proceso del camarero o de cocina quedan
 como spans hijos mediante la instrumentación de Agent Framework.
 
 La captura de prompts, respuestas, argumentos y resultados está desactivada.
-Tampoco se exportan logs ni métricas en esta fase. Sin
+Tampoco se exportan logs. Sin
 `APPLICATIONINSIGHTS_CONNECTION_STRING`, la instrumentación permanece
 deshabilitada y el comportamiento local no cambia.
+
+El BFF emite además eventos de negocio correlacionados para todo el recorrido:
+entrada, asiento, pedido, cocina, barra, servicio, cuenta, pago, cierre y uso
+de memoria. Los eventos incluyen un identificador deduplicable, pero las
+métricas nunca usan visitas, conversaciones, clientes ni texto libre como
+dimensiones. Los productos se agregan por el `carta_id` acotado de la carta.
 
 Provisiona los recursos workspace-based:
 
@@ -407,10 +413,31 @@ El script imprime `APPLICATIONINSIGHTS_RESOURCE_ID` y
 La cadena identifica el destino de ingestión pero no concede acceso de lectura
 a la telemetría.
 
+Genera de nuevo el dashboard versionado después de modificar sus consultas:
+
+```bash
+python3 scripts/generate-business-dashboard.py dashboards/restaurant-business.json
+```
+
+Importa `dashboards/restaurant-business.json` en tu instancia de Grafana y
+selecciona el datasource Azure Monitor durante la importación. No se crea ni
+se configura ningún workspace de Azure Managed Grafana desde este repositorio.
+
+El dashboard `MorcillaConf · Negocio del restaurante` contiene resumen
+ejecutivo, afluencia, ocupación, embudo, demanda por producto, cocina y barra,
+facturación, fidelización, memoria y calidad operativa. Sigue el patrón del
+[dashboard oficial de Agent Framework](https://learn.microsoft.com/azure/managed-grafana/agent-framework-dashboard):
+Azure Monitor como datasource y consultas KQL sobre Application Insights. Su
+estructura importable y las consultas sobre `customMetrics` siguen además el
+[ejemplo de Fraud Intelligence de Microsoft MicroHack](https://github.com/microsoft/MicroHack/tree/main/03-Azure/01-04-AI/07_Fraud_Intelligence/walkthrough/challenge-06/grafana).
+Los paneles contables y las series usan `customMetrics`; los embudos, tiempos
+entre etapas y combinaciones usan los `customEvents` correlacionados.
+
 El despliegue es idempotente y no construye ni publica imágenes, pero no realiza
 una previsualización: revisa el fichero de entorno antes de ejecutarlo. Para
 validar solo la sintaxis sin crear recursos:
 
 ```bash
 bash -n scripts/deploy-container-apps.sh
+python3 -m json.tool dashboards/restaurant-business.json >/dev/null
 ```

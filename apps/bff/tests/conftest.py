@@ -180,6 +180,7 @@ def make_service(settings: BffSettings, clock: Clock) -> ServiceFactory:
         max_turns: int = 20,
         retention: int = 500,
         seating: ScriptedSeating | None = None,
+        telemetry=None,
     ) -> RestaurantService:
         memory_store = SQLiteMemoryStore(
             settings.bff_database_path.with_name("test-waiter-memory.db")
@@ -197,6 +198,7 @@ def make_service(settings: BffSettings, clock: Clock) -> ServiceFactory:
             max_turns=max_turns,
             heartbeat_seconds=0.2,
             clock=clock,
+            telemetry=telemetry,
         )
 
     return build

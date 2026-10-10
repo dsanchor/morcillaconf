@@ -71,6 +71,7 @@ from restaurant_contracts.seating import (
 from restaurant_contracts.waiter import SeatingReport
 
 from bff.greeting import greeting
+from bff.business_telemetry import BusinessTelemetry, business_telemetry
 from bff.identity import InvalidNameError, actor_id_for, presented_name
 from bff.notifier import Notifier
 from bff.storage import BillRow, ConversationRow, Database, SeatingRow, Transaction
@@ -245,6 +246,7 @@ class RestaurantService:
         serve_delay_seconds: float = 0.0,
         notifier: Notifier | None = None,
         clock: Callable[[], datetime] | None = None,
+        telemetry: BusinessTelemetry | None = None,
     ) -> None:
         self._db = database
         self._waiter = waiter
@@ -254,6 +256,7 @@ class RestaurantService:
         self._serve_delay = serve_delay_seconds
         self._notifier = notifier or Notifier()
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._business = telemetry or business_telemetry
         self._tasks: set[asyncio.Task[None]] = set()
         self._waiter_locks: dict[str, asyncio.Lock] = {}
 
@@ -361,6 +364,8 @@ class RestaurantService:
                         ErrorCode.FORBIDDEN,
                         FORBIDDEN_CONVERSATION,
                     )
+                seat = tx.get_seating(conversation_id)
+                served, _, _ = self._billing(tx, conversation_id)
                 row.process_status = "processing"
                 row.pending_event_id = command.event_id
                 row.updated_at = self._clock()
@@ -404,6 +409,24 @@ class RestaurantService:
                     self._apply_report(tx, conversation_id, released.seating)
                     outcome = self._complete(tx, current, command, correlation_id)
                 tx.update_result(actor_id, outcome.result, self._clock())
+        if outcome.result.status == "completed":
+            now = self._clock()
+            if seat is not None and seat.status == "seated":
+                self._business.seating_released(
+                    visit_id=row.visit_id,
+                    conversation_id=conversation_id,
+                    occurred_at=now,
+                    place_kind=seat.kind,
+                    party_size=seat.party_size,
+                )
+            self._business.visit_abandoned(
+                visit_id=row.visit_id,
+                conversation_id=conversation_id,
+                occurred_at=now,
+                party_size=row.customer.party_size,
+                had_served_items=bool(served),
+                visit_seconds=max(0.0, (now - row.created_at).total_seconds()),
+            )
         self._notifier.notify(conversation_id)
         return outcome.result
 
@@ -441,6 +464,12 @@ class RestaurantService:
                     span.set_attribute("bff.command.status", stored.result.status)
                     return stored.result
                 outcome = self._execute(tx, session, command, new_id("corr"))
+                new_visit = (
+                    isinstance(command, ArriveCommand)
+                    and command.payload.resume_visit_id is None
+                    and outcome.result.status == "completed"
+                )
+                returning = new_visit and tx.visit_count(actor_id) > 1
                 tx.save_result(
                     actor_id=actor_id,
                     fingerprint=digest,
@@ -452,6 +481,16 @@ class RestaurantService:
             span.set_attribute("bff.command.status", outcome.result.status)
             if outcome.conversation_id:
                 span.set_attribute("bff.conversation_id", outcome.conversation_id)
+        if new_visit and outcome.conversation_id:
+            with self._db.read() as tx:
+                opened = tx.get_conversation(outcome.conversation_id)
+            assert opened is not None
+            self._business.visit_started(
+                visit_id=opened.visit_id,
+                conversation_id=opened.conversation_id,
+                occurred_at=opened.created_at,
+                returning=returning,
+            )
         if outcome.conversation_id:
             self._notifier.notify(outcome.conversation_id)
         if outcome.turn is not None:
@@ -786,6 +825,7 @@ class RestaurantService:
                 job.conversation_id, job.event_id, step, job.correlation_id
             )
         )
+        started = time.monotonic()
         try:
             outcome = await self._waiter.take_turn(turn)
             if not outcome.reply.strip():
@@ -837,7 +877,7 @@ class RestaurantService:
                     "bff.cashier.outcome",
                     bill.status if bill.status != "failed" else bill.code.value,
                 )
-        self._finish_turn(job, outcome)
+        self._finish_turn(job, outcome, max(0.0, time.monotonic() - started))
         if succeeded and outcome.kitchen is not None:
             cooked = outcome.kitchen.result
             if isinstance(cooked, KitchenPlan) and cooked.accepted:
@@ -929,6 +969,7 @@ class RestaurantService:
                     row = tx.get_conversation(conversation_id)
                     if row is None or plan.order_id in tx.served_orders(conversation_id):
                         return
+                    first_service = not tx.served_orders(conversation_id)
                 correlation_id = new_id("corr")
                 started = time.monotonic()
                 dishes = tuple(f"{item.quantity} × {item.name}" for item in plan.accepted)
@@ -984,6 +1025,23 @@ class RestaurantService:
                     )
                     self._emit_snapshot(tx, current, serve_event, correlation_id)
             self._notifier.notify(conversation_id)
+            self._business.dishes_served(
+                visit_id=current.visit_id,
+                conversation_id=conversation_id,
+                occurred_at=now,
+                items=(
+                    (item.carta_id, item.station.value, item.quantity)
+                    for item in plan.accepted
+                ),
+                ready_to_served_seconds=max(0.0, time.monotonic() - waited),
+                party_size=current.customer.party_size,
+                first_service=first_service,
+                first_service_seconds=(
+                    max(0.0, (now - current.created_at).total_seconds())
+                    if first_service
+                    else None
+                ),
+            )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -993,12 +1051,25 @@ class RestaurantService:
         self,
         job: _TurnJob,
         outcome: WaiterTurnResult | tuple[ErrorCode, str],
+        duration_seconds: float = 0.0,
     ) -> None:
         now = self._clock()
         with self._db.write() as tx:
             row = tx.get_conversation(job.conversation_id)
             if row is None or row.pending_event_id != job.event_id:
                 return
+            previous_draft_lines = len(row.order_draft.items)
+            previous_memories = len(row.persisted_order_preferences)
+            previous_seat = tx.get_seating(row.conversation_id)
+            previous_messages = tx.list_messages(row.conversation_id)
+            had_order_before = any(
+                message.kitchen is not None or message.bar is not None
+                for message in previous_messages
+            )
+            had_service_before = bool(tx.served_orders(row.conversation_id))
+            stale: BillRow | None = None
+            outdated = False
+            supersede = False
             if isinstance(outcome, WaiterTurnResult):
                 self._apply_report(tx, row.conversation_id, outcome.seating)
                 if outcome.activity:
@@ -1115,6 +1186,155 @@ class RestaurantService:
                 result = self._failed(job.event_id, job.correlation_id, *outcome)
             self._emit_status(tx, row, job.event_id, job.correlation_id, result)
             tx.update_result(job.actor.actor_id, result, now)
+            current_seat = tx.get_seating(row.conversation_id)
+        if (
+            current_seat is not None
+            and current_seat.status == "proposed"
+            and (
+                previous_seat is None
+                or previous_seat.token != current_seat.token
+                or previous_seat.status != "proposed"
+            )
+        ):
+            self._business.seating_proposed(
+                visit_id=row.visit_id,
+                conversation_id=row.conversation_id,
+                occurred_at=now,
+                place_kind=current_seat.kind,
+                party_size=current_seat.party_size,
+            )
+        if not isinstance(outcome, WaiterTurnResult):
+            self._business.turn_failed(
+                visit_id=row.visit_id,
+                conversation_id=row.conversation_id,
+                occurred_at=now,
+                code=outcome[0].value,
+            )
+            return
+        self._business.turn_completed(
+            visit_id=row.visit_id,
+            conversation_id=row.conversation_id,
+            occurred_at=now,
+            turn_count=outcome.turn_count,
+            draft_lines_before=previous_draft_lines,
+            draft_lines_after=len(outcome.order_draft.items),
+            memory_items_before=previous_memories,
+            memory_items_after=len(outcome.persisted_order_preferences),
+            memory_intent=outcome.memory_intent,
+            remembered_memory_count=outcome.remembered_memory_count,
+        )
+        if outcome.kitchen is not None:
+            kitchen = outcome.kitchen
+            if isinstance(kitchen.result, KitchenPlan):
+                plan = kitchen.result
+                self._business.kitchen_completed(
+                    visit_id=row.visit_id,
+                    conversation_id=row.conversation_id,
+                    occurred_at=now,
+                    verdict=plan.verdict,
+                    requested_units=sum(item.quantity for item in kitchen.order.lines),
+                    accepted=(
+                        (
+                            item.carta_id,
+                            item.station.value,
+                            item.quantity,
+                            len(item.adaptations),
+                        )
+                        for item in plan.accepted
+                    ),
+                    rejected=(
+                        (item.carta_id, item.quantity) for item in plan.rejected
+                    ),
+                    restriction_count=len(kitchen.order.restrictions),
+                    duration_seconds=duration_seconds,
+                    party_size=outcome.customer.party_size,
+                    first_order_seconds=(
+                        max(0.0, (now - row.created_at).total_seconds())
+                        if not had_order_before
+                        else None
+                    ),
+                    turn_count=outcome.turn_count,
+                )
+                had_order_before = True
+            else:
+                self._business.component_failed(
+                    visit_id=row.visit_id,
+                    conversation_id=row.conversation_id,
+                    occurred_at=now,
+                    component="kitchen",
+                    code=kitchen.result.code.value,
+                )
+        if outcome.bar is not None:
+            bar = outcome.bar
+            if isinstance(bar.result, BarRound):
+                round_result = bar.result
+                self._business.bar_completed(
+                    visit_id=row.visit_id,
+                    conversation_id=row.conversation_id,
+                    occurred_at=now,
+                    verdict=round_result.verdict,
+                    requested_units=sum(item.quantity for item in bar.request.items),
+                    served=(
+                        (item.carta_id, item.quantity)
+                        for item in round_result.served
+                    ),
+                    rejected=(
+                        (item.carta_id, item.quantity, bool(item.options))
+                        for item in round_result.rejected
+                    ),
+                    party_size=outcome.customer.party_size,
+                    duration_seconds=duration_seconds,
+                    first_order_seconds=(
+                        max(0.0, (now - row.created_at).total_seconds())
+                        if not had_order_before
+                        else None
+                    ),
+                    turn_count=outcome.turn_count,
+                    first_service=bool(round_result.served) and not had_service_before,
+                    first_service_seconds=(
+                        max(0.0, (now - row.created_at).total_seconds())
+                        if round_result.served and not had_service_before
+                        else None
+                    ),
+                )
+                had_order_before = True
+                had_service_before = had_service_before or bool(round_result.served)
+            else:
+                self._business.component_failed(
+                    visit_id=row.visit_id,
+                    conversation_id=row.conversation_id,
+                    occurred_at=now,
+                    component="bar",
+                    code=bar.result.code.value,
+                )
+        if supersede and stale is not None:
+            self._business.bill_superseded(
+                visit_id=row.visit_id,
+                conversation_id=row.conversation_id,
+                occurred_at=now,
+                reason="new_items",
+            )
+        if outcome.cashier is not None:
+            cashier_result = outcome.cashier.result
+            if isinstance(cashier_result, Bill):
+                self._business.bill_presented(
+                    visit_id=row.visit_id,
+                    conversation_id=row.conversation_id,
+                    occurred_at=now,
+                    total=cashier_result.total,
+                    line_count=len(cashier_result.lines),
+                    units=sum(item.quantity for item in cashier_result.lines),
+                    party_size=outcome.customer.party_size,
+                    superseded=outdated,
+                )
+            elif cashier_result.status == "failed":
+                self._business.component_failed(
+                    visit_id=row.visit_id,
+                    conversation_id=row.conversation_id,
+                    occurred_at=now,
+                    component="cashier",
+                    code=cashier_result.code.value,
+                )
 
     # Seating: the waiter is the only client of the seating MCP. The BFF
     # persists and presents what it reports (the card and the room) and sends
@@ -1295,6 +1515,7 @@ class RestaurantService:
     async def _sync_locked(self, conversation_id: str) -> WaiterSeatingResult | None:
         with self._db.read() as tx:
             row = tx.get_conversation(conversation_id)
+            previous_seat = tx.get_seating(conversation_id)
         if row is None or row.process_status == "processing":
             return None
         with tracer.start_as_current_span(
@@ -1310,6 +1531,23 @@ class RestaurantService:
                 tx.update_conversation(current)
             if self._apply_report(tx, conversation_id, result.seating):
                 self._emit_snapshot(tx, current, new_id("sync"), new_id("corr"))
+            current_seat = tx.get_seating(conversation_id)
+        if (
+            current_seat is not None
+            and current_seat.status == "proposed"
+            and (
+                previous_seat is None
+                or previous_seat.token != current_seat.token
+                or previous_seat.status != "proposed"
+            )
+        ):
+            self._business.seating_proposed(
+                visit_id=current.visit_id,
+                conversation_id=conversation_id,
+                occurred_at=self._clock(),
+                place_kind=current_seat.kind,
+                party_size=current_seat.party_size,
+            )
         self._notifier.notify(conversation_id)
         return result
 
@@ -1402,6 +1640,25 @@ class RestaurantService:
                         tx, command, correlation_id, seat, decided
                     )
                     tx.update_result(actor_id, outcome.result, self._clock())
+                if isinstance(decided, WaiterSeatingResult) and decided.outcome in (
+                    "confirmed",
+                    "rejected",
+                    "expired",
+                ):
+                    now = self._clock()
+                    self._business.seating_decided(
+                        visit_id=row.visit_id,
+                        conversation_id=conversation_id,
+                        occurred_at=now,
+                        place_kind=seat.kind,
+                        party_size=seat.party_size,
+                        outcome=decided.outcome,
+                        time_to_seat_seconds=(
+                            max(0.0, (now - row.created_at).total_seconds())
+                            if decided.outcome == "confirmed"
+                            else None
+                        ),
+                    )
             span.set_attribute(
                 "bff.seating.outcome",
                 decided.outcome or "none" if isinstance(decided, WaiterSeatingResult) else decided,
@@ -1637,6 +1894,7 @@ class RestaurantService:
             },
         ) as span:
             async with self._lock(conversation_id):
+                payment_started = time.monotonic()
                 correlation_id = new_id("corr")
                 with self._db.write() as tx:
                     stored = tx.get_result(actor_id, command.event_id)
@@ -1660,6 +1918,7 @@ class RestaurantService:
                         )
                     else:
                         assert bill is not None and row is not None
+                        seat_before_payment = tx.get_seating(conversation_id)
                         # Retries resend the first attempt's key: never a second charge.
                         bill.payment_key = bill.payment_key or command.event_id
                         bill.updated_at = self._clock()
@@ -1720,6 +1979,69 @@ class RestaurantService:
                         tx, command, correlation_id, bill.bill_id, paid, released
                     )
                     tx.update_result(actor_id, outcome.result, self._clock())
+                now = self._clock()
+                if paid is None:
+                    self._business.payment_failed(
+                        visit_id=row.visit_id,
+                        conversation_id=conversation_id,
+                        occurred_at=now,
+                        method=payload.method.value,
+                        code="unavailable",
+                    )
+                else:
+                    payment_result = paid.cashier.result
+                    if isinstance(payment_result, Receipt):
+                        with self._db.read() as tx:
+                            messages = tx.list_messages(conversation_id)
+                        bar_rounds = {
+                            message.bar.request.round_id
+                            for message in messages
+                            if message.bar is not None
+                        }
+                        self._business.payment_completed(
+                            visit_id=row.visit_id,
+                            conversation_id=conversation_id,
+                            occurred_at=now,
+                            method=payment_result.method.value,
+                            amount=payment_result.amount,
+                            party_size=row.customer.party_size,
+                            lines=(
+                                (
+                                    "drink" if line.order_id in bar_rounds else "dish",
+                                    line.carta_id,
+                                    line.quantity,
+                                    line.line_total,
+                                )
+                                for line in bill.bill.lines
+                            ),
+                            payment_seconds=max(
+                                0.0, time.monotonic() - payment_started
+                            ),
+                            visit_seconds=max(
+                                0.0, (now - row.created_at).total_seconds()
+                            ),
+                            turn_count=row.turn_count,
+                        )
+                        if (
+                            seat_before_payment is not None
+                            and seat_before_payment.status == "seated"
+                            and released is not None
+                        ):
+                            self._business.seating_released(
+                                visit_id=row.visit_id,
+                                conversation_id=conversation_id,
+                                occurred_at=now,
+                                place_kind=seat_before_payment.kind,
+                                party_size=seat_before_payment.party_size,
+                            )
+                    elif payment_result.status == "failed":
+                        self._business.payment_failed(
+                            visit_id=row.visit_id,
+                            conversation_id=conversation_id,
+                            occurred_at=now,
+                            method=payload.method.value,
+                            code=payment_result.code.value,
+                        )
             if paid is None:
                 span.set_attribute("bff.payment.outcome", "unavailable")
             else:

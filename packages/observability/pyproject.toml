@@ -1,7 +1,7 @@
 [project]
 name = "morcillaconf-observability"
 version = "0.1.0"
-description = "Shared OpenTelemetry tracing configuration for MorcillaConf services."
+description = "Shared OpenTelemetry tracing and metrics configuration for MorcillaConf services."
 requires-python = ">=3.13"
 dependencies = [
     "agent-framework-core>=1.19,<2",

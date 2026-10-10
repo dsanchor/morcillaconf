@@ -314,6 +314,13 @@ class Transaction:
         ).fetchone()
         return row["visit_id"] if row else None
 
+    def visit_count(self, actor_id: str) -> int:
+        row = self._connection.execute(
+            "SELECT COUNT(*) AS total FROM visits WHERE actor_id = ?",
+            (actor_id,),
+        ).fetchone()
+        return int(row["total"])
+
     # Conversations
 
     def insert_conversation(self, conversation: ConversationRow) -> None:

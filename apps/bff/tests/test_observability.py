@@ -18,7 +18,7 @@ def test_tracing_is_disabled_without_an_application_insights_connection(
     assert module.configure_tracing("test-service") is False
 
 
-def test_tracing_configures_only_a_trace_exporter(monkeypatch) -> None:
+def test_tracing_configures_trace_and_metric_exporters(monkeypatch) -> None:
     monkeypatch.setenv(
         "APPLICATIONINSIGHTS_CONNECTION_STRING",
         "InstrumentationKey=00000000-0000-0000-0000-000000000000",
@@ -27,12 +27,20 @@ def test_tracing_configures_only_a_trace_exporter(monkeypatch) -> None:
     module = fresh_module()
     configured: dict[str, object] = {}
     instrumented: list[bool] = []
-    exporter = object()
+    trace_exporter = object()
+    metric_exporter = object()
 
     monkeypatch.setattr(
         module,
         "AzureMonitorTraceExporter",
-        lambda **kwargs: configured.setdefault("connection", kwargs) and exporter,
+        lambda **kwargs: configured.setdefault("trace_connection", kwargs)
+        and trace_exporter,
+    )
+    monkeypatch.setattr(
+        module,
+        "AzureMonitorMetricExporter",
+        lambda **kwargs: configured.setdefault("metric_connection", kwargs)
+        and metric_exporter,
     )
     monkeypatch.setattr(
         module,
@@ -50,7 +58,7 @@ def test_tracing_configures_only_a_trace_exporter(monkeypatch) -> None:
     assert configured["service_name"] == "test-service"
     assert configured["enable_sensitive_data"] is False
     assert configured["enable_message_events"] is False
-    assert configured["exporters"] == [exporter]
+    assert configured["exporters"] == [trace_exporter, metric_exporter]
     assert configured["resource_attributes"] == {
         "service.namespace": "morcillaconf",
         "deployment.environment.name": "test",

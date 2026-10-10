@@ -161,6 +161,7 @@ class RemoteWaiterService:
                         order_draft=exported.state.order_draft,
                         turn_count=exported.state.turn_count + 1,
                         persisted_order_preferences=exported.persisted_order_preferences,
+                        memory_intent="none",
                         session_json=_session_to_json(exported.agent_session),
                         seating=_report(manager, request),
                     )
@@ -196,6 +197,8 @@ class RemoteWaiterService:
                     order_draft=exported.state.order_draft,
                     turn_count=exported.state.turn_count,
                     persisted_order_preferences=exported.persisted_order_preferences,
+                    memory_intent=response.memory_intent.value,
+                    remembered_memory_count=len(response.remembered_memories),
                     session_json=_session_to_json(exported.agent_session),
                     seating=_report(manager, request),
                     kitchen=response.kitchen,

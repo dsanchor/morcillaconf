@@ -160,6 +160,8 @@ class LocalWaiter:
             order_draft=exported.state.order_draft,
             turn_count=exported.state.turn_count,
             persisted_order_preferences=tuple(exported.persisted_order_preferences),
+            memory_intent=response.memory_intent.value,
+            remembered_memory_count=len(response.remembered_memories),
             session_json=self._codec.dump(exported.agent_session),
             seating=self._report(turn.visit_id),
             kitchen=response.kitchen,

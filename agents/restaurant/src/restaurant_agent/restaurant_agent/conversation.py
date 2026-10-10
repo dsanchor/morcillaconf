@@ -455,6 +455,7 @@ class ConversationManager:
                     MemoryCandidate(kind=memory.kind, value=memory.value)
                     for memory in record.remembered_memories
                 ],
+                memory_intent=result.memory_intent,
                 kitchen=kitchen,
                 bar=bar,
                 cashier=cashier,

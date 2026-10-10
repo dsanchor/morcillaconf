@@ -75,6 +75,10 @@ class WaiterResponse(BaseModel):
     order_draft: OrderDraft
     pending_fields: list[PendingField]
     remembered_memories: list[MemoryCandidate] = Field(default_factory=list)
+    memory_intent: MemoryIntent = Field(
+        default=MemoryIntent.NONE,
+        exclude_if=lambda value: value is MemoryIntent.NONE,
+    )
     # The kitchen's answer when the waiter sent it the order in this turn.
     kitchen: KitchenReport | None = Field(default=None, exclude_if=lambda value: value is None)
     # The drinks the waiter served from the bar in this turn.
