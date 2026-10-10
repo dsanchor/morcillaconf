@@ -138,13 +138,6 @@ def build() -> dict[str, Any]:
             "short",
         ),
         (
-            "Visitas",
-            """customMetrics
-| where name == "restaurant.visits.started"
-| summarize Visitas=sum(valueSum)""",
-            "short",
-        ),
-        (
             "Ingresos",
             """customMetrics
 | where name == "restaurant.revenue"

@@ -130,7 +130,7 @@
             "mode": "palette-classic"
           },
           "mappings": [],
-          "unit": "short"
+          "unit": "currencyEUR"
         },
         "overrides": []
       },
@@ -141,65 +141,6 @@
         "y": 1
       },
       "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "12.4.3",
-      "targets": [
-        {
-          "azureLogAnalytics": {
-            "dashboardTime": true,
-            "query": "customMetrics\n| where name == \"restaurant.visits.started\"\n| summarize Visitas=sum(valueSum)",
-            "resources": [
-              "$applicationInsightsResourceId"
-            ],
-            "resultFormat": "time_series",
-            "timeColumn": "timestamp"
-          },
-          "datasource": {
-            "type": "grafana-azure-monitor-datasource",
-            "uid": "${DS_AZURE_MONITOR}"
-          },
-          "queryType": "Azure Log Analytics",
-          "refId": "A"
-        }
-      ],
-      "title": "Visitas",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "grafana-azure-monitor-datasource",
-        "uid": "${DS_AZURE_MONITOR}"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "unit": "currencyEUR"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 1
-      },
-      "id": 4,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -255,10 +196,10 @@
       "gridPos": {
         "h": 4,
         "w": 6,
-        "x": 18,
+        "x": 12,
         "y": 1
       },
-      "id": 5,
+      "id": 4,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -314,10 +255,10 @@
       "gridPos": {
         "h": 4,
         "w": 6,
-        "x": 0,
-        "y": 5
+        "x": 18,
+        "y": 1
       },
-      "id": 6,
+      "id": 5,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -373,10 +314,10 @@
       "gridPos": {
         "h": 4,
         "w": 6,
-        "x": 6,
+        "x": 0,
         "y": 5
       },
-      "id": 7,
+      "id": 6,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -432,10 +373,10 @@
       "gridPos": {
         "h": 4,
         "w": 6,
-        "x": 12,
+        "x": 6,
         "y": 5
       },
-      "id": 8,
+      "id": 7,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -491,10 +432,10 @@
       "gridPos": {
         "h": 4,
         "w": 6,
-        "x": 18,
+        "x": 12,
         "y": 5
       },
-      "id": 9,
+      "id": 8,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -539,7 +480,7 @@
         "x": 0,
         "y": 9
       },
-      "id": 10,
+      "id": 9,
       "panels": [],
       "title": "Afluencia, ocupación y recorrido",
       "type": "row"
@@ -566,7 +507,7 @@
         "x": 0,
         "y": 10
       },
-      "id": 11,
+      "id": 10,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -623,7 +564,7 @@
         "x": 12,
         "y": 10
       },
-      "id": 12,
+      "id": 11,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -680,7 +621,7 @@
         "x": 0,
         "y": 18
       },
-      "id": 13,
+      "id": 12,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -735,7 +676,7 @@
         "x": 12,
         "y": 18
       },
-      "id": 14,
+      "id": 13,
       "options": {
         "displayLabels": [
           "name",
@@ -800,7 +741,7 @@
         "x": 18,
         "y": 18
       },
-      "id": 15,
+      "id": 14,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -855,7 +796,7 @@
         "x": 0,
         "y": 26
       },
-      "id": 16,
+      "id": 15,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -912,7 +853,7 @@
         "x": 12,
         "y": 26
       },
-      "id": 17,
+      "id": 16,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -955,7 +896,7 @@
         "x": 0,
         "y": 34
       },
-      "id": 18,
+      "id": 17,
       "panels": [],
       "title": "Demanda gastronómica",
       "type": "row"
@@ -982,7 +923,7 @@
         "x": 0,
         "y": 35
       },
-      "id": 19,
+      "id": 18,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -1037,7 +978,7 @@
         "x": 12,
         "y": 35
       },
-      "id": 20,
+      "id": 19,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -1092,7 +1033,7 @@
         "x": 0,
         "y": 43
       },
-      "id": 21,
+      "id": 20,
       "options": {
         "cellHeight": "sm",
         "showHeader": true
@@ -1142,7 +1083,7 @@
         "x": 16,
         "y": 43
       },
-      "id": 22,
+      "id": 21,
       "options": {
         "displayLabels": [
           "name",
@@ -1207,7 +1148,7 @@
         "x": 0,
         "y": 52
       },
-      "id": 23,
+      "id": 22,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -1262,7 +1203,7 @@
         "x": 12,
         "y": 52
       },
-      "id": 24,
+      "id": 23,
       "options": {
         "cellHeight": "sm",
         "showHeader": true
@@ -1298,7 +1239,7 @@
         "x": 0,
         "y": 60
       },
-      "id": 25,
+      "id": 24,
       "panels": [],
       "title": "Cocina y barra",
       "type": "row"
@@ -1325,7 +1266,7 @@
         "x": 0,
         "y": 61
       },
-      "id": 26,
+      "id": 25,
       "options": {
         "displayLabels": [
           "name",
@@ -1390,7 +1331,7 @@
         "x": 6,
         "y": 61
       },
-      "id": 27,
+      "id": 26,
       "options": {
         "displayLabels": [
           "name",
@@ -1455,7 +1396,7 @@
         "x": 12,
         "y": 61
       },
-      "id": 28,
+      "id": 27,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -1510,7 +1451,7 @@
         "x": 18,
         "y": 61
       },
-      "id": 29,
+      "id": 28,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -1569,7 +1510,7 @@
         "x": 0,
         "y": 69
       },
-      "id": 30,
+      "id": 29,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -1626,7 +1567,7 @@
         "x": 12,
         "y": 69
       },
-      "id": 31,
+      "id": 30,
       "options": {
         "cellHeight": "sm",
         "showHeader": true
@@ -1662,7 +1603,7 @@
         "x": 0,
         "y": 77
       },
-      "id": 32,
+      "id": 31,
       "panels": [],
       "title": "Facturación e ingresos",
       "type": "row"
@@ -1689,7 +1630,7 @@
         "x": 0,
         "y": 78
       },
-      "id": 33,
+      "id": 32,
       "options": {
         "displayLabels": [
           "name",
@@ -1754,7 +1695,7 @@
         "x": 6,
         "y": 78
       },
-      "id": 34,
+      "id": 33,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -1809,7 +1750,7 @@
         "x": 15,
         "y": 78
       },
-      "id": 35,
+      "id": 34,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -1864,7 +1805,7 @@
         "x": 0,
         "y": 86
       },
-      "id": 36,
+      "id": 35,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -1921,7 +1862,7 @@
         "x": 12,
         "y": 86
       },
-      "id": 37,
+      "id": 36,
       "options": {
         "cellHeight": "sm",
         "showHeader": true
@@ -1957,7 +1898,7 @@
         "x": 0,
         "y": 94
       },
-      "id": 38,
+      "id": 37,
       "panels": [],
       "title": "Fidelización y experiencia",
       "type": "row"
@@ -1984,7 +1925,7 @@
         "x": 0,
         "y": 95
       },
-      "id": 39,
+      "id": 38,
       "options": {
         "displayLabels": [
           "name",
@@ -2049,7 +1990,7 @@
         "x": 8,
         "y": 95
       },
-      "id": 40,
+      "id": 39,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -2104,7 +2045,7 @@
         "x": 16,
         "y": 95
       },
-      "id": 41,
+      "id": 40,
       "options": {
         "legend": {
           "displayMode": "table",
@@ -2159,7 +2100,7 @@
         "x": 0,
         "y": 103
       },
-      "id": 42,
+      "id": 41,
       "options": {
         "cellHeight": "sm",
         "showHeader": true
@@ -2209,7 +2150,7 @@
         "x": 16,
         "y": 103
       },
-      "id": 43,
+      "id": 42,
       "options": {
         "legend": {
           "displayMode": "table",
