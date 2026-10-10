@@ -454,7 +454,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name in (\"restaurant.seating.confirmed\", \"restaurant.seating.released\")\n| summarize arg_max(timestamp, name, customDimensions) by visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| where name == \"restaurant.seating.confirmed\"\n| summarize Ocupación=sum(toint(customDimensions[\"restaurant.party.size\"]))",
+            "query": "customMetrics\n| where name == \"restaurant.seating.occupied_guests\"\n| summarize arg_max(timestamp, valueSum) by cloud_RoleInstance\n| summarize current=sum(valueSum)\n| project ['Ocupación']=max_of(0.0, current)",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -695,7 +695,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet visits=BusinessEvents | extend visit=tostring(customDimensions[\"restaurant.visit.id\"]);\nunion\n(visits | where name == \"restaurant.visit.started\" | summarize Valor=dcount(visit) | extend Etapa=\"1. Entrada\"),\n(visits | where name == \"restaurant.seating.confirmed\" | summarize Valor=dcount(visit) | extend Etapa=\"2. Sentados\"),\n(visits | where name == \"restaurant.order.submitted\" | summarize Valor=dcount(visit) | extend Etapa=\"3. Pedido\"),\n(visits | where name == \"restaurant.item.served\" | summarize Valor=dcount(visit) | extend Etapa=\"4. Servido\"),\n(visits | where name == \"restaurant.bill.presented\" | summarize Valor=dcount(visit) | extend Etapa=\"5. Cuenta\"),\n(visits | where name == \"restaurant.payment.completed\" | summarize Valor=dcount(visit) | extend Etapa=\"6. Pago\")\n| project Etapa, Valor | order by Etapa asc",
+            "query": "let BusinessEvents = dependencies\n| where name == \"restaurant.business.event\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id\n| extend name=tostring(customDimensions[\"business.event.name\"]);\nlet visits=BusinessEvents | extend visit=tostring(customDimensions[\"restaurant.visit.id\"]);\nunion\n(visits | where name == \"restaurant.visit.started\" | summarize Valor=dcount(visit) | extend Etapa=\"1. Entrada\"),\n(visits | where name == \"restaurant.seating.confirmed\" | summarize Valor=dcount(visit) | extend Etapa=\"2. Sentados\"),\n(visits | where name == \"restaurant.order.submitted\" | summarize Valor=dcount(visit) | extend Etapa=\"3. Pedido\"),\n(visits | where name == \"restaurant.item.served\" | summarize Valor=dcount(visit) | extend Etapa=\"4. Servido\"),\n(visits | where name == \"restaurant.bill.presented\" | summarize Valor=dcount(visit) | extend Etapa=\"5. Cuenta\"),\n(visits | where name == \"restaurant.payment.completed\" | summarize Valor=dcount(visit) | extend Etapa=\"6. Pago\")\n| project Etapa, Valor | order by Etapa asc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -760,7 +760,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name in (\"restaurant.seating.confirmed\", \"restaurant.seating.released\")\n| summarize arg_max(timestamp, name, customDimensions) by visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| where name == \"restaurant.seating.confirmed\"\n| summarize Personas=sum(toint(customDimensions[\"restaurant.party.size\"]))\n  by Tipo=tostring(customDimensions[\"place.kind\"])",
+            "query": "customMetrics\n| where name == \"restaurant.seating.occupied_guests\"\n| extend Tipo=tostring(customDimensions[\"place.kind\"])\n| summarize arg_max(timestamp, valueSum) by cloud_RoleInstance, Tipo\n| summarize current=sum(valueSum) by Tipo\n| project Tipo, Personas=max_of(0.0, current)\n| where Personas > 0",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -815,7 +815,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.seating.confirmed\"\n| summarize Grupos=count() by Comensales=toint(customDimensions[\"restaurant.party.size\"])\n| order by Comensales asc",
+            "query": "let BusinessEvents = dependencies\n| where name == \"restaurant.business.event\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id\n| extend name=tostring(customDimensions[\"business.event.name\"]);\nBusinessEvents\n| where name == \"restaurant.seating.confirmed\"\n| summarize Grupos=count() by Comensales=toint(customDimensions[\"restaurant.party.size\"])\n| order by Comensales asc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -872,7 +872,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet started=BusinessEvents | where name == \"restaurant.visit.started\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]), arrived=timestamp;\nlet seated=BusinessEvents | where name == \"restaurant.seating.confirmed\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]), seated=timestamp;\nstarted | join kind=inner seated on visit\n| extend seconds=datetime_diff(\"millisecond\", seated, arrived) / 1000.0\n| summarize Media=avg(seconds), P95=percentile(seconds, 95) by bin(seated, $interval)\n| project timestamp=seated, Media, P95",
+            "query": "customMetrics\n| where name == \"restaurant.visit.time_to_seat\"\n| summarize total=sum(valueSum), samples=sum(valueCount) by bin(timestamp, $interval)\n| project timestamp, Media=iff(samples == 0, 0.0, total / samples)",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -929,7 +929,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet started=BusinessEvents | where name == \"restaurant.visit.started\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]), arrived=timestamp;\nlet closed=BusinessEvents | where name == \"restaurant.visit.closed\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]), closed=timestamp;\nstarted | join kind=inner closed on visit\n| extend seconds=datetime_diff(\"millisecond\", closed, arrived) / 1000.0\n| summarize Media=avg(seconds), P95=percentile(seconds, 95) by bin(closed, $interval)\n| project timestamp=closed, Media, P95",
+            "query": "customMetrics\n| where name == \"restaurant.visit.duration\"\n| summarize total=sum(valueSum), samples=sum(valueCount) by bin(timestamp, $interval)\n| project timestamp, Media=iff(samples == 0, 0.0, total / samples)",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -997,7 +997,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.served\"\n| summarize Unidades=sum(toint(customDimensions[\"restaurant.item.quantity\"]))\n  by Producto=tostring(customDimensions[\"carta_id\"])\n| top 15 by Unidades desc",
+            "query": "customMetrics\n| where name == \"restaurant.items.served\"\n| summarize Unidades=sum(valueSum) by Producto=tostring(customDimensions[\"carta_id\"])\n| top 15 by Unidades desc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1052,7 +1052,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.paid\"\n| summarize Ingresos=sum(todouble(customDimensions[\"restaurant.item.line_total\"]))\n  by Producto=tostring(customDimensions[\"carta_id\"])\n| top 15 by Ingresos desc",
+            "query": "customMetrics\n| where name == \"restaurant.product.revenue\"\n| summarize Ingresos=sum(valueSum) by Producto=tostring(customDimensions[\"carta_id\"])\n| top 15 by Ingresos desc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1102,7 +1102,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name in (\"restaurant.item.accepted\", \"restaurant.item.rejected\",\n                 \"restaurant.item.served\", \"restaurant.item.paid\")\n| extend Producto=tostring(customDimensions[\"carta_id\"]),\n         Cantidad=toint(customDimensions[\"restaurant.item.quantity\"])\n| where isnotempty(Producto)\n| summarize Aceptadas=sumif(Cantidad, name == \"restaurant.item.accepted\"),\n            Rechazadas=sumif(Cantidad, name == \"restaurant.item.rejected\"),\n            Servidas=sumif(Cantidad, name == \"restaurant.item.served\"),\n            Pagadas=sumif(Cantidad, name == \"restaurant.item.paid\") by Producto\n| extend ['Conversión servido/pagado %']=round(100.0 * Pagadas / iff(Servidas == 0, 1, Servidas), 1)\n| order by Pagadas desc",
+            "query": "customMetrics\n| where name in (\"restaurant.items.accepted\", \"restaurant.items.rejected\",\n                 \"restaurant.items.served\", \"restaurant.items.paid\")\n| extend Producto=tostring(customDimensions[\"carta_id\"]),\n         Cantidad=valueSum\n| where isnotempty(Producto)\n| summarize Aceptadas=sumif(Cantidad, name == \"restaurant.items.accepted\"),\n            Rechazadas=sumif(Cantidad, name == \"restaurant.items.rejected\"),\n            Servidas=sumif(Cantidad, name == \"restaurant.items.served\"),\n            Pagadas=sumif(Cantidad, name == \"restaurant.items.paid\") by Producto\n| extend ['Conversión servido/pagado %']=round(100.0 * Pagadas / iff(Servidas == 0, 1.0, Servidas), 1)\n| order by Pagadas desc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1167,7 +1167,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.paid\"\n| summarize Unidades=sum(toint(customDimensions[\"restaurant.item.quantity\"]))\n  by Tipo=tostring(customDimensions[\"item.type\"])",
+            "query": "customMetrics\n| where name == \"restaurant.items.paid\"\n| summarize Unidades=sum(valueSum) by Tipo=tostring(customDimensions[\"item.type\"])",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1222,7 +1222,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.rejected\"\n| extend Producto=tostring(customDimensions[\"carta_id\"])\n| where isnotempty(Producto)\n| summarize Rechazadas=sum(toint(customDimensions[\"restaurant.item.quantity\"])) by Producto\n| top 15 by Rechazadas desc",
+            "query": "customMetrics\n| where name == \"restaurant.items.rejected\"\n| extend Producto=tostring(customDimensions[\"carta_id\"])\n| where isnotempty(Producto)\n| summarize Rechazadas=sum(valueSum) by Producto\n| top 15 by Rechazadas desc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1272,7 +1272,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet items=BusinessEvents\n| where name == \"restaurant.item.paid\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]),\n          product=tostring(customDimensions[\"carta_id\"])\n| where isnotempty(product) | distinct visit, product;\nitems | join kind=inner items on visit\n| where product < product1\n| summarize Visitas=dcount(visit) by Combinación=strcat(product, \" + \", product1)\n| top 15 by Visitas desc",
+            "query": "let BusinessEvents = dependencies\n| where name == \"restaurant.business.event\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id\n| extend name=tostring(customDimensions[\"business.event.name\"]);\nlet items=BusinessEvents\n| where name == \"restaurant.item.paid\"\n| project visit=tostring(customDimensions[\"restaurant.visit.id\"]),\n          product=tostring(customDimensions[\"carta_id\"])\n| where isnotempty(product) | distinct visit, product;\nitems\n| join kind=inner (items | project visit, product2=product) on visit\n| where strcmp(product, product2) < 0\n| summarize Visitas=dcount(visit) by Combination=strcat(product, \" + \", product2)\n| project ['Combinación']=Combination, Visitas\n| top 15 by Visitas desc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1350,7 +1350,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.kitchen.completed\"\n| summarize Órdenes=count() by Resultado=tostring(customDimensions[\"verdict\"])",
+            "query": "customMetrics\n| where name == \"restaurant.kitchen.orders\"\n| summarize ['Órdenes']=sum(valueSum) by Resultado=tostring(customDimensions[\"verdict\"])",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1415,7 +1415,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.bar.completed\"\n| summarize Rondas=count() by Resultado=tostring(customDimensions[\"verdict\"])",
+            "query": "customMetrics\n| where name == \"restaurant.bar.rounds\"\n| summarize Rondas=sum(valueSum) by Resultado=tostring(customDimensions[\"verdict\"])",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1470,7 +1470,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.accepted\" and tostring(customDimensions[\"item.type\"]) == \"dish\"\n| summarize Unidades=sum(toint(customDimensions[\"restaurant.item.quantity\"]))\n  by Estación=tostring(customDimensions[\"station\"])",
+            "query": "customMetrics\n| where name == \"restaurant.kitchen.lines.accepted\"\n| summarize Unidades=sum(valueSum) by ['Estación']=tostring(customDimensions[\"station\"])",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1529,7 +1529,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.item.rejected\"\n  and tostring(customDimensions[\"item.type\"]) == \"drink\"\n  and tostring(customDimensions[\"reason.code\"]) == \"ambiguous\"\n| summarize Ambiguas=sum(toint(customDimensions[\"restaurant.item.quantity\"]))",
+            "query": "customMetrics\n| where name == \"restaurant.bar.drinks.rejected\"\n  and tostring(customDimensions[\"reason.code\"]) == \"ambiguous\"\n| summarize Ambiguas=sum(valueSum)",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1586,7 +1586,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name in (\"restaurant.kitchen.completed\", \"restaurant.bar.completed\")\n| extend Componente=iff(name == \"restaurant.kitchen.completed\", \"cocina\", \"barra\"),\n         seconds=todouble(iff(name == \"restaurant.kitchen.completed\",\n                    customDimensions[\"restaurant.kitchen.duration_seconds\"],\n                    customDimensions[\"restaurant.bar.duration_seconds\"]))\n| summarize Media=avg(seconds), P95=percentile(seconds, 95)\n  by bin(timestamp, $interval), Componente",
+            "query": "customMetrics\n| where name in (\"restaurant.kitchen.order_duration\", \"restaurant.bar.round_duration\")\n| extend Componente=iff(name == \"restaurant.kitchen.order_duration\", \"cocina\", \"barra\")\n| summarize total=sum(valueSum), samples=sum(valueCount)\n  by bin(timestamp, $interval), Componente\n| project timestamp, Componente, Media=iff(samples == 0, 0.0, total / samples)",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1636,7 +1636,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name endswith \".failed\"\n| summarize Fallos=count(), Último=max(timestamp)\n  by Componente=tostring(customDimensions[\"failure.component\"]),\n     Código=tostring(customDimensions[\"failure.code\"])\n| order by Fallos desc",
+            "query": "customMetrics\n| where name == \"restaurant.business.failures\"\n| summarize Fallos=sum(valueSum), ['Último']=max(timestamp)\n  by Componente=tostring(customDimensions[\"failure.component\"]),\n     ['Código']=tostring(customDimensions[\"failure.code\"])\n| order by Fallos desc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1714,7 +1714,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "customMetrics\n| where name == \"restaurant.payments.completed\"\n| summarize Pagos=sum(valueSum) by Método=tostring(customDimensions[\"payment.method\"])",
+            "query": "customMetrics\n| where name == \"restaurant.payments.completed\"\n| summarize Pagos=sum(valueSum) by ['Método']=tostring(customDimensions[\"payment.method\"])",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1769,7 +1769,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.payment.completed\"\n| extend Importe=todouble(customDimensions[\"restaurant.payment.amount\"])\n| extend Tramo=case(Importe < 10, \"< 10 €\", Importe < 20, \"10-20 €\",\n                    Importe < 40, \"20-40 €\", Importe < 60, \"40-60 €\", \">= 60 €\")\n| summarize Tickets=count() by Tramo",
+            "query": "let BusinessEvents = dependencies\n| where name == \"restaurant.business.event\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id\n| extend name=tostring(customDimensions[\"business.event.name\"]);\nBusinessEvents\n| where name == \"restaurant.payment.completed\"\n| extend Importe=todouble(customDimensions[\"restaurant.payment.amount\"])\n| extend Tramo=case(Importe < 10, \"< 10 €\", Importe < 20, \"10-20 €\",\n                    Importe < 40, \"20-40 €\", Importe < 60, \"40-60 €\", \">= 60 €\")\n| summarize Tickets=count() by Tramo",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1881,7 +1881,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.payment.completed\"\n| extend amount=todouble(customDimensions[\"restaurant.payment.amount\"]),\n         guests=toint(customDimensions[\"restaurant.party.size\"])\n| summarize ['Ticket medio']=avg(amount),\n            ['Coste por comensal']=sum(amount) / sum(guests)\n  by bin(timestamp, $interval)",
+            "query": "customMetrics\n| where name in (\"restaurant.revenue\", \"restaurant.payments.completed\",\n                 \"restaurant.guests.paid\")\n| summarize revenue=sumif(valueSum, name == \"restaurant.revenue\"),\n            payments=sumif(valueSum, name == \"restaurant.payments.completed\"),\n            guests=sumif(valueSum, name == \"restaurant.guests.paid\")\n  by bin(timestamp, $interval)\n| project timestamp,\n          ['Ticket medio']=iff(payments == 0, 0.0, revenue / payments),\n          ['Coste por comensal']=iff(guests == 0, 0.0, revenue / guests)",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -1931,7 +1931,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.payment.failed\"\n| summarize Fallos=count(), Último=max(timestamp)\n  by Método=tostring(customDimensions[\"payment.method\"]),\n     Código=tostring(customDimensions[\"failure.code\"])\n| order by Fallos desc",
+            "query": "customMetrics\n| where name == \"restaurant.payments.failed\"\n| summarize Fallos=sum(valueSum), ['Último']=max(timestamp)\n  by ['Método']=tostring(customDimensions[\"payment.method\"]),\n     ['Código']=tostring(customDimensions[\"failure.code\"])\n| order by Fallos desc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -2009,7 +2009,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "customMetrics\n| where name in (\"restaurant.customers.first_visit\", \"restaurant.customers.returning_visit\")\n| summarize Visitas=sum(valueSum)\n  by Tipo=iff(name == \"restaurant.customers.first_visit\", \"Primera visita\", \"Recurrente\")",
+            "query": "customMetrics\n| where name in (\"restaurant.customers.first_visit\", \"restaurant.customers.returning\")\n| summarize Visitas=sum(valueSum)\n  by Tipo=iff(name == \"restaurant.customers.first_visit\", \"Primera visita\", \"Recurrente\")",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -2064,7 +2064,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "customMetrics\n| where name in (\"restaurant.memory.updated\", \"restaurant.memory.reuse_requested\",\n                 \"restaurant.memory.reuse_applied\", \"restaurant.memory.reuse_abandoned\")\n| summarize Total=sum(valueSum) by Acción=replace_string(name, \"restaurant.memory.\", \"\")",
+            "query": "customMetrics\n| where name in (\"restaurant.memory.updated\", \"restaurant.memory.reuse_requested\",\n                 \"restaurant.memory.reuse_applied\", \"restaurant.memory.reuse_abandoned\")\n| summarize Total=sum(valueSum) by ['Acción']=replace_string(name, \"restaurant.memory.\", \"\")",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -2119,7 +2119,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.conversation.turn_completed\"\n| summarize arg_max(timestamp, customDimensions) by visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| summarize Visitas=count() by Turnos=toint(customDimensions[\"restaurant.conversation.turn_count\"])\n| order by Turnos asc",
+            "query": "let BusinessEvents = dependencies\n| where name == \"restaurant.business.event\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id\n| extend name=tostring(customDimensions[\"business.event.name\"]);\nBusinessEvents\n| where name == \"restaurant.conversation.turn_completed\"\n| summarize arg_max(timestamp, customDimensions) by visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| summarize Visitas=count() by Turnos=toint(customDimensions[\"restaurant.conversation.turn_count\"])\n| order by Turnos asc",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -2169,7 +2169,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nlet stages=BusinessEvents\n| where name in (\"restaurant.visit.started\", \"restaurant.seating.confirmed\",\n                 \"restaurant.order.submitted\", \"restaurant.item.served\",\n                 \"restaurant.bill.presented\", \"restaurant.payment.completed\")\n| extend visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| summarize Entrada=minif(timestamp, name == \"restaurant.visit.started\"),\n            Asiento=minif(timestamp, name == \"restaurant.seating.confirmed\"),\n            Pedido=minif(timestamp, name == \"restaurant.order.submitted\"),\n            Servido=minif(timestamp, name == \"restaurant.item.served\"),\n            Cuenta=minif(timestamp, name == \"restaurant.bill.presented\"),\n            Pago=minif(timestamp, name == \"restaurant.payment.completed\") by visit;\nstages\n| summarize ['Entrada → asiento (s)']=avg(datetime_diff(\"millisecond\", Asiento, Entrada))/1000.0,\n            ['Asiento → pedido (s)']=avg(datetime_diff(\"millisecond\", Pedido, Asiento))/1000.0,\n            ['Pedido → servido (s)']=avg(datetime_diff(\"millisecond\", Servido, Pedido))/1000.0,\n            ['Servido → cuenta (s)']=avg(datetime_diff(\"millisecond\", Cuenta, Servido))/1000.0,\n            ['Cuenta → pago (s)']=avg(datetime_diff(\"millisecond\", Pago, Cuenta))/1000.0",
+            "query": "let BusinessEvents = dependencies\n| where name == \"restaurant.business.event\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id\n| extend name=tostring(customDimensions[\"business.event.name\"]);\nlet stages=BusinessEvents\n| where name in (\"restaurant.visit.started\", \"restaurant.seating.confirmed\",\n                 \"restaurant.order.submitted\", \"restaurant.item.served\",\n                 \"restaurant.bill.presented\", \"restaurant.payment.completed\")\n| extend visit=tostring(customDimensions[\"restaurant.visit.id\"])\n| summarize Entrada=minif(timestamp, name == \"restaurant.visit.started\"),\n            Asiento=minif(timestamp, name == \"restaurant.seating.confirmed\"),\n            Pedido=minif(timestamp, name == \"restaurant.order.submitted\"),\n            Servido=minif(timestamp, name == \"restaurant.item.served\"),\n            Cuenta=minif(timestamp, name == \"restaurant.bill.presented\"),\n            Pago=minif(timestamp, name == \"restaurant.payment.completed\") by visit;\nstages\n| summarize ['Entrada → asiento (s)']=avg(datetime_diff(\"millisecond\", Asiento, Entrada))/1000.0,\n            ['Asiento → pedido (s)']=avg(datetime_diff(\"millisecond\", Pedido, Asiento))/1000.0,\n            ['Pedido → servido (s)']=avg(datetime_diff(\"millisecond\", Servido, Pedido))/1000.0,\n            ['Servido → cuenta (s)']=avg(datetime_diff(\"millisecond\", Cuenta, Servido))/1000.0,\n            ['Cuenta → pago (s)']=avg(datetime_diff(\"millisecond\", Pago, Cuenta))/1000.0",
             "resources": [
               "$applicationInsightsResourceId"
             ],
@@ -2224,7 +2224,7 @@
         {
           "azureLogAnalytics": {
             "dashboardTime": true,
-            "query": "let BusinessEvents = customEvents\n| where name startswith \"restaurant.\"\n| extend event_id=tostring(customDimensions[\"business.event.id\"])\n| where isnotempty(event_id)\n| summarize arg_max(timestamp, *) by event_id;\nBusinessEvents\n| where name == \"restaurant.visit.closed\"\n  and tostring(customDimensions[\"restaurant.visit.paid\"]) == \"False\"\n| summarize Total=count()\n  by Resultado=iff(tostring(customDimensions[\"restaurant.visit.had_served_items\"]) == \"True\",\n                   \"Servido sin pago\", \"Sin pedido\")",
+            "query": "customMetrics\n| where name in (\"restaurant.visit.no_order\", \"restaurant.visit.no_payment\")\n| summarize Total=sum(valueSum)\n  by Resultado=iff(name == \"restaurant.visit.no_order\", \"Sin pedido\", \"Sin pago\")",
             "resources": [
               "$applicationInsightsResourceId"
             ],

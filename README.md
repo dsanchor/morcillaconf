@@ -431,7 +431,8 @@ Azure Monitor como datasource y consultas KQL sobre Application Insights. Su
 estructura importable y las consultas sobre `customMetrics` siguen además el
 [ejemplo de Fraud Intelligence de Microsoft MicroHack](https://github.com/microsoft/MicroHack/tree/main/03-Azure/01-04-AI/07_Fraud_Intelligence/walkthrough/challenge-06/grafana).
 Los paneles contables y las series usan `customMetrics`; los embudos, tiempos
-entre etapas y combinaciones usan los `customEvents` correlacionados.
+entre etapas y combinaciones usan spans `restaurant.business.event` de
+`dependencies`, con sus dimensiones en `customDimensions`.
 
 El despliegue es idempotente y no construye ni publica imágenes, pero no realiza
 una previsualización: revisa el fichero de entorno antes de ejecutarlo. Para

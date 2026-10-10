@@ -46,10 +46,7 @@ class BusinessTelemetry:
             event_attributes.update(attributes)
         with self._tracer.start_as_current_span(
             "restaurant.business.event",
-            attributes={
-                "business.event.name": name,
-                "business.event.schema_version": 1,
-            },
+            attributes=event_attributes,
         ) as span:
             span.add_event(name, event_attributes, timestamp=int(occurred_at.timestamp() * 1e9))
 

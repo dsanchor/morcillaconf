@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from collections import Counter
+from contextlib import contextmanager
+from datetime import UTC, datetime
 
+from bff.business_telemetry import BusinessTelemetry
 from bff.scripted_seating import ScriptedSeating
 
 
@@ -17,6 +20,39 @@ class RecordingTelemetry:
 
     def counts(self) -> Counter[str]:
         return Counter(name for name, _ in self.calls)
+
+
+def test_business_event_attributes_are_exported_on_the_span() -> None:
+    telemetry = BusinessTelemetry()
+    spans: list[tuple[str, dict[str, object]]] = []
+    events: list[tuple[str, dict[str, object]]] = []
+
+    class Span:
+        def add_event(self, name, attributes, timestamp) -> None:
+            events.append((name, dict(attributes)))
+
+    class Tracer:
+        @contextmanager
+        def start_as_current_span(self, name, attributes):
+            spans.append((name, dict(attributes)))
+            yield Span()
+
+    telemetry._tracer = Tracer()
+    telemetry.event(
+        "restaurant.visit.started",
+        visit_id="visit_demo",
+        conversation_id="conv_demo",
+        occurred_at=datetime(2026, 10, 10, tzinfo=UTC),
+        attributes={"customer.lifecycle": "first_visit"},
+    )
+
+    span_name, attributes = spans[0]
+    assert span_name == "restaurant.business.event"
+    assert attributes["business.event.name"] == "restaurant.visit.started"
+    assert attributes["restaurant.visit.id"] == "visit_demo"
+    assert attributes["restaurant.conversation.id"] == "conv_demo"
+    assert attributes["customer.lifecycle"] == "first_visit"
+    assert events[0][1] == attributes
 
 
 async def test_business_events_are_not_repeated_by_command_replays(

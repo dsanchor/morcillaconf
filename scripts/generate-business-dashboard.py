@@ -12,11 +12,12 @@ DATASOURCE = {
     "type": "grafana-azure-monitor-datasource",
     "uid": "${DS_AZURE_MONITOR}",
 }
-EVENTS = """let BusinessEvents = customEvents
-| where name startswith "restaurant."
+EVENTS = """let BusinessEvents = dependencies
+| where name == "restaurant.business.event"
 | extend event_id=tostring(customDimensions["business.event.id"])
 | where isnotempty(event_id)
-| summarize arg_max(timestamp, *) by event_id;
+| summarize arg_max(timestamp, *) by event_id
+| extend name=tostring(customDimensions["business.event.name"]);
 """
 
 
@@ -178,11 +179,11 @@ def build() -> dict[str, Any]:
         ),
         (
             "Ocupación actual",
-            """BusinessEvents
-| where name in ("restaurant.seating.confirmed", "restaurant.seating.released")
-| summarize arg_max(timestamp, name, customDimensions) by visit=tostring(customDimensions["restaurant.visit.id"])
-| where name == "restaurant.seating.confirmed"
-| summarize Ocupación=sum(toint(customDimensions["restaurant.party.size"]))""",
+            """customMetrics
+| where name == "restaurant.seating.occupied_guests"
+| summarize arg_max(timestamp, valueSum) by cloud_RoleInstance
+| summarize current=sum(valueSum)
+| project ['Ocupación']=max_of(0.0, current)""",
             "short",
         ),
         (
@@ -254,12 +255,13 @@ union
     add(
         "Ocupación por tipo",
         "piechart",
-        """BusinessEvents
-| where name in ("restaurant.seating.confirmed", "restaurant.seating.released")
-| summarize arg_max(timestamp, name, customDimensions) by visit=tostring(customDimensions["restaurant.visit.id"])
-| where name == "restaurant.seating.confirmed"
-| summarize Personas=sum(toint(customDimensions["restaurant.party.size"]))
-  by Tipo=tostring(customDimensions["place.kind"])""",
+        """customMetrics
+| where name == "restaurant.seating.occupied_guests"
+| extend Tipo=tostring(customDimensions["place.kind"])
+| summarize arg_max(timestamp, valueSum) by cloud_RoleInstance, Tipo
+| summarize current=sum(valueSum) by Tipo
+| project Tipo, Personas=max_of(0.0, current)
+| where Personas > 0""",
         x=12,
         y=18,
         w=6,
@@ -282,14 +284,10 @@ union
     add(
         "Tiempo hasta sentarse",
         "timeseries",
-        """let started=BusinessEvents | where name == "restaurant.visit.started"
-| project visit=tostring(customDimensions["restaurant.visit.id"]), arrived=timestamp;
-let seated=BusinessEvents | where name == "restaurant.seating.confirmed"
-| project visit=tostring(customDimensions["restaurant.visit.id"]), seated=timestamp;
-started | join kind=inner seated on visit
-| extend seconds=datetime_diff("millisecond", seated, arrived) / 1000.0
-| summarize Media=avg(seconds), P95=percentile(seconds, 95) by bin(seated, $interval)
-| project timestamp=seated, Media, P95""",
+        """customMetrics
+| where name == "restaurant.visit.time_to_seat"
+| summarize total=sum(valueSum), samples=sum(valueCount) by bin(timestamp, $interval)
+| project timestamp, Media=iff(samples == 0, 0.0, total / samples)""",
         x=0,
         y=26,
         w=12,
@@ -299,14 +297,10 @@ started | join kind=inner seated on visit
     add(
         "Duración de las visitas",
         "timeseries",
-        """let started=BusinessEvents | where name == "restaurant.visit.started"
-| project visit=tostring(customDimensions["restaurant.visit.id"]), arrived=timestamp;
-let closed=BusinessEvents | where name == "restaurant.visit.closed"
-| project visit=tostring(customDimensions["restaurant.visit.id"]), closed=timestamp;
-started | join kind=inner closed on visit
-| extend seconds=datetime_diff("millisecond", closed, arrived) / 1000.0
-| summarize Media=avg(seconds), P95=percentile(seconds, 95) by bin(closed, $interval)
-| project timestamp=closed, Media, P95""",
+        """customMetrics
+| where name == "restaurant.visit.duration"
+| summarize total=sum(valueSum), samples=sum(valueCount) by bin(timestamp, $interval)
+| project timestamp, Media=iff(samples == 0, 0.0, total / samples)""",
         x=12,
         y=26,
         w=12,
@@ -318,10 +312,9 @@ started | join kind=inner closed on visit
     add(
         "Productos servidos",
         "barchart",
-        """BusinessEvents
-| where name == "restaurant.item.served"
-| summarize Unidades=sum(toint(customDimensions["restaurant.item.quantity"]))
-  by Producto=tostring(customDimensions["carta_id"])
+        """customMetrics
+| where name == "restaurant.items.served"
+| summarize Unidades=sum(valueSum) by Producto=tostring(customDimensions["carta_id"])
 | top 15 by Unidades desc""",
         x=0,
         y=35,
@@ -332,10 +325,9 @@ started | join kind=inner closed on visit
     add(
         "Ingresos por producto",
         "barchart",
-        """BusinessEvents
-| where name == "restaurant.item.paid"
-| summarize Ingresos=sum(todouble(customDimensions["restaurant.item.line_total"]))
-  by Producto=tostring(customDimensions["carta_id"])
+        """customMetrics
+| where name == "restaurant.product.revenue"
+| summarize Ingresos=sum(valueSum) by Producto=tostring(customDimensions["carta_id"])
 | top 15 by Ingresos desc""",
         x=12,
         y=35,
@@ -347,17 +339,17 @@ started | join kind=inner closed on visit
     add(
         "Embudo por producto",
         "table",
-        """BusinessEvents
-| where name in ("restaurant.item.accepted", "restaurant.item.rejected",
-                 "restaurant.item.served", "restaurant.item.paid")
+        """customMetrics
+| where name in ("restaurant.items.accepted", "restaurant.items.rejected",
+                 "restaurant.items.served", "restaurant.items.paid")
 | extend Producto=tostring(customDimensions["carta_id"]),
-         Cantidad=toint(customDimensions["restaurant.item.quantity"])
+         Cantidad=valueSum
 | where isnotempty(Producto)
-| summarize Aceptadas=sumif(Cantidad, name == "restaurant.item.accepted"),
-            Rechazadas=sumif(Cantidad, name == "restaurant.item.rejected"),
-            Servidas=sumif(Cantidad, name == "restaurant.item.served"),
-            Pagadas=sumif(Cantidad, name == "restaurant.item.paid") by Producto
-| extend ['Conversión servido/pagado %']=round(100.0 * Pagadas / iff(Servidas == 0, 1, Servidas), 1)
+| summarize Aceptadas=sumif(Cantidad, name == "restaurant.items.accepted"),
+            Rechazadas=sumif(Cantidad, name == "restaurant.items.rejected"),
+            Servidas=sumif(Cantidad, name == "restaurant.items.served"),
+            Pagadas=sumif(Cantidad, name == "restaurant.items.paid") by Producto
+| extend ['Conversión servido/pagado %']=round(100.0 * Pagadas / iff(Servidas == 0, 1.0, Servidas), 1)
 | order by Pagadas desc""",
         x=0,
         y=43,
@@ -368,10 +360,9 @@ started | join kind=inner closed on visit
     add(
         "Mix platos/bebidas",
         "piechart",
-        """BusinessEvents
-| where name == "restaurant.item.paid"
-| summarize Unidades=sum(toint(customDimensions["restaurant.item.quantity"]))
-  by Tipo=tostring(customDimensions["item.type"])""",
+        """customMetrics
+| where name == "restaurant.items.paid"
+| summarize Unidades=sum(valueSum) by Tipo=tostring(customDimensions["item.type"])""",
         x=16,
         y=43,
         w=8,
@@ -381,11 +372,11 @@ started | join kind=inner closed on visit
     add(
         "Productos rechazados",
         "barchart",
-        """BusinessEvents
-| where name == "restaurant.item.rejected"
+        """customMetrics
+| where name == "restaurant.items.rejected"
 | extend Producto=tostring(customDimensions["carta_id"])
 | where isnotempty(Producto)
-| summarize Rechazadas=sum(toint(customDimensions["restaurant.item.quantity"])) by Producto
+| summarize Rechazadas=sum(valueSum) by Producto
 | top 15 by Rechazadas desc""",
         x=0,
         y=52,
@@ -401,9 +392,11 @@ started | join kind=inner closed on visit
 | project visit=tostring(customDimensions["restaurant.visit.id"]),
           product=tostring(customDimensions["carta_id"])
 | where isnotempty(product) | distinct visit, product;
-items | join kind=inner items on visit
-| where product < product1
-| summarize Visitas=dcount(visit) by Combinación=strcat(product, " + ", product1)
+items
+| join kind=inner (items | project visit, product2=product) on visit
+| where strcmp(product, product2) < 0
+| summarize Visitas=dcount(visit) by Combination=strcat(product, " + ", product2)
+| project ['Combinación']=Combination, Visitas
 | top 15 by Visitas desc""",
         x=12,
         y=52,
@@ -416,9 +409,9 @@ items | join kind=inner items on visit
     add(
         "Resultado de cocina",
         "piechart",
-        """BusinessEvents
-| where name == "restaurant.kitchen.completed"
-| summarize Órdenes=count() by Resultado=tostring(customDimensions["verdict"])""",
+        """customMetrics
+| where name == "restaurant.kitchen.orders"
+| summarize ['Órdenes']=sum(valueSum) by Resultado=tostring(customDimensions["verdict"])""",
         x=0,
         y=61,
         w=6,
@@ -428,9 +421,9 @@ items | join kind=inner items on visit
     add(
         "Resultado de barra",
         "piechart",
-        """BusinessEvents
-| where name == "restaurant.bar.completed"
-| summarize Rondas=count() by Resultado=tostring(customDimensions["verdict"])""",
+        """customMetrics
+| where name == "restaurant.bar.rounds"
+| summarize Rondas=sum(valueSum) by Resultado=tostring(customDimensions["verdict"])""",
         x=6,
         y=61,
         w=6,
@@ -440,10 +433,9 @@ items | join kind=inner items on visit
     add(
         "Carga por estación",
         "barchart",
-        """BusinessEvents
-| where name == "restaurant.item.accepted" and tostring(customDimensions["item.type"]) == "dish"
-| summarize Unidades=sum(toint(customDimensions["restaurant.item.quantity"]))
-  by Estación=tostring(customDimensions["station"])""",
+        """customMetrics
+| where name == "restaurant.kitchen.lines.accepted"
+| summarize Unidades=sum(valueSum) by ['Estación']=tostring(customDimensions["station"])""",
         x=12,
         y=61,
         w=6,
@@ -453,11 +445,10 @@ items | join kind=inner items on visit
     add(
         "Solicitudes ambiguas de barra",
         "stat",
-        """BusinessEvents
-| where name == "restaurant.item.rejected"
-  and tostring(customDimensions["item.type"]) == "drink"
+        """customMetrics
+| where name == "restaurant.bar.drinks.rejected"
   and tostring(customDimensions["reason.code"]) == "ambiguous"
-| summarize Ambiguas=sum(toint(customDimensions["restaurant.item.quantity"]))""",
+| summarize Ambiguas=sum(valueSum)""",
         x=18,
         y=61,
         w=6,
@@ -466,14 +457,12 @@ items | join kind=inner items on visit
     add(
         "Duración de cocina y barra",
         "timeseries",
-        """BusinessEvents
-| where name in ("restaurant.kitchen.completed", "restaurant.bar.completed")
-| extend Componente=iff(name == "restaurant.kitchen.completed", "cocina", "barra"),
-         seconds=todouble(iff(name == "restaurant.kitchen.completed",
-                    customDimensions["restaurant.kitchen.duration_seconds"],
-                    customDimensions["restaurant.bar.duration_seconds"]))
-| summarize Media=avg(seconds), P95=percentile(seconds, 95)
-  by bin(timestamp, $interval), Componente""",
+        """customMetrics
+| where name in ("restaurant.kitchen.order_duration", "restaurant.bar.round_duration")
+| extend Componente=iff(name == "restaurant.kitchen.order_duration", "cocina", "barra")
+| summarize total=sum(valueSum), samples=sum(valueCount)
+  by bin(timestamp, $interval), Componente
+| project timestamp, Componente, Media=iff(samples == 0, 0.0, total / samples)""",
         x=0,
         y=69,
         w=12,
@@ -483,11 +472,11 @@ items | join kind=inner items on visit
     add(
         "Fallos por componente y código",
         "table",
-        """BusinessEvents
-| where name endswith ".failed"
-| summarize Fallos=count(), Último=max(timestamp)
+        """customMetrics
+| where name == "restaurant.business.failures"
+| summarize Fallos=sum(valueSum), ['Último']=max(timestamp)
   by Componente=tostring(customDimensions["failure.component"]),
-     Código=tostring(customDimensions["failure.code"])
+     ['Código']=tostring(customDimensions["failure.code"])
 | order by Fallos desc""",
         x=12,
         y=69,
@@ -502,7 +491,7 @@ items | join kind=inner items on visit
         "piechart",
         """customMetrics
 | where name == "restaurant.payments.completed"
-| summarize Pagos=sum(valueSum) by Método=tostring(customDimensions["payment.method"])""",
+| summarize Pagos=sum(valueSum) by ['Método']=tostring(customDimensions["payment.method"])""",
         x=0,
         y=78,
         w=6,
@@ -540,13 +529,16 @@ items | join kind=inner items on visit
     add(
         "Ticket y coste por comensal",
         "timeseries",
-        """BusinessEvents
-| where name == "restaurant.payment.completed"
-| extend amount=todouble(customDimensions["restaurant.payment.amount"]),
-         guests=toint(customDimensions["restaurant.party.size"])
-| summarize ['Ticket medio']=avg(amount),
-            ['Coste por comensal']=sum(amount) / sum(guests)
-  by bin(timestamp, $interval)""",
+        """customMetrics
+| where name in ("restaurant.revenue", "restaurant.payments.completed",
+                 "restaurant.guests.paid")
+| summarize revenue=sumif(valueSum, name == "restaurant.revenue"),
+            payments=sumif(valueSum, name == "restaurant.payments.completed"),
+            guests=sumif(valueSum, name == "restaurant.guests.paid")
+  by bin(timestamp, $interval)
+| project timestamp,
+          ['Ticket medio']=iff(payments == 0, 0.0, revenue / payments),
+          ['Coste por comensal']=iff(guests == 0, 0.0, revenue / guests)""",
         x=0,
         y=86,
         w=12,
@@ -556,11 +548,11 @@ items | join kind=inner items on visit
     add(
         "Pagos fallidos",
         "table",
-        """BusinessEvents
-| where name == "restaurant.payment.failed"
-| summarize Fallos=count(), Último=max(timestamp)
-  by Método=tostring(customDimensions["payment.method"]),
-     Código=tostring(customDimensions["failure.code"])
+        """customMetrics
+| where name == "restaurant.payments.failed"
+| summarize Fallos=sum(valueSum), ['Último']=max(timestamp)
+  by ['Método']=tostring(customDimensions["payment.method"]),
+     ['Código']=tostring(customDimensions["failure.code"])
 | order by Fallos desc""",
         x=12,
         y=86,
@@ -574,7 +566,7 @@ items | join kind=inner items on visit
         "Primera visita frente a recurrentes",
         "piechart",
         """customMetrics
-| where name in ("restaurant.customers.first_visit", "restaurant.customers.returning_visit")
+| where name in ("restaurant.customers.first_visit", "restaurant.customers.returning")
 | summarize Visitas=sum(valueSum)
   by Tipo=iff(name == "restaurant.customers.first_visit", "Primera visita", "Recurrente")""",
         x=0,
@@ -589,7 +581,7 @@ items | join kind=inner items on visit
         """customMetrics
 | where name in ("restaurant.memory.updated", "restaurant.memory.reuse_requested",
                  "restaurant.memory.reuse_applied", "restaurant.memory.reuse_abandoned")
-| summarize Total=sum(valueSum) by Acción=replace_string(name, "restaurant.memory.", "")""",
+| summarize Total=sum(valueSum) by ['Acción']=replace_string(name, "restaurant.memory.", "")""",
         x=8,
         y=95,
         w=8,
@@ -640,12 +632,10 @@ stages
     add(
         "Visitas sin pedido o sin pago",
         "barchart",
-        """BusinessEvents
-| where name == "restaurant.visit.closed"
-  and tostring(customDimensions["restaurant.visit.paid"]) == "False"
-| summarize Total=count()
-  by Resultado=iff(tostring(customDimensions["restaurant.visit.had_served_items"]) == "True",
-                   "Servido sin pago", "Sin pedido")""",
+        """customMetrics
+| where name in ("restaurant.visit.no_order", "restaurant.visit.no_payment")
+| summarize Total=sum(valueSum)
+  by Resultado=iff(name == "restaurant.visit.no_order", "Sin pedido", "Sin pago")""",
         x=16,
         y=103,
         w=8,
