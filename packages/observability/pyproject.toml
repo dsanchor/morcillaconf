@@ -1,0 +1,18 @@
+[project]
+name = "morcillaconf-observability"
+version = "0.1.0"
+description = "Shared OpenTelemetry tracing configuration for MorcillaConf services."
+requires-python = ">=3.13"
+dependencies = [
+    "agent-framework-core>=1.19,<2",
+    "azure-monitor-opentelemetry-exporter>=1.0.0b57",
+    "opentelemetry-instrumentation-asgi>=0.65b0,<1",
+    "opentelemetry-instrumentation-httpx>=0.65b0,<1",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

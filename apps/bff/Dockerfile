@@ -6,6 +6,7 @@ COPY --from=uv /uv /uvx /bin/
 ENV UV_LINK_MODE=copy
 WORKDIR /workspace/apps/bff
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/observability /workspace/packages/observability
 COPY apps/bff/pyproject.toml apps/bff/uv.lock ./
 
 FROM base AS test

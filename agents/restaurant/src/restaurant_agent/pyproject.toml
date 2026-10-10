@@ -5,6 +5,7 @@ description = "Camarero orquestador para la demo del restaurante multiagente."
 requires-python = ">=3.13"
 dependencies = [
     "morcillaconf-contracts",
+    "morcillaconf-observability",
     "a2a-sdk==1.1.2",
     "agent-framework-foundry",
     "agent-framework-foundry-hosting>=1.0.0b260813",
@@ -25,6 +26,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv.sources]
 morcillaconf-contracts = { path = "../../../../packages/contracts", editable = true }
+morcillaconf-observability = { path = "../../../../packages/observability", editable = true }
 morcillaconf-kitchen-agent = { path = "../../../kitchen/src/kitchen_agent", editable = true }
 
 [tool.setuptools.packages.find]

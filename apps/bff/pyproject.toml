@@ -5,6 +5,7 @@ description = "BFF FastAPI entre la vista Streamlit y el camarero del restaurant
 requires-python = ">=3.13"
 dependencies = [
     "morcillaconf-contracts",
+    "morcillaconf-observability",
     "fastapi>=0.115,<1",
     "httpx>=0.28",
     "uvicorn>=0.30",
@@ -19,6 +20,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv.sources]
 morcillaconf-contracts = { path = "../../packages/contracts", editable = true }
+morcillaconf-observability = { path = "../../packages/observability", editable = true }
 morcillaconf-restaurant-agent = { path = "../../agents/restaurant/src/restaurant_agent", editable = true }
 
 [tool.uv]

@@ -5,6 +5,7 @@ description = "Agente de cocina A2A con chef coordinador y especialistas."
 requires-python = ">=3.13"
 dependencies = [
     "morcillaconf-contracts",
+    "morcillaconf-observability",
     "a2a-sdk[http-server]==1.1.2",
     "agent-framework-foundry",
     "agent-framework-orchestrations==1.2.0",
@@ -28,6 +29,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv.sources]
 morcillaconf-contracts = { path = "../../../../packages/contracts", editable = true }
+morcillaconf-observability = { path = "../../../../packages/observability", editable = true }
 
 [tool.setuptools.packages.find]
 include = ["kitchen_agent*"]

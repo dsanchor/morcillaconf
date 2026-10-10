@@ -1128,6 +1128,7 @@ dependencies = [
     { name = "httpx" },
     { name = "mcp" },
     { name = "morcillaconf-contracts" },
+    { name = "morcillaconf-observability" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
@@ -1145,6 +1146,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "mcp", specifier = ">=1.30,<2" },
     { name = "morcillaconf-contracts", editable = "../../../../packages/contracts" },
+    { name = "morcillaconf-observability", editable = "../../../../packages/observability" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-settings", specifier = ">=2.12" },
     { name = "python-dotenv", specifier = ">=1.1,<2" },
@@ -1159,6 +1161,25 @@ dev = [
 ]
 
 [[package]]
+name = "morcillaconf-observability"
+version = "0.1.0"
+source = { editable = "../../../../packages/observability" }
+dependencies = [
+    { name = "agent-framework-core" },
+    { name = "azure-monitor-opentelemetry-exporter" },
+    { name = "opentelemetry-instrumentation-asgi" },
+    { name = "opentelemetry-instrumentation-httpx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agent-framework-core", specifier = ">=1.19,<2" },
+    { name = "azure-monitor-opentelemetry-exporter", specifier = ">=1.0.0b57" },
+    { name = "opentelemetry-instrumentation-asgi", specifier = ">=0.65b0,<1" },
+    { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.65b0,<1" },
+]
+
+[[package]]
 name = "morcillaconf-restaurant-agent"
 version = "0.1.0"
 source = { editable = "." }
@@ -1170,6 +1191,7 @@ dependencies = [
     { name = "httpx" },
     { name = "mcp" },
     { name = "morcillaconf-contracts" },
+    { name = "morcillaconf-observability" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
@@ -1190,6 +1212,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "mcp", specifier = ">=1.30,<2" },
     { name = "morcillaconf-contracts", editable = "../../../../packages/contracts" },
+    { name = "morcillaconf-observability", editable = "../../../../packages/observability" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-settings", specifier = ">=2.12" },
 ]

@@ -161,6 +161,21 @@ if ((CASHIER_TIMEOUT_SECONDS + 20 > WAITER_AGENT_TIMEOUT_SECONDS)); then
   printf 'WARNING: CASHIER_TIMEOUT_SECONDS (%s) leaves less than 20 s of WAITER_AGENT_TIMEOUT_SECONDS (%s) for the waiter itself\n' \
     "$CASHIER_TIMEOUT_SECONDS" "$WAITER_AGENT_TIMEOUT_SECONDS" >&2
 fi
+
+telemetry_env=()
+if [[ -n "${APPLICATIONINSIGHTS_RESOURCE_ID:-}" || -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]]; then
+  require_vars APPLICATIONINSIGHTS_RESOURCE_ID APPLICATIONINSIGHTS_CONNECTION_STRING
+  validate_match APPLICATIONINSIGHTS_RESOURCE_ID '^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/[Mm]icrosoft\.[Ii]nsights/components/[^/]+$' "an Application Insights Azure resource ID"
+  [[ "$APPLICATIONINSIGHTS_CONNECTION_STRING" == InstrumentationKey=* ]] ||
+    fail "APPLICATIONINSIGHTS_CONNECTION_STRING must be an Application Insights connection string"
+  telemetry_env+=(
+    "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPLICATIONINSIGHTS_CONNECTION_STRING"
+    "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false"
+  )
+else
+  printf 'WARNING: APPLICATIONINSIGHTS_CONNECTION_STRING is empty; distributed tracing is disabled\n' >&2
+fi
+
 validate_ghcr_image() {
   local name="$1"
   local image
@@ -346,6 +361,7 @@ kitchen_env=(
   "KITCHEN_HOST=0.0.0.0"
   "KITCHEN_PORT=8089"
   "KITCHEN_A2A_PUBLIC_URL=https://$KITCHEN_AGENT_APP_NAME/"
+  "${telemetry_env[@]}"
 )
 if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
   kitchen_env+=(
@@ -376,6 +392,7 @@ cashier_env=(
   "CASHIER_HOST=0.0.0.0"
   "CASHIER_PORT=8090"
   "CASHIER_A2A_PUBLIC_URL=https://$CASHIER_AGENT_APP_NAME/"
+  "${telemetry_env[@]}"
 )
 if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
   cashier_env+=(
@@ -410,6 +427,7 @@ agent_env=(
   "KITCHEN_TIMEOUT_SECONDS=$KITCHEN_TIMEOUT_SECONDS"
   "CASHIER_A2A_URL=https://$CASHIER_FQDN"
   "CASHIER_TIMEOUT_SECONDS=$CASHIER_TIMEOUT_SECONDS"
+  "${telemetry_env[@]}"
 )
 if [[ "$KNOWLEDGE_ENABLED" == "true" ]]; then
   log "The restaurant agent uses the knowledge base $KNOWLEDGE_BASE_NAME"
@@ -437,6 +455,7 @@ apply_app "$BFF_APP_NAME" "$BFF_IMAGE" internal 8000 false \
   "BFF_EVENT_RETENTION=$BFF_EVENT_RETENTION" \
   "BFF_SSE_HEARTBEAT_SECONDS=$BFF_SSE_HEARTBEAT_SECONDS" \
   "BFF_SERVE_DELAY_SECONDS=${BFF_SERVE_DELAY_SECONDS:-15}" \
+  "${telemetry_env[@]}" \
   "BFF_PORT=8000"
 BFF_FQDN="$(az containerapp show --name "$BFF_APP_NAME" --resource-group "$AZURE_RESOURCE_GROUP" \
   --query properties.configuration.ingress.fqdn --output tsv)"

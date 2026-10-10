@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI
+from morcillaconf_observability import instrument_asgi
 
 from bff import api
 from bff.adapters import create_waiter
@@ -53,4 +54,4 @@ def create_app(
 
     app = FastAPI(title="Morcillaconf BFF", version="0.1.0", lifespan=lifespan)
     api.install(app)
-    return app
+    return instrument_asgi(app, "morcillaconf-bff")

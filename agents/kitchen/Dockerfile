@@ -5,6 +5,7 @@ COPY --from=uv /uv /uvx /bin/
 
 WORKDIR /workspace/agents/kitchen/src/kitchen_agent
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/observability /workspace/packages/observability
 COPY agents/kitchen/src/kitchen_agent/pyproject.toml agents/kitchen/src/kitchen_agent/uv.lock agents/kitchen/src/kitchen_agent/uv.toml ./
 
 FROM base AS test

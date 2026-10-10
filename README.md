@@ -376,6 +376,37 @@ cada llamada A2A, con el mismo aviso de margen. La revisión humana en caja se
 despliega desactivada. Como las tareas y los pagos de caja viven en memoria,
 la aplicación se queda en una réplica, como las demás.
 
+### Trazas distribuidas en Application Insights
+
+La observabilidad usa los spans nativos de Agent Framework y OpenTelemetry,
+siguiendo la
+[documentación oficial](https://learn.microsoft.com/agent-framework/agents/observability?pivots=programming-language-python).
+El BFF, el camarero, cocina y caja exportan únicamente trazas a un Application
+Insights basado en Log Analytics. La instrumentación ASGI extrae el contexto
+entrante y la de `httpx` inyecta `traceparent` y `tracestate`, por lo que una
+petición conserva el mismo trace ID a través de BFF, camarero y llamadas A2A.
+Los agentes auxiliares que viven en el proceso del camarero o de cocina quedan
+como spans hijos mediante la instrumentación de Agent Framework.
+
+La captura de prompts, respuestas, argumentos y resultados está desactivada.
+Tampoco se exportan logs ni métricas en esta fase. Sin
+`APPLICATIONINSIGHTS_CONNECTION_STRING`, la instrumentación permanece
+deshabilitada y el comportamiento local no cambia.
+
+Provisiona los recursos workspace-based:
+
+```bash
+cp scripts/observability.env.example scripts/observability.env
+${EDITOR:-vi} scripts/observability.env
+./scripts/provision-observability.sh scripts/observability.env
+```
+
+El script imprime `APPLICATIONINSIGHTS_RESOURCE_ID` y
+`APPLICATIONINSIGHTS_CONNECTION_STRING`. Copia ambos valores en
+`scripts/container-apps.env` y vuelve a ejecutar `deploy-container-apps.sh`.
+La cadena identifica el destino de ingestión pero no concede acceso de lectura
+a la telemetría.
+
 El despliegue es idempotente y no construye ni publica imágenes, pero no realiza
 una previsualización: revisa el fichero de entorno antes de ejecutarlo. Para
 validar solo la sintaxis sin crear recursos:

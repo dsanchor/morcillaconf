@@ -201,9 +201,10 @@ se responde con 200 y su resultado. Nunca se devuelve el contenido recibido.
   `rejected`) o el código del fallo; uno con barra, `bff.bar.outcome`
   (`served`, `partial`, `rejected` o el código del fallo); uno con caja,
   `bff.cashier.outcome`, y el
-  pago, el span `bff.payment.decision` con su método y resultado. Solo se usa la
-  API de OpenTelemetry: falta configurar un exportador (Application Insights,
-  fase 9).
+  pago, el span `bff.payment.decision` con su método y resultado. Cuando
+  `APPLICATIONINSIGHTS_CONNECTION_STRING` está configurada, se exportan como
+  trazas a Application Insights y `httpx` propaga el contexto W3C al camarero.
+  No se capturan contenidos sensibles, logs ni métricas.
 
 ## Permisos en Azure Container Apps
 

@@ -5,6 +5,7 @@ COPY --from=uv /uv /uvx /bin/
 
 WORKDIR /workspace/agents/cashier/src/cashier_agent
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/observability /workspace/packages/observability
 COPY agents/cashier/src/cashier_agent/pyproject.toml agents/cashier/src/cashier_agent/uv.lock agents/cashier/src/cashier_agent/uv.toml ./
 
 FROM base AS test

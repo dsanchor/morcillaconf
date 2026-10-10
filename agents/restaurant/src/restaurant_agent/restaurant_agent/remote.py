@@ -461,7 +461,10 @@ def create_server(
 ) -> ResponsesAgentServerHost:
     selected_service = service or RemoteWaiterService(settings)
     server = ResponsesAgentServerHost(
-        options=ResponsesServerOptions(default_model="restaurant")
+        options=ResponsesServerOptions(default_model="restaurant"),
+        # The process configures a trace-only provider in main.py. The host's
+        # default bootstrap would also export logs and capture message content.
+        configure_observability=None,
     )
 
     @server.response_handler

@@ -29,6 +29,7 @@ from a2a.types import (
     TaskState,
 )
 from pydantic import BaseModel, ValidationError
+from morcillaconf_observability import instrument_asgi
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -262,10 +263,11 @@ def create_app(
         task_store=InMemoryTaskStore(),
         agent_card=agent_card,
     )
-    return Starlette(
+    app = Starlette(
         routes=[
             Route("/health", health, methods=["GET"]),
             *create_agent_card_routes(agent_card),
             *create_jsonrpc_routes(request_handler, "/"),
         ]
     )
+    return instrument_asgi(app, "morcillaconf-cashier")
