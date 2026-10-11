@@ -25,6 +25,7 @@ El objetivo es mostrar conceptos como:
 - [Convenciones de estructura y nombres](CONVENCIONES.md)
 - [Contratos públicos de fase 3A](packages/contracts/README.md)
 - [Conocimiento del restaurante: carta, recetario e ingredientes](data/knowledge/README.md)
+- [La charla «No es magia, es arquitectura»: presentación editable](docs/charla/README.md)
 
 El proyecto está planteado como una demo incremental con Python, Microsoft Agent
 Framework, Microsoft Foundry, FastAPI y Streamlit.
