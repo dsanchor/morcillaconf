@@ -9,7 +9,7 @@ demo en directo y el resto para abrir la caja y enseñar la arquitectura.
 | Fichero | Para qué sirve |
 |---|---|
 | `no-es-magia.pptx` | La presentación editable. Es la versión de referencia: edita esta. |
-| `no-es-magia.html` | La versión web, en un solo fichero. Se abre en Chrome o Edge y trae la demo embebida y el reloj de 5 minutos. Es una foto del 8 de octubre: no recoge lo que cambie en el PPTX. |
+| `no-es-magia.html` | La versión web, en un solo fichero. Se abre en Chrome o Edge y trae la demo embebida y el reloj de 5 minutos. Es una foto del 13 de octubre: no recoge lo que cambie en el PPTX. |
 | `fuentes/` | Work Sans, en seis pesos, y Alegreya, con su licencia OFL. |
 
 ## Antes de abrir el PPTX
@@ -34,7 +34,11 @@ demo en directo y el resto para abrir la caja y enseñar la arquitectura.
   demo» se llena sola en 5 minutos.
 - De la 3 a la 7 están ocultas: son el plan B, cinco capturas de la demo real.
   Se abren con el botón «Demo grabada» de la 2.
-- La 30 (el telón) avanza sola, y de la 32 a la 35 pasan cada 3,8 segundos.
+- La 29 (el telón) avanza sola, y de la 31 a la 34 pasan cada 3,8 segundos.
+- La 36 («Todo se ve y se mide») lleva dos bocetos marcados «Captura de David
+  · pendiente». Para poner las capturas reales, botón derecho sobre cada boceto
+  y «Cambiar imagen», que conserva su nombre y su posición; mejor en 16:9.
+  Después, borra la etiqueta «pendiente».
 - De la 43 a la 46 también están ocultas: son los QR en grande. Cada tarjeta
   del «¡Gracias!» lleva a la suya, y un clic devuelve.
 - Todas llevan notas del ponente.
