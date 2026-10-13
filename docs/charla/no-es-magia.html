@@ -120,7 +120,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .naipe__cara svg{width:70px;height:70px}
 .naipe__cara p{margin-top:auto;font-size:44px;font-weight:900;text-transform:uppercase;letter-spacing:-.03em;line-height:.98}
 .naipe__dorso{transform:rotateY(180deg);background:#fff;border:4px solid var(--ink);box-shadow:12px 12px 0 var(--c)}
-.naipe__dorso .pieza{font-size:52px;font-weight:900;text-transform:uppercase;letter-spacing:-.03em;line-height:1;background:var(--c);align-self:flex-start;padding:4px 12px 6px;margin-bottom:18px}
+.naipe__dorso .pieza{font-size:44px;font-weight:900;text-transform:uppercase;letter-spacing:-.03em;line-height:1;background:var(--c);align-self:flex-start;padding:4px 12px 6px;margin-bottom:18px}
 .naipe__dorso p{font-size:27px;font-weight:500;line-height:1.3}
 .naipe__dorso .tec{margin-top:auto;font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
 .revelacion{position:absolute;inset:0;background:rgba(255,255,255,.97);display:flex;flex-direction:column;justify-content:center;padding-left:96px;gap:26px}
@@ -284,6 +284,43 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .cartas.hay-elegida .carta-qr:not(.elegida){opacity:.18}
 .carta-qr.elegida{z-index:5;cursor:zoom-out;box-shadow:20px 20px 0 var(--c);transform:translate(var(--tx),var(--ty)) scale(1.62) rotate(0deg)}
 
+/* ---------- patrones de orquestación ---------- */
+.patrones .entradilla{position:absolute;left:96px;top:236px;max-width:1728px;font-size:32px;font-weight:500;line-height:1.3;color:#2a2a2e}
+.patrones__lista{position:absolute;left:96px;top:356px;width:1728px;display:flex;gap:36px;list-style:none}
+.patron{position:relative;flex:1 1 0;min-width:0;background:#fff;border:4px solid var(--ink);border-radius:10px;box-shadow:10px 10px 0 var(--c);padding:20px 20px 26px;transition:opacity .5s var(--sale),transform .7s var(--sale),box-shadow .7s var(--sale)}
+.patron__dibujo{display:block;width:100%;height:auto;background:var(--gris);border-radius:6px}
+.patron h3{margin-top:20px;font-size:40px;font-weight:900;letter-spacing:-.03em;line-height:1}
+.patron p{margin-top:10px;font-size:27px;line-height:1.3}
+.patron .sello{position:absolute;right:-14px;top:-24px;background:var(--naranja);color:var(--ink);border:3px solid var(--ink);border-radius:999px;padding:5px 16px 7px;font-size:22px;font-weight:900;text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;transform:rotate(3deg)}
+.patrones[data-paso="1"] .patron:not(.nuestro){opacity:.28}
+.patrones[data-paso="1"] .patron.nuestro{transform:translateY(-10px);box-shadow:16px 16px 0 var(--c)}
+.patrones .remate{position:absolute;left:96px;top:800px;font-size:56px;font-weight:900;letter-spacing:-.03em;line-height:1.05}
+.patrones .remate mark{color:inherit;background:var(--rotu) 0 92%/auto .5em repeat-x;padding:0 .04em}
+.patrones__pie{position:absolute;left:96px;top:990px;font-size:25px;font-weight:600;color:var(--pizarra)}
+.p-trazo{fill:none;stroke:var(--ink);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.p-opcion{stroke-dasharray:1 9}
+.p-aguja{stroke-width:4}
+.p-visto{stroke-width:4}
+.p-ficha{fill:var(--naranja);stroke:var(--ink);stroke-width:2.5}
+.p-luz{fill:none;stroke:var(--naranja);stroke-width:5}
+
+/* ---------- observabilidad ---------- */
+.capturas{position:absolute;left:96px;top:236px;width:1728px;display:flex;gap:48px}
+.captura{width:840px}
+.captura__marco{position:relative;width:840px;height:472px;border:4px dashed var(--ink);border-radius:12px;background:var(--gris);overflow:hidden}
+.captura__boceto{position:absolute;inset:0;width:100%;height:100%}
+.captura .pendiente{position:absolute;right:16px;top:16px;background:var(--naranja);color:var(--ink);border:3px solid var(--ink);border-radius:999px;padding:5px 16px 7px;font-size:20px;font-weight:800;white-space:nowrap}
+.captura figcaption{margin-top:16px;font-size:28px;font-weight:800;letter-spacing:-.01em}
+.o-tx{font-family:var(--f);fill:var(--ink)}
+.o-tit{font-size:30px;font-weight:900;letter-spacing:-.02em}
+.o-lab{font-size:21px;font-weight:700}
+.o-sub{font-size:19px;font-weight:600;fill:var(--pizarra)}
+.o-hueco{fill:#d6d6dc}
+.o-trazo{fill:none;stroke:var(--ink);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.o-trazo.fino{stroke-width:2}
+.claves{position:absolute;left:96px;top:820px;width:1728px;display:grid;grid-template-columns:repeat(3,1fr);gap:48px;list-style:none}
+.claves li{border-top:8px solid var(--c);padding-top:16px;font-size:28px;font-weight:500;line-height:1.3}
+
 /* ---------- hud, notas ---------- */
 #hud{position:fixed;left:0;right:0;bottom:0;height:6px;z-index:20;pointer-events:none}
 #hud .avance{height:100%;background:var(--naranja);transform-origin:left;transition:transform .5s var(--sale)}
@@ -322,11 +359,11 @@ body.oscuro #contador{color:#77777d}
 .telon.telon-abierto .cortina--der{transform:translateX(101%)}
 
 /* subrayado a rotulador, en el color de cada pieza */
-#mago{--rotu:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 40' preserveAspectRatio='none'%3E%3Cpath d='M0 11C24 6 52 15 84 9S150 13 184 8S226 12 240 11L240 31C214 35 188 28 156 33S96 29 64 34S16 30 0 31Z' fill='%2396c4ff'/%3E%3C/svg%3E")}
+#mago{--rotu:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 40' preserveAspectRatio='none'%3E%3Cpath d='M0 11C24 6 52 15 84 9S150 13 184 8S226 12 240 11L240 31C214 35 188 28 156 33S96 29 64 34S16 30 0 31Z' fill='%23f89841'/%3E%3C/svg%3E")}
 #mesas{--rotu:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 40' preserveAspectRatio='none'%3E%3Cpath d='M0 11C24 6 52 15 84 9S150 13 184 8S226 12 240 11L240 31C214 35 188 28 156 33S96 29 64 34S16 30 0 31Z' fill='%2385dadc'/%3E%3C/svg%3E")}
 #carta{--rotu:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 40' preserveAspectRatio='none'%3E%3Cpath d='M0 11C24 6 52 15 84 9S150 13 184 8S226 12 240 11L240 31C214 35 188 28 156 33S96 29 64 34S16 30 0 31Z' fill='%23d9c58b'/%3E%3C/svg%3E")}
 #cocina{--rotu:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 40' preserveAspectRatio='none'%3E%3Cpath d='M0 11C24 6 52 15 84 9S150 13 184 8S226 12 240 11L240 31C214 35 188 28 156 33S96 29 64 34S16 30 0 31Z' fill='%23f8c4ff'/%3E%3C/svg%3E")}
-#barra{--rotu:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 40' preserveAspectRatio='none'%3E%3Cpath d='M0 11C24 6 52 15 84 9S150 13 184 8S226 12 240 11L240 31C214 35 188 28 156 33S96 29 64 34S16 30 0 31Z' fill='%23f89841'/%3E%3C/svg%3E")}
+#patrones{--rotu:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 40' preserveAspectRatio='none'%3E%3Cpath d='M0 11C24 6 52 15 84 9S150 13 184 8S226 12 240 11L240 31C214 35 188 28 156 33S96 29 64 34S16 30 0 31Z' fill='%23f8c4ff'/%3E%3C/svg%3E")}
 #caja{--rotu:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 40' preserveAspectRatio='none'%3E%3Cpath d='M0 11C24 6 52 15 84 9S150 13 184 8S226 12 240 11L240 31C214 35 188 28 156 33S96 29 64 34S16 30 0 31Z' fill='%2396c4ff'/%3E%3C/svg%3E")}
 #portada{--rotu:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 40' preserveAspectRatio='none'%3E%3Cpath d='M0 11C24 6 52 15 84 9S150 13 184 8S226 12 240 11L240 31C214 35 188 28 156 33S96 29 64 34S16 30 0 31Z' fill='%23f89841'/%3E%3C/svg%3E")}
 </style>
@@ -381,23 +418,23 @@ body.oscuro #contador{color:#77777d}
   <h2 class="mega" data-off="3">¿Magia?</h2>
   <p class="lema" data-off="3">Lo que acabáis de ver, en cinco trucos.</p>
   <div class="baraja">
-    <div class="naipe" data-on="1" style="--i:0;--c:var(--menta)"><div class="naipe__cara"><svg data-boceto="estrella"></svg><p>Te ha buscado mesa</p></div><div class="naipe__dorso"><span class="pieza">Mesas</span><p>Un servicio de mesas al que el camarero pregunta.</p><span class="tec">MCP + tu botón</span></div></div>
-    <div class="naipe" data-on="1" style="--i:1;--c:var(--arena)"><div class="naipe__cara"><svg data-boceto="estrella"></svg><p>Se sabe la carta</p></div><div class="naipe__dorso"><span class="pieza">Carta</span><p>Los documentos de la casa, buscados antes de hablar.</p><span class="tec">Foundry IQ</span></div></div>
-    <div class="naipe" data-on="1" style="--i:2;--c:var(--rosa)"><div class="naipe__cara"><svg data-boceto="estrella"></svg><p>La cocina trabaja a la vez</p></div><div class="naipe__dorso"><span class="pieza">Cocina</span><p>Otro agente, en su contenedor, con tres partidas en paralelo.</p><span class="tec">A2A</span></div></div>
-    <div class="naipe" data-on="1" style="--i:3;--c:var(--naranja-2)"><div class="naipe__cara"><svg data-boceto="estrella"></svg><p>Al celíaco, ni una caña</p></div><div class="naipe__dorso"><span class="pieza">Barra</span><p>Un control que no se salta nunca: siempre igual.</p><span class="tec">Código</span></div></div>
+    <div class="naipe" data-on="1" style="--i:0;--c:var(--naranja-2)"><div class="naipe__cara"><svg data-boceto="estrella"></svg><p>Se acuerda de ti</p></div><div class="naipe__dorso"><span class="pieza">Memoria</span><p>Tus restricciones y «lo de siempre», de una visita a otra.</p><span class="tec">Context provider</span></div></div>
+    <div class="naipe" data-on="1" style="--i:1;--c:var(--menta)"><div class="naipe__cara"><svg data-boceto="estrella"></svg><p>Te ha buscado mesa</p></div><div class="naipe__dorso"><span class="pieza">Mesas</span><p>Un servicio de mesas al que el camarero pregunta.</p><span class="tec">MCP + tu botón</span></div></div>
+    <div class="naipe" data-on="1" style="--i:2;--c:var(--arena)"><div class="naipe__cara"><svg data-boceto="estrella"></svg><p>Se sabe la carta</p></div><div class="naipe__dorso"><span class="pieza">Carta</span><p>Los documentos de la casa, buscados antes de hablar.</p><span class="tec">Agentic Retrieval</span></div></div>
+    <div class="naipe" data-on="1" style="--i:3;--c:var(--rosa)"><div class="naipe__cara"><svg data-boceto="estrella"></svg><p>La cocina trabaja a la vez</p></div><div class="naipe__dorso"><span class="pieza">Cocina</span><p>Otro agente, en su contenedor, con tres partidas en paralelo.</p><span class="tec">A2A</span></div></div>
     <div class="naipe" data-on="1" style="--i:4;--c:var(--cielo)"><div class="naipe__cara"><svg data-boceto="estrella"></svg><p>Te cobra lo justo</p></div><div class="naipe__dorso"><span class="pieza">Caja</span><p>Lo servido, no lo pedido. Y paga tu botón, no un mensaje.</p><span class="tec">A2A + código</span></div></div>
   </div>
   <div class="revelacion" data-on="3"><p class="mega">No es magia.</p><p class="mega en-caja">Es arquitectura.</p></div>
   <aside class="notas">
     <p>¿Qué acaba de pasar? Parece magia: un camarero que lo entiende todo y lo coordina todo.</p>
-    <p>Cinco trucos: nos ha buscado mesa, se sabe la carta, la cocina trabaja a la vez, al celíaco no le ha puesto la caña y nos ha cobrado lo justo.</p>
+    <p>Cinco trucos: se acuerda de ti, nos ha buscado mesa, se sabe la carta, la cocina trabaja a la vez y nos ha cobrado lo justo.</p>
     <p>Damos la vuelta a las cartas: detrás de cada truco hay una pieza con nombre y apellidos.</p>
     <p>No es magia: es arquitectura. Vamos a abrir las cajas una a una, empezando por el mago.</p>
   </aside>
 </section>
 
 <!-- ================= 3 · EL MAGO ================= -->
-<section class="slide truco" id="mago" data-min="3" data-pasos="3" data-diagrama="mago" style="--c:var(--cielo)" aria-label="El camarero">
+<section class="slide truco" id="mago" data-min="2,5" data-pasos="3" data-diagrama="mago" style="--c:var(--naranja-2)" aria-label="El camarero">
   <h2 class="lockup">El camarero</h2>
   <div class="caja"><svg class="diagrama" viewBox="0 0 1100 740"></svg><div class="puerta puerta--izq"></div><div class="puerta puerta--der"></div><div class="grieta"></div><div class="pregunta"><svg data-boceto="interrogante" viewBox="0 0 240 300"></svg><p>¿Cómo lo ha hecho?</p></div></div>
   <div class="columna">
@@ -419,6 +456,7 @@ body.oscuro #contador{color:#77777d}
 <pre>camarero = Agent(  <i># simplificado</i>
   modelo=<b>"gpt-5.6-luna"</b>,
   instrucciones="instructions.md",
+  memoria=memoria_entre_visitas,
   herramientas=[mesas, carta,
     pedir_a_cocina, servir_bebidas,
     pedir_la_cuenta])</pre>
@@ -427,8 +465,8 @@ body.oscuro #contador{color:#77777d}
   </div>
   <ol class="distancias"><li>El truco</li><li>El secreto</li><li>El mecanismo</li></ol>
   <aside class="notas">
-    <p>El camarero habla como una persona, se acuerda de ti («lo de siempre») y lo coordina todo. ¿Cómo?</p>
-    <p>Abrimos la caja. Dentro hay un modelo, la única caja negra de verdad, rodeado de cosas que sí diseñamos: instrucciones (cómo habla y qué no hace nunca), memoria (tus gustos entre visitas) y herramientas (a quién puede pedir cosas). No sabe hacerlo todo: sabe a quién pedírselo.</p>
+    <p>Primer truco: se acuerda de ti. El camarero habla como una persona, recuerda tus restricciones y «lo de siempre», y lo coordina todo. ¿Cómo?</p>
+    <p>Abrimos la caja. Dentro hay un modelo, la única caja negra de verdad, rodeado de cosas que sí diseñamos: instrucciones (cómo habla y qué no hace nunca), memoria (tus restricciones y «lo de siempre», de una visita a otra) y herramientas (a quién puede pedir cosas). No sabe hacerlo todo: sabe a quién pedírselo.</p>
     <p>Para los técnicos: Microsoft Agent Framework y un modelo en Foundry. Cada turno: memoria, razonamiento, herramientas y una respuesta estructurada. Incluso «lo de siempre» lo decide un agente pequeño aparte.</p>
   </aside>
 </section>
@@ -448,30 +486,30 @@ body.oscuro #contador{color:#77777d}
     </figure>
     <div class="fase secreto" data-on="1" data-off="2">
       <p class="grande">La IA propone. <mark>Tú decides.</mark></p>
-      <p class="apoyo">El camarero no ve el comedor: pregunta al servicio de mesas, el único que sabe qué está libre. Aparta la mesa y espera a tu botón. Un «sí» escrito no confirma nada.</p>
+      <p class="apoyo">Las herramientas son funciones que el modelo pide y el código ejecuta. El camarero no ve el comedor: pide mesa al servicio de mesas, la aparta y espera a tu botón. Un «sí» escrito no confirma nada.</p>
     </div>
     <article class="fase mecanismo" data-on="2">
-      <h3>MCP: el enchufe de las herramientas</h3>
-      <p class="que">Model Context Protocol es un estándar para que un agente descubra y use las herramientas de otro servicio. Las mesas viven en su propio contenedor y solo el camarero las toca.</p>
-<pre>get_seating_availability()
-hold_seating()
-  <i>→ Mesa 2 apartada</i>
+      <h3>MCP: el enchufe estándar de las herramientas</h3>
+      <p class="que">Una herramienta es una función que el modelo pide y el código ejecuta. MCP es el estándar para ofrecerlas desde otro servicio.</p>
+<pre><i># se ejecutan solas</i>
+get_seating_availability()
+hold_seating()  <i>→ apartada</i>
+<i># espera a una persona</i>
 <b>⏸ espera a «Confirmar»</b>
-confirm_seating()
-  <i>→ Mesa 2 ocupada</i></pre>
-      <div class="porque"><strong>Por qué así</strong><ul><li>El modelo no puede inventarse una mesa libre: solo puede pedirla.</li><li>Lo que tiene consecuencias espera a una persona.</li></ul></div>
+confirm_seating() <i>→ ocupada</i></pre>
+      <div class="porque"><strong>Por qué así</strong><ul><li>El modelo no puede inventarse una mesa libre: solo puede pedirla.</li><li>Nosotros decidimos qué herramientas esperan tu aprobación.</li></ul></div>
     </article>
   </div>
   <ol class="distancias"><li>El truco</li><li>El secreto</li><li>El mecanismo</li></ol>
   <aside class="notas">
-    <p>Primer truco: nos ha propuesto mesa y nos ha dejado decidir con botones.</p>
-    <p>El camarero no ve el comedor. Pregunta al servicio de mesas, que es el único que sabe qué está libre. Aparta la mesa 2 y espera a que tú pulses. Si escribes «sí», no vale: solo el botón.</p>
-    <p>Eso es MCP, un enchufe estándar para herramientas, más aprobación humana: el agente se queda en pausa hasta que pulsas.</p>
+    <p>Segundo truco: nos ha propuesto mesa y nos ha dejado decidir con botones.</p>
+    <p>Primero, qué es una herramienta: una función que el modelo puede pedir y que ejecuta el código. El camarero no ve el comedor: pide mesa al servicio de mesas, el único que sabe qué está libre, aparta la mesa 2 y espera a que tú pulses.</p>
+    <p>MCP es el enchufe estándar para ofrecer herramientas desde otro servicio. Consultar y apartar se ejecutan solas; confirmar espera a una persona, y nosotros decidimos cuáles esperan. Si escribes «sí», no vale: solo el botón.</p>
   </aside>
 </section>
 
 <!-- ================= 5 · CARTA ================= -->
-<section class="slide truco" id="carta" data-min="2,5" data-pasos="3" data-diagrama="carta" style="--c:var(--arena)" aria-label="Se sabe la carta">
+<section class="slide truco" id="carta" data-min="3" data-pasos="3" data-diagrama="carta" style="--c:var(--arena)" aria-label="Se sabe la carta">
   <h2 class="lockup">Se sabe la carta</h2>
   <div class="caja"><svg class="diagrama" viewBox="0 0 1100 740"></svg><div class="puerta puerta--izq"></div><div class="puerta puerta--der"></div><div class="grieta"></div><div class="pregunta"><svg data-boceto="interrogante" viewBox="0 0 240 300"></svg><p>¿Cómo lo ha hecho?</p></div></div>
   <div class="columna">
@@ -483,30 +521,29 @@ confirm_seating()
       <figcaption>Lo que habéis visto en la demo</figcaption>
     </figure>
     <div class="fase secreto" data-on="1" data-off="2">
-      <p class="grande">Si no está en la carta, <mark>no existe.</mark></p>
-      <p class="apoyo">Antes de contestar busca en los documentos de la casa: la carta, el recetario y la ficha de ingredientes. Y te dice de dónde lo ha sacado.</p>
+      <p class="grande">No improvisa: <mark>busca antes de hablar.</mark></p>
+      <p class="apoyo">Parte tu pregunta en preguntas pequeñas, busca cada una donde toca (la carta o el recetario), junta lo que encuentra y comprueba que responde. Y te dice de dónde lo ha sacado.</p>
     </div>
     <article class="fase mecanismo" data-on="2">
-      <h3>Foundry IQ: buscar antes de hablar</h3>
-      <p class="que">Una base de conocimiento sobre Azure AI Search. Un modelo pequeño planifica la búsqueda y devuelve fragmentos literales con su fuente. Se consulta por MCP, solo en lectura.</p>
-<pre>knowledge_base_retrieve(...)
-<i>→ [carta de la casa, versión 1]</i>
-### morcilla-de-burgos-a-la-brasa
-- Precio: <b>8,50 €</b>
-- Contiene: <b>ninguno de los 14.</b></pre>
-      <div class="porque"><strong>Por qué así</strong><ul><li>Responde con tus documentos, no con su imaginación.</li><li>Camarero, cocina y caja leen la misma base.</li></ul></div>
+      <h3>Agentic Retrieval: buscar con cabeza</h3>
+      <p class="que">Es un patrón, no un producto: un modelo parte la pregunta, elige las fuentes, busca en paralelo y junta los trozos con su origen. El camarero responde a partir de eso.</p>
+<pre>Soy celíaco: ¿qué me recomiendas?
+ ├ ¿qué platos hay? <i>→ carta</i>
+ └ ¿qué lleva gluten? <i>→ recetario</i>
+juntar · citar · <b>¿responde?</b></pre>
+      <div class="porque"><strong>Por qué así</strong><ul><li>Una pregunta, varias fuentes: cada dato sale de la suya.</li><li>Camarero, cocina y caja leen el mismo contexto.</li></ul></div>
     </article>
   </div>
   <ol class="distancias"><li>El truco</li><li>El secreto</li><li>El mecanismo</li></ol>
   <aside class="notas">
-    <p>Segundo truco: se sabe la carta, sabe qué lleva gluten y cita la fuente.</p>
-    <p>No se lo sabe de memoria: antes de hablar busca en la biblioteca de la casa, que tiene carta, recetario e ingredientes. La web solo sirve para cultura general, nunca para precios. Si no está en la carta, no existe.</p>
-    <p>Es Foundry IQ, una base de conocimiento sobre Azure AI Search. Devuelve fragmentos literales con su fuente y se consulta por MCP. Camarero, cocina y caja comparten la misma.</p>
+    <p>Tercer truco: se sabe la carta, sabe qué lleva gluten y cita la fuente.</p>
+    <p>No se lo sabe de memoria: antes de hablar busca en la biblioteca de la casa. Tu pregunta se parte en preguntas pequeñas y cada una va a su fuente: qué platos hay, a la carta; qué lleva gluten, al recetario, que tiene la ficha de ingredientes. Luego junta lo que encuentra, comprueba que responde y te dice de dónde lo ha sacado.</p>
+    <p>Ese patrón se llama Agentic Retrieval: un modelo planifica la búsqueda en lugar de lanzar una sola consulta. Es una forma de buscar, no un producto; nosotros lo montamos sobre Azure AI Search. El camarero responde a partir de lo que encuentra, y camarero, cocina y caja comparten el mismo contexto.</p>
   </aside>
 </section>
 
 <!-- ================= 6 · COCINA ================= -->
-<section class="slide truco" id="cocina" data-min="3" data-pasos="3" data-diagrama="cocina" style="--c:var(--rosa)" aria-label="La cocina trabaja a la vez">
+<section class="slide truco" id="cocina" data-min="2,5" data-pasos="3" data-diagrama="cocina" style="--c:var(--rosa)" aria-label="La cocina trabaja a la vez">
   <h2 class="lockup">La cocina trabaja a la vez</h2>
   <div class="caja"><svg class="diagrama" viewBox="0 0 1100 740"></svg><div class="puerta puerta--izq"></div><div class="puerta puerta--der"></div><div class="grieta"></div><div class="pregunta"><svg data-boceto="interrogante" viewBox="0 0 240 300"></svg><p>¿Cómo lo ha hecho?</p></div></div>
   <div class="columna">
@@ -535,43 +572,28 @@ confirm_seating()
   </div>
   <ol class="distancias"><li>El truco</li><li>El secreto</li><li>El mecanismo</li></ol>
   <aside class="notas">
-    <p>Tercer truco: la cocina responde con un plan completo, partida por partida.</p>
+    <p>Cuarto truco: la cocina responde con un plan completo, partida por partida.</p>
     <p>La comanda sale del camarero hacia otro agente, el chef, que vive en otro contenedor. El chef reparte; el código comprueba que todo está en la carta y que nadie come lo que no puede; y las partidas confirman a la vez. Al chef solo le llega el pedido, nunca tus datos.</p>
-    <p>Eso es A2A: agentes de equipos distintos que se hablan con un contrato. Si algo falla, aparece un error claro: jamás un plan inventado.</p>
+    <p>Eso es A2A: agentes de equipos distintos que se hablan con un contrato. Si algo falla, aparece un error claro: jamás un plan inventado. Y dentro, la cocina se organiza con un patrón: todos a la vez. Hay más patrones; vamos a verlos.</p>
   </aside>
 </section>
 
-<!-- ================= 7 · BARRA ================= -->
-<section class="slide truco" id="barra" data-min="2" data-pasos="3" data-diagrama="barra" style="--c:var(--naranja-2)" aria-label="Al celíaco, ni una caña">
-  <h2 class="lockup">Al celíaco, ni una caña</h2>
-  <div class="caja"><svg class="diagrama" viewBox="0 0 1100 740"></svg><div class="puerta puerta--izq"></div><div class="puerta puerta--der"></div><div class="grieta"></div><div class="pregunta"><svg data-boceto="interrogante" viewBox="0 0 240 300"></svg><p>¿Cómo lo ha hecho?</p></div></div>
-  <div class="columna">
-    <figure class="fase" data-off="1">
-      <div class="replica">
-        <div class="m m--barra"><span class="av"><svg viewBox="0 0 28 28" aria-hidden="true"><path d="M8 10h12l-1.6 14H9.6z" fill="#f2b04a"/><path d="M7 10.5c-.4-3 2.6-4.6 5-3.4 1-2 4.4-2.2 5.6 0 2.6-1 5.2.6 4.6 3.4z" fill="#fff"/></svg></span><div class="b"><h4>Barra</h4><h5>Servido</h5>1 × Agua con gas<h5>No servido</h5>1 × caña<small>Contiene cereales con gluten según la carta y has indicado celiaquía.</small><small>Fuentes: carta de la casa (versión 1)</small></div></div>
-      </div>
-      <figcaption>Lo que habéis visto en la demo</figcaption>
-    </figure>
-    <div class="fase secreto" data-on="1" data-off="2">
-      <p class="grande">Lo que debe salir siempre igual <mark>no se deja a la IA.</mark></p>
-      <p class="apoyo">Las bebidas no pasan por cocina, pero sí por un control: código que lee la carta y aplica la misma regla de alérgenos que la cocina. Caña con cebada y celiaquía: no.</p>
-    </div>
-    <article class="fase mecanismo" data-on="2">
-      <h3>Código determinista</h3>
-      <p class="que">El modelo decide cuándo llamar y qué pasar. El código decide si se puede servir: con la misma entrada, siempre el mismo resultado.</p>
-<pre>servir_bebidas(
-  bebidas=["agua con gas", "caña"],
-  restricciones=["celiaquía"])
-<i>→</i> servida: 1 × Agua con gas
-<i>→</i> <b>no servida: caña, gluten</b></pre>
-      <div class="porque"><strong>Por qué así</strong><ul><li>Alérgenos, precios y dinero, con reglas y no con intuición.</li><li>Si no puede comprobarlo, no lo sirve. Tarda 1–2 s.</li></ul></div>
-    </article>
-  </div>
-  <ol class="distancias"><li>El truco</li><li>El secreto</li><li>El mecanismo</li></ol>
+<!-- ================= 7 · PATRONES ================= -->
+<section class="slide patrones" id="patrones" data-min="1,5" data-pasos="2" aria-label="Cómo se reparten el trabajo">
+  <h2 class="lockup">Cómo se reparten el trabajo</h2>
+  <p class="entradilla">Cuando hay varios agentes, alguien decide quién hace qué y en qué orden. Para eso hay patrones.</p>
+  <ul class="patrones__lista">
+    <li class="patron" style="--c:var(--cielo)"><svg class="patron__dibujo" data-patron="secuencial" viewBox="0 0 300 170" aria-hidden="true"></svg><h3>Secuencial</h3><p>Uno detrás de otro.</p></li>
+    <li class="patron nuestro" style="--c:var(--rosa)"><svg class="patron__dibujo" data-patron="concurrente" viewBox="0 0 300 170" aria-hidden="true"></svg><h3>Concurrente</h3><p>Todos a la vez; alguien junta.</p><span class="sello" data-on="1">★ Nuestra cocina</span></li>
+    <li class="patron" style="--c:var(--menta)"><svg class="patron__dibujo" data-patron="handoff" viewBox="0 0 300 170" aria-hidden="true"></svg><h3>Handoff</h3><p>Te paso con quien sabe.</p></li>
+    <li class="patron" style="--c:var(--arena)"><svg class="patron__dibujo" data-patron="grupo" viewBox="0 0 300 170" aria-hidden="true"></svg><h3>Chat de grupo</h3><p>En la misma mesa, por turnos.</p></li>
+    <li class="patron" style="--c:var(--naranja-2)"><svg class="patron__dibujo" data-patron="magentic" viewBox="0 0 300 170" aria-hidden="true"></svg><h3>Magentic</h3><p>Un jefe planifica, reparte y revisa.</p></li>
+  </ul>
+  <p class="remate" data-on="1">A2A es cómo se hablan; <mark>el patrón, cómo se organizan.</mark></p>
+  <p class="patrones__pie">Los cinco vienen de serie en Microsoft Agent Framework.</p>
   <aside class="notas">
-    <p>Cuarto truco: el agua con gas sí, pero la caña al celíaco no.</p>
-    <p>Las bebidas no van a cocina, las pone el camarero desde la barra. Pero no las pone «a ojo»: pasan por un control que es código puro. Mira la carta y aplica la misma regla de alérgenos que la cocina. La caña lleva cebada, así que no.</p>
-    <p>El modelo decide cuándo y qué; el código decide si se puede. Misma entrada, mismo resultado. Si no puede comprobarlo, no lo sirve.</p>
+    <p>Cuando hay varios agentes, alguien tiene que decidir quién hace qué y en qué orden, como en una cocina de verdad. Hay cinco formas típicas. Secuencial: uno detrás de otro, como una cadena. Concurrente: todos a la vez, y alguien junta los resultados. Handoff: «te paso con quien sabe», como cuando el camarero llama al sumiller. Chat de grupo: varios agentes en la misma mesa, hablando por turnos. Magentic: un jefe que planifica, reparte, revisa y vuelve a repartir si hace falta.</p>
+    <p>Nuestra cocina usa el concurrente: brasa, fritos y general trabajan a la vez y el chef junta el plan. Ojo con no confundirlo: A2A es el teléfono entre agentes; el patrón es cómo se organizan. Los cinco vienen de serie en Microsoft Agent Framework.</p>
   </aside>
 </section>
 
@@ -588,17 +610,18 @@ confirm_seating()
       <figcaption>Lo que habéis visto en la demo</figcaption>
     </figure>
     <div class="fase secreto" data-on="1" data-off="2">
-      <p class="grande">Se cobra lo servido, <mark>no lo pedido.</mark></p>
-      <p class="apoyo">La libreta de la visita apunta lo que de verdad se sirvió. La caja, otro agente, pone los precios de la carta y suma con código. Y no cobra hasta que pulsas.</p>
+      <p class="grande">El modelo conversa. <mark>El código suma.</mark></p>
+      <p class="apoyo">Platos y bebidas servidos se apuntan en la libreta, con código. La caja, otro agente, pone los precios de la carta y suma: el modelo no hace ni una cuenta. Se cobra lo servido, no lo pedido.</p>
     </div>
     <article class="fase mecanismo" data-on="2">
-      <h3>A2A con pausa humana</h3>
-      <p class="que">La caja deja su tarea «esperando al cliente» (input-required) hasta que pulsas «Tarjeta» o «Efectivo». Suma con aritmética decimal, sin redondeos raros, y solo con precios de la carta.</p>
-<pre>pedir_la_cuenta()  <i># sin argumentos</i>
-<i>→</i> 8,50 + 2,20 = <b>10,70 €</b>
-<b>⏸ input-required:</b>
-<b>  ¿tarjeta o efectivo?</b>
-pay_bill(tarjeta) <i>→ recibo pay_…</i>
+      <h3>Código: misma entrada, mismo total</h3>
+      <p class="que">La libreta acumula lo servido. La caja, otro agente por A2A, suma al céntimo y solo con precios de la carta.</p>
+<pre>libreta += 1 × morcilla  <i>8,50</i>
+libreta += 1 × agua      <i>2,20</i>
+pedir_la_cuenta()  <i># sin argumentos</i>
+  <i>→</i> <b>10,70 €</b>
+<b>⏸ ¿tarjeta o efectivo?</b>
+pay_bill(tarjeta) <i>→ recibo</i>
 pay_bill(tarjeta) <i>→ mismo recibo</i></pre>
       <div class="porque"><strong>Por qué así</strong><ul><li>El modelo no elige qué se cobra ni cuánto.</li><li>Un mensaje nunca paga, y pagar dos veces no cobra dos veces.</li></ul></div>
     </article>
@@ -606,45 +629,69 @@ pay_bill(tarjeta) <i>→ mismo recibo</i></pre>
   <ol class="distancias"><li>El truco</li><li>El secreto</li><li>El mecanismo</li></ol>
   <aside class="notas">
     <p>Quinto truco: la cuenta cuadra al céntimo y te deja elegir cómo pagar.</p>
-    <p>La aplicación lleva la libreta de la visita: qué se ha servido de verdad. La caña rechazada no está, así que no se cobra. La caja es otro agente: pone los precios de la carta, suma con código y espera a tu botón.</p>
-    <p>Técnicamente es A2A con una pausa: la tarea queda «esperando al cliente». Escribir «pago con tarjeta» no paga; pulsar dos veces da el mismo recibo.</p>
+    <p>La aplicación lleva la libreta de la visita y apunta, con código, lo que se ha servido de verdad: platos de cocina y bebidas de la barra. La caña rechazada no está, así que no se cobra. La caja es otro agente: pone los precios de la carta y suma con código. El modelo conversa; el código suma.</p>
+    <p>Técnicamente es A2A con una pausa: la tarea queda «esperando al cliente». Escribir «pago con tarjeta» no paga; pulsar dos veces da el mismo recibo. Misma entrada, mismo total: eso es código determinista.</p>
   </aside>
 </section>
 
 <!-- ================= 9 · DETRÁS DEL TELÓN ================= -->
-<section class="slide telon" id="telon" data-min="3" data-pasos="3" aria-label="Detrás del telón">
+<section class="slide telon" id="telon" data-min="2,5" data-pasos="3" aria-label="Detrás del telón">
   <svg class="mapa diagrama" viewBox="0 0 1920 1080"></svg>
   <div class="cortina cortina--izq" aria-hidden="true"></div><div class="cortina cortina--der" aria-hidden="true"></div>
   <h2 class="lockup">Detrás del telón</h2>
   <div class="narrador" data-on="1" data-off="2"><span class="dice" id="dice">«Hola, somos dos»</span><span class="reloj-sim" id="reloj-sim">t = 0 s</span></div>
-  <p class="cifras" data-on="2">6 contenedores · MCP y A2A · 1 base de conocimiento<br>2 botones que deciden · <b>0 magia</b></p>
+  <p class="cifras" data-on="2">6 contenedores · MCP y A2A · 1 contexto compartido<br>2 botones que deciden · <b>0 magia</b></p>
   <aside class="notas">
-    <p>Este es el mesón entero. Seis contenedores en Azure Container Apps: sala, libreta, camarero, mesas, cocina y caja. Al lado, Microsoft Foundry con el modelo y la base de conocimiento. Debajo, cómo llega cada cambio: GitHub, pruebas, imágenes y despliegue.</p>
+    <p>Este es el mesón entero. Seis contenedores en Azure Container Apps: sala, libreta, camarero, mesas, cocina y caja. Al lado, Microsoft Foundry: el modelo y el contexto de la casa, que se consulta con Agentic Retrieval. Camarero, cocina y caja leen ese mismo contexto (carta, recetario e ingredientes) en vez de guardar cada uno su copia. Debajo, cómo llega cada cambio: GitHub, pruebas, imágenes y despliegue.</p>
     <p>Repetimos el truco a cámara lenta: mirad cómo viaja el pedido por cada pieza.</p>
     <p>Ninguna pieza es mágica. Lo que parece magia es cómo encajan.</p>
   </aside>
 </section>
 
-<!-- ================= 10 · REGLAS DE LA CASA ================= -->
+<!-- ================= 10 · OBSERVABILIDAD ================= -->
+<section class="slide observabilidad" id="observabilidad" data-min="1,5" data-pasos="1" aria-label="Todo se ve y se mide">
+  <h2 class="lockup">Todo se ve y se mide</h2>
+  <div class="capturas">
+    <figure class="captura" data-obs="panel">
+      <div class="captura__marco"><svg class="captura__boceto" data-obs="panel" viewBox="0 0 840 472" aria-hidden="true"></svg><span class="pendiente">Captura de David · pendiente</span></div>
+      <figcaption>Panel de negocio · Grafana</figcaption>
+    </figure>
+    <figure class="captura" data-obs="trazas">
+      <div class="captura__marco"><svg class="captura__boceto" data-obs="trazas" viewBox="0 0 840 472" aria-hidden="true"></svg><span class="pendiente">Captura de David · pendiente</span></div>
+      <figcaption>Trazas · Application Insights</figcaption>
+    </figure>
+  </div>
+  <ul class="claves">
+    <li style="--c:var(--naranja-2)">Cada mensaje deja una traza de punta a punta, aunque cruce varios contenedores.</li>
+    <li style="--c:var(--menta)">El panel cuenta ingresos, ticket medio, ocupación, productos servidos y uso de memoria.</li>
+    <li style="--c:var(--rosa)">Las trazas no guardan lo que dices: ni prompts ni respuestas.</li>
+  </ul>
+  <aside class="notas">
+    <p>La cocina, a la vista. A la izquierda, el panel de negocio: ingresos, ticket medio, ocupación, qué se sirve y cuánto se usa la memoria. A la derecha, las trazas: cada mensaje deja un rastro de punta a punta, aunque cruce varios contenedores, y se ve cuánto tarda cada pieza. Lo que dices no se guarda: ni prompts ni respuestas.</p>
+    <p>Para los más técnicos: es OpenTelemetry. Agent Framework genera los pasos del agente y del modelo, se envían a Application Insights y el contexto de la traza viaja en cada llamada HTTP y A2A. El panel es de Grafana y lo alimentan eventos de negocio que emite la libreta.</p>
+  </aside>
+</section>
+
+<!-- ================= 11 · REGLAS DE LA CASA ================= -->
 <section class="slide reglas" id="reglas" data-min="2" data-pasos="5" aria-label="Reglas de la casa">
   <h2 class="lockup">Reglas de la casa</h2>
   <ol>
     <li data-on="0"><svg data-boceto="bola" style="--c:var(--ink)"></svg><h3>Cada uno a lo suyo</h3><p>Agentes pequeños y especialistas, y uno que sabe a quién pedir cada cosa.</p></li>
-    <li data-on="1"><svg data-boceto="bola" style="--c:var(--arena)"></svg><h3>Si no está en la carta, no existe</h3><p>La IA responde con tus documentos y dice de dónde lo ha sacado.</p></li>
+    <li data-on="1"><svg data-boceto="bola" style="--c:var(--arena)"></svg><h3>Busca antes de hablar</h3><p>La IA responde con el contexto de la casa y dice de dónde lo ha sacado.</p></li>
     <li data-on="2"><svg data-boceto="bola" style="--c:var(--naranja-2)"></svg><h3>Lo exacto, con código</h3><p>Mesas, alérgenos, precios y pagos no se dejan a la intuición del modelo.</p></li>
     <li data-on="3"><svg data-boceto="bola" style="--c:var(--menta)"></svg><h3>La IA propone; tú decides</h3><p>Los botones confirman. Un mensaje nunca paga.</p></li>
-    <li data-on="4"><svg data-boceto="bola" style="--c:var(--rosa)"></svg><h3>La cocina, a la vista</h3><p>Cada paso se ve y se mide en «Bajo el capó». Lo que no se ve no se arregla.</p></li>
+    <li data-on="4"><svg data-boceto="bola" style="--c:var(--rosa)"></svg><h3>La cocina, a la vista</h3><p>Panel y trazas: cada paso se ve y se mide. Lo que no se ve no se arregla.</p></li>
   </ol>
   <aside class="notas">
     <p>Si os lleváis una cosa: cada uno a lo suyo. Agentes pequeños y un orquestador que sabe a quién pedir.</p>
-    <p>Si no está en la carta, no existe: anclad la IA a vuestros documentos.</p>
+    <p>Busca antes de hablar: anclad la IA al contexto de la casa y que cite la fuente.</p>
     <p>Lo exacto, con código: dinero, salud y reservas no se dejan a la intuición.</p>
     <p>La IA propone y la persona decide: botones, no mensajes.</p>
-    <p>Y la cocina, a la vista: si no ves lo que pasa, no puedes arreglarlo.</p>
+    <p>Y la cocina, a la vista: panel de negocio y trazas de punta a punta. Si no ves lo que pasa, no puedes arreglarlo.</p>
   </aside>
 </section>
 
-<!-- ================= 11 · GRACIAS ================= -->
+<!-- ================= 12 · GRACIAS ================= -->
 <section class="slide gracias" id="gracias" data-min="1,5" data-pasos="1" aria-label="Gracias">
   <h2 class="mega">¡Gracias!</h2>
   <p class="preguntas">¿Preguntas? Elegid una carta.</p>
@@ -1129,7 +1176,7 @@ const DIAGRAMAS = {
     nodos: [
       { id: 'modelo', tipo: 'negra', x: 405, y: 268, w: 320, h: 190, titulo: 'Modelo', sub: ['la única caja negra', 'gpt-5.6-luna, en Foundry'] },
       { id: 'instr', tipo: 'doc', x: 46, y: 64, w: 300, h: 190, color: '--gris', titulo: 'Instrucciones', tamTitulo: 30, sub: ['cómo habla', 'y qué no hace nunca'] },
-      { id: 'memo', tipo: 'doc', x: 46, y: 476, w: 300, h: 190, color: '--gris', titulo: 'Memoria', sub: ['tus gustos,', 'de una visita a otra'] },
+      { id: 'memo', tipo: 'doc', x: 46, y: 476, w: 300, h: 190, color: '--gris', titulo: 'Memoria', sub: ['tus restricciones,', 'de una visita a otra'] },
       { id: 'h1', tipo: 'chip', x: 812, y: 36, w: 246, h: 92, color: '--menta', titulo: 'Mesas' },
       { id: 'h2', tipo: 'chip', x: 812, y: 162, w: 246, h: 92, color: '--arena', titulo: 'Carta' },
       { id: 'h3', tipo: 'chip', x: 812, y: 288, w: 246, h: 92, color: '--rosa', titulo: 'Cocina' },
@@ -1181,39 +1228,48 @@ const DIAGRAMAS = {
     ],
   },
 
+  /* petición → planifica → fuentes → trozos → junta → respuesta → ¿responde? */
   carta: {
     semilla: 31,
     nodos: [
-      { id: 'preg', tipo: 'dicho', x: 40, y: 40, w: 300, h: 136, lineas: ['«Soy celíaco,', '¿qué me', 'recomiendas?»'] },
-      { id: 'cam', tipo: 'mago', x: 40, y: 290, w: 300, h: 150, titulo: 'Camarero' },
-      { id: 'iq', tipo: 'zona', x: 396, y: 28, w: 440, h: 476, titulo: 'Foundry IQ' },
-      { id: 'd1', tipo: 'doc', x: 426, y: 76, w: 380, h: 100, color: '--arena', titulo: 'Carta', sub: ['precios y alérgenos'] },
-      { id: 'd2', tipo: 'doc', x: 426, y: 192, w: 380, h: 100, color: '--arena', titulo: 'Recetario', sub: ['cómo se cocina'] },
-      { id: 'd3', tipo: 'doc', x: 426, y: 308, w: 380, h: 100, color: '--arena', titulo: 'Ingredientes', sub: ['de qué está hecho'] },
-      { id: 'nota', tipo: 'texto', x: 426, y: 450, w: 380, h: 20, texto: ['un modelo pequeño', 'planifica la búsqueda'], clase: 't-sub', salto: 28 },
-      { id: 'web', tipo: 'blanca', x: 880, y: 28, w: 190, h: 200, titulo: 'Web', sub: ['solo cultura', 'general;', 'nunca precios'] },
-      { id: 'c1', tipo: 'chip', x: 880, y: 300, w: 190, h: 74, color: '--rosa', titulo: 'Cocina', tam: 26 },
-      { id: 'c2', tipo: 'chip', x: 880, y: 408, w: 190, h: 74, color: '--cielo', titulo: 'Caja', tam: 26 },
-      { id: 'frag', tipo: 'fragmento', x: 396, y: 576, w: 674, h: 140, lineas: ['[carta de la casa, versión 1]', '### morcilla-de-burgos-a-la-brasa', '- Contiene: ninguno de los 14.'] },
+      { id: 'preg', tipo: 'dicho', x: 28, y: 28, w: 240, h: 136, lineas: ['«Soy celíaco,', '¿qué me', 'recomiendas?»'] },
+      { id: 'cam', tipo: 'mago', x: 28, y: 232, w: 240, h: 150, titulo: 'Camarero', tamTitulo: 30, sub: ['escribe la', 'respuesta'] },
+      { id: 'resp', tipo: 'revision', x: 28, y: 540, w: 240, h: 172, titulo: '¿Responde?', tamTitulo: 28, sub: ['¿contesta?', '¿con fuente?'] },
+      { id: 'ar', tipo: 'zona', x: 340, y: 24, w: 732, h: 700, titulo: 'Agentic Retrieval' },
+      { id: 'plan', tipo: 'caja', x: 370, y: 62, w: 672, h: 72, color: '--arena', titulo: 'Planifica' },
+      { id: 'plan-t', tipo: 'texto', x: 600, y: 109, w: 420, h: 30, texto: 'parte la pregunta y elige fuente' },
+      { id: 'd1', tipo: 'doc', x: 370, y: 276, w: 300, h: 100, color: '--arena', titulo: 'Carta', tamTitulo: 30, sub: ['platos y precios'] },
+      { id: 'd2', tipo: 'doc', x: 742, y: 276, w: 300, h: 100, color: '--arena', titulo: 'Recetario', tamTitulo: 30, sub: ['recetas e ingredientes'] },
+      { id: 'f1', tipo: 'fragmento', x: 370, y: 446, w: 300, h: 124, lineas: ['[carta, v1]', 'morcilla a la brasa:', 'ninguno de los 14'] },
+      { id: 'f2', tipo: 'fragmento', x: 742, y: 446, w: 300, h: 124, lineas: ['[ingredientes, v1]', 'pan rallado:', 'cereales con gluten'] },
+      { id: 'junta', tipo: 'caja', x: 370, y: 638, w: 672, h: 70, color: '--arena', titulo: 'Junta' },
+      { id: 'junta-t', tipo: 'texto', x: 540, y: 684, w: 470, h: 30, texto: 'los trozos, cada uno con su fuente' },
     ],
     aristas: [
       { id: 'e0', de: 'preg', a: 'cam', curva: 0 },
-      { id: 'e1', de: 'cam', a: 'd2', curva: -0.1 },
-      { id: 'e2', de: 'iq', a: 'frag', desde: [616, 512], hasta: [616, 568], texto: 'fragmento literal + fuente', dl: [190, 0] },
-      { id: 'e3', de: 'frag', a: 'cam', curva: -0.22, texto: 'responde y lo cita', dl: [-56, 22] },
-      { id: 'e4', de: 'iq', a: 'web', discontinua: true, desde: [842, 128], hasta: [872, 128] },
-      { id: 'e5', de: 'c1', a: 'iq', discontinua: true, desde: [874, 337], hasta: [842, 337] },
-      { id: 'e6', de: 'c2', a: 'iq', discontinua: true, desde: [874, 445], hasta: [842, 445] },
+      { id: 'e1', de: 'cam', a: 'plan', desde: [282, 262], hasta: [356, 106], curva: -0.25 },
+      { id: 'e2', de: 'plan', a: 'd1', desde: [520, 148], hasta: [520, 258], curva: 0, texto: '¿qué platos hay?' },
+      { id: 'e3', de: 'plan', a: 'd2', desde: [892, 148], hasta: [892, 258], curva: 0, texto: '¿qué lleva gluten?' },
+      { id: 'e4', de: 'd1', a: 'f1', desde: [520, 390], hasta: [520, 430], curva: 0 },
+      { id: 'e5', de: 'd2', a: 'f2', desde: [892, 390], hasta: [892, 430], curva: 0 },
+      { id: 'e6', de: 'f1', a: 'junta', desde: [520, 584], hasta: [520, 624], curva: 0 },
+      { id: 'e7', de: 'f2', a: 'junta', desde: [892, 584], hasta: [892, 624], curva: 0 },
+      { id: 'e8', de: 'junta', a: 'cam', desde: [356, 668], hasta: [256, 396], curva: 0.06 },
+      { id: 'e9', de: 'cam', a: 'resp', curva: 0 },
     ],
     guion: [
       [0, 'dibuja', ['preg', 'cam', 'e0']],
-      [0.6, 'dibuja', ['iq']], [0.8, 'dibuja', ['d1', 'd2', 'd3', 'nota']],
-      [1.5, 'dibuja', ['e1']], [1.6, 'ficha', { arista: 'e1' }],
-      [2.6, 'pulso', 'd1'],
-      [3.0, 'dibuja', ['e2', 'frag']], [3.1, 'ficha', { arista: 'e2', dur: 0.6 }],
-      [4.0, 'dibuja', ['e3']], [4.1, 'ficha', { arista: 'e3' }],
-      [5.2, 'dibuja', ['web', 'e4']],
-      [5.8, 'dibuja', ['c1', 'c2', 'e5', 'e6']],
+      [0.8, 'dibuja', ['ar']],
+      [1.0, 'dibuja', ['plan', 'plan-t', 'e1']], [1.1, 'ficha', { arista: 'e1' }],
+      [2.1, 'pulso', 'plan'],
+      [2.4, 'dibuja', ['d1', 'd2']],
+      [2.6, 'dibuja', ['e2', 'e3']], [2.7, 'ficha', { arista: 'e2' }], [2.7, 'ficha', { arista: 'e3' }],
+      [3.8, 'pulso', 'd1'], [3.8, 'pulso', 'd2'],
+      [4.1, 'dibuja', ['f1', 'f2', 'e4', 'e5']], [4.2, 'ficha', { arista: 'e4', dur: 0.6 }], [4.2, 'ficha', { arista: 'e5', dur: 0.6 }],
+      [5.0, 'dibuja', ['junta', 'junta-t', 'e6', 'e7']], [5.1, 'ficha', { arista: 'e6', dur: 0.6 }], [5.1, 'ficha', { arista: 'e7', dur: 0.6 }],
+      [6.0, 'dibuja', ['e8']], [6.1, 'ficha', { arista: 'e8' }],
+      [7.2, 'dibuja', ['resp', 'e9']], [7.3, 'ficha', { arista: 'e9', dur: 0.8 }],
+      [8.1, 'pon', { id: 'ok1', clase: 'vista' }], [8.5, 'pon', { id: 'ok2', clase: 'vista' }],
     ],
   },
 
@@ -1255,39 +1311,6 @@ const DIAGRAMAS = {
       [8.9, 'pulso', 'pase'],
       [9.1, 'dibuja', ['c5']], [9.2, 'ficha', { arista: 'c5' }],
     ],
-  },
-
-  barra: {
-    semilla: 51,
-    nodos: [
-      { id: 'cam', tipo: 'mago', x: 26, y: 280, w: 236, h: 160, titulo: 'Camarero', tamTitulo: 30 },
-      { id: 'restr', tipo: 'chip', x: 26, y: 476, w: 236, h: 70, color: '--papel', titulo: 'celiaquía', tam: 26 },
-      { id: 'restr-t', tipo: 'texto', x: 40, y: 590, w: 220, h: 30, texto: ['lo que ha dicho', 'el cliente'], clase: 't-sub' },
-      { id: 'carta', tipo: 'doc', x: 400, y: 34, w: 300, h: 150, color: '--arena', titulo: 'Carta · Barra', tamTitulo: 30, sub: ['5 bebidas con', 'sus alérgenos'] },
-      { id: 'servir', tipo: 'caja', x: 400, y: 288, w: 300, h: 174, color: '--naranja-2', titulo: 'servir_bebidas', tamTitulo: 28, sub: ['código, sin IA'] },
-      { id: 'gate', tipo: 'puerta', x: 752, y: 268, w: 110, h: 220 },
-      { id: 'ok', tipo: 'caja', x: 890, y: 80, w: 182, h: 180, color: '--menta', titulo: 'Servida', tamTitulo: 30, sub: ['1 × agua', 'con gas'] },
-      { id: 'no', tipo: 'blanca', x: 890, y: 452, w: 182, h: 222, titulo: 'No', tamTitulo: 30, sub: ['servida:', '1 × caña', 'gluten', '(cebada)'] },
-    ],
-    aristas: [
-      { id: 'b0', de: 'restr', a: 'servir', curva: 0.12 },
-      { id: 'b1', de: 'cam', a: 'servir', curva: -0.08, texto: 'agua y caña', dl: [0, -26] },
-      { id: 'b2', de: 'carta', a: 'servir', curva: 0, texto: 'lee la carta', dl: [96, 0] },
-      { id: 'b3', de: 'servir', a: 'gate', curva: 0 },
-      { id: 'b4', de: 'gate', a: 'ok', curva: -0.1 },
-      { id: 'b5', de: 'gate', a: 'no', curva: 0.1, acento: true },
-    ],
-    guion: [
-      [0, 'dibuja', ['cam', 'restr', 'restr-t', 'servir']],
-      [0.5, 'dibuja', ['carta', 'b2']], [0.6, 'ficha', { arista: 'b2', dur: 0.7 }],
-      [1.5, 'dibuja', ['b1', 'b0']], [1.6, 'ficha', { arista: 'b0', dur: 0.8 }], [1.6, 'ficha', { arista: 'b1', icono: 'agua' }], [1.95, 'ficha', { arista: 'b1', icono: 'cana' }],
-      [3.0, 'dibuja', ['gate', 'b3']], [3.1, 'ficha', { arista: 'b3', icono: 'agua', dur: 0.8 }], [3.4, 'ficha', { arista: 'b3', icono: 'cana', dur: 0.8 }],
-      [4.3, 'pulso', 'gate'],
-      [4.6, 'dibuja', ['b4', 'ok']], [4.7, 'ficha', { arista: 'b4', icono: 'agua', dur: 0.9 }],
-      [5.1, 'dibuja', ['b5', 'no']], [5.2, 'ficha', { arista: 'b5', icono: 'cana', dur: 0.9 }],
-      [5.9, 'pon', { id: 'mk-ok', clase: 'vista' }], [6.2, 'pon', { id: 'mk-no', clase: 'vista' }],
-    ],
-    marcas: [['ok', 'si', 'mk-ok'], ['no', 'no', 'mk-no']],
   },
 
   caja: {
@@ -1335,7 +1358,7 @@ const DIAGRAMAS = {
       { id: 'cajaN', tipo: 'caja', x: 1080, y: 666, w: 250, h: 130, color: '--cielo', titulo: 'Caja', sub: ['A2A'] },
       { id: 'foundry', tipo: 'zona', x: 1424, y: 236, w: 436, h: 610, titulo: 'Microsoft Foundry' },
       { id: 'modelo', tipo: 'negra', x: 1462, y: 296, w: 360, h: 140, titulo: 'Modelo', sub: ['gpt-5.6-luna', 'camarero, chef y caja'] },
-      { id: 'iq', tipo: 'caja', x: 1462, y: 520, w: 360, h: 270, color: '--arena', titulo: 'Foundry IQ', sub: ['Azure AI Search', 'carta · recetario', 'ingredientes'] },
+      { id: 'iq', tipo: 'caja', x: 1462, y: 520, w: 360, h: 270, color: '--arena', titulo: 'Contexto', sub: ['Agentic Retrieval', 'carta y recetario', 'en Azure AI Search'] },
       { id: 'gh', tipo: 'blanca', x: 100, y: 912, w: 282, h: 112, titulo: 'GitHub', sub: ['el código'] },
       { id: 'act', tipo: 'blanca', x: 470, y: 912, w: 314, h: 112, titulo: 'Actions', sub: ['pruebas e imágenes'] },
       { id: 'ghcr', tipo: 'blanca', x: 872, y: 912, w: 282, h: 112, titulo: 'Imágenes', sub: ['una por contenedor'] },
@@ -1407,6 +1430,169 @@ function pintaBocetos() {
     const sk = boceto(400 + i);
     el('circle', { cx: 41, cy: 41, r: 28, fill: 'var(--c)' }, s);
     el('path', { d: sk.elipse(36, 36, 30, 30, 1.6), fill: 'none', stroke: 'var(--ink)', 'stroke-width': 3.2, 'stroke-linecap': 'round' }, s);
+  });
+}
+
+/* ======================= patrones de orquestación ======================= */
+/* Cada dibujo se anima con Web Animations; congelaPatrones() lo fija en un
+   fotograma representativo (movimiento reducido y exportación a PPTX). */
+const patronesAnim = [];
+function congelaPatrones() {
+  patronesAnim.forEach(({ a, t }) => { a.pause(); a.currentTime = t; });
+}
+window.congelaPatrones = congelaPatrones;
+
+function dibujante(svg, seed) {
+  const sk = boceto(seed);
+  const capa = { flechas: el('g', null, svg), nodos: el('g', null, svg), luces: el('g', null, svg), fichas: el('g', null, svg) };
+  const anims = [];
+  return {
+    sk, capa, anims,
+    nodo(x, y, r = 20, jefe = false) {
+      el('circle', { cx: x + 4, cy: y + 4, r, fill: 'var(--c)' }, capa.nodos);
+      if (jefe) el('circle', { cx: x, cy: y, r, fill: 'var(--ink)' }, capa.nodos);
+      else el('path', { d: sk.elipse(x, y, r, r, 1.5, 0.6), class: 'p-trazo' }, capa.nodos);
+      return { x, y, r };
+    },
+    flecha(a, b, opcion) {
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+      const x1 = a.x + ux * (a.r + 5), y1 = a.y + uy * (a.r + 5), x2 = b.x - ux * (b.r + 6), y2 = b.y - uy * (b.r + 6);
+      el('path', { d: sk.linea(x1, y1, x2, y2, 0.5), class: 'p-trazo' + (opcion ? ' p-opcion' : '') }, capa.flechas);
+      const ang = Math.atan2(uy, ux), k = 11;
+      el('path', { d: `M${f(x2 - k * Math.cos(ang - 0.5))} ${f(y2 - k * Math.sin(ang - 0.5))}L${f(x2)} ${f(y2)}L${f(x2 - k * Math.cos(ang + 0.5))} ${f(y2 - k * Math.sin(ang + 0.5))}`, class: 'p-trazo' }, capa.flechas);
+    },
+    /* aro naranja encendido en los tramos [desde, hasta] del ciclo */
+    luz(n, tramos) {
+      const c = el('circle', { cx: n.x, cy: n.y, r: n.r + 6, class: 'p-luz', opacity: 0 }, capa.luces);
+      const kf = [{ offset: 0, opacity: 0 }];
+      tramos.forEach(([a, b]) => kf.push({ offset: a, opacity: 0 }, { offset: a, opacity: 1 }, { offset: b, opacity: 1 }, { offset: b, opacity: 0 }));
+      kf.push({ offset: 1, opacity: 0 });
+      anims.push([c, kf]);
+    },
+    /* ficha que viaja de nodo en nodo: [momento, nodo, opacidad] */
+    ficha(paradas) {
+      const c = el('circle', { cx: 0, cy: 0, r: 8, class: 'p-ficha' }, capa.fichas);
+      anims.push([c, paradas.map(([t, n, op]) => ({ offset: t, transform: `translate(${n.x}px,${n.y}px)`, opacity: op === undefined ? 1 : op }))]);
+    },
+    visto(x, y, tramo) {
+      const v = el('path', { d: sk.puntos([[x - 9, y], [x - 2, y + 8], [x + 11, y - 10]], 0.4), class: 'p-trazo p-visto', opacity: 0 }, capa.luces);
+      const [a, b] = tramo;
+      anims.push([v, [{ offset: 0, opacity: 0 }, { offset: a, opacity: 0 }, { offset: a, opacity: 1 }, { offset: b, opacity: 1 }, { offset: b, opacity: 0 }, { offset: 1, opacity: 0 }]]);
+    },
+  };
+}
+
+const PATRONES = {
+  secuencial(d) {
+    const [a, b, c] = [[40, 85], [150, 85], [260, 85]].map(([x, y]) => d.nodo(x, y));
+    d.flecha(a, b); d.flecha(b, c);
+    d.ficha([[0, a, 0], [.06, a], [.1, a], [.38, b], [.5, b], [.78, c], [.9, c], [1, c, 0]]);
+    d.luz(b, [[.38, .5]]); d.luz(c, [[.78, .96]]);
+    return { dur: 4000, congela: .44 };
+  },
+  concurrente(d) {
+    const s = d.nodo(40, 85), j = d.nodo(260, 85);
+    const ws = [30, 85, 140].map(y => d.nodo(150, y, 18));
+    ws.forEach(w => { d.flecha(s, w); d.flecha(w, j); });
+    ws.forEach(w => d.ficha([[0, s, 0], [.06, s], [.12, s], [.36, w], [.6, w], [.84, j], [.93, j], [1, j, 0]]));
+    ws.forEach(w => d.luz(w, [[.36, .6]]));
+    d.luz(j, [[.84, .97]]);
+    return { dur: 4000, congela: .48 };
+  },
+  handoff(d) {
+    const a = d.nodo(50, 85);
+    const cs = [30, 85, 140].map(y => d.nodo(225, y, 18));
+    cs.forEach(c => d.flecha(a, c, true));
+    const elegido = cs[2];
+    d.ficha([[0, a, 0], [.06, a], [.14, a], [.46, elegido], [.92, elegido], [1, elegido, 0]]);
+    d.luz(elegido, [[.46, .97]]);
+    return { dur: 4000, congela: .6 };
+  },
+  grupo(d) {
+    el('path', { d: d.sk.elipse(150, 85, 90, 55, 1.04, 0.4), class: 'p-trazo p-opcion' }, d.capa.flechas);
+    const ns = [[150, 30], [240, 85], [150, 140], [60, 85]].map(([x, y]) => d.nodo(x, y, 18));
+    el('circle', { cx: 150, cy: 85, r: 7, fill: 'var(--ink)' }, d.capa.fichas);
+    const aguja = el('g', { style: 'transform-origin:150px 85px;transform-box:view-box' }, d.capa.fichas);
+    el('path', { d: d.sk.linea(150, 85, 150, 57, 0.3), class: 'p-trazo p-aguja' }, aguja);
+    el('path', { d: 'M141 66L150 56L159 66', class: 'p-trazo p-aguja' }, aguja);
+    d.anims.push([aguja, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { easing: 'steps(4, end)' }]);
+    ns.forEach((n, i) => d.luz(n, [[i / 4, (i + 1) / 4]]));
+    return { dur: 4000, congela: .125 };
+  },
+  magentic(d) {
+    const jefe = d.nodo(150, 46, 22, true);
+    chistera(d.capa.nodos, 150, 26, 0.6, 'var(--ink)');
+    const ws = [60, 150, 240].map(x => d.nodo(x, 140, 18));
+    ws.forEach(w => d.flecha(jefe, w));
+    const paradas = [[0, jefe, 0], [.03, jefe]];
+    ws.forEach((w, i) => {
+      const b = i / 3;
+      paradas.push([b + .04, jefe], [b + .13, w], [b + .2, w], [b + .29, jefe]);
+      d.luz(w, [[b + .13, b + .2]]);
+      d.visto(w.x + 36, w.y - 2, [b + .2, .97]);
+    });
+    paradas.push([.97, jefe], [1, jefe, 0]);
+    d.ficha(paradas);
+    return { dur: 6000, congela: .5 };
+  },
+};
+
+function pintaPatrones() {
+  $$('svg.patron__dibujo[data-patron]').forEach((svg, i) => {
+    const pinta = PATRONES[svg.dataset.patron];
+    if (!pinta) return;
+    const d = dibujante(svg, 500 + i);
+    const { dur, congela } = pinta(d);
+    d.anims.forEach(([nodo, kf, extra]) => {
+      const a = nodo.animate(kf, Object.assign({ duration: dur, iterations: Infinity }, extra || {}));
+      patronesAnim.push({ a, t: congela * dur });
+    });
+  });
+  if (quieto) congelaPatrones();
+}
+
+/* ======================= observabilidad: bocetos sin cifras ======================= */
+function pintaObservabilidad() {
+  $$('svg.captura__boceto[data-obs]').forEach((s, i) => {
+    const sk = boceto(600 + i);
+    const tx = (x, y, v, clase, extra) => { const t = el('text', Object.assign({ x, y, class: 'o-tx ' + clase }, extra || {}), s); t.textContent = v; return t; };
+    const tarjeta = (x, y, w, h) => {
+      el('rect', { x, y, width: w, height: h, rx: 8, fill: '#fff' }, s);
+      el('path', { d: sk.rect(x, y, w, h, 0.4), class: 'o-trazo' }, s);
+    };
+    if (s.dataset.obs === 'panel') {
+      tx(32, 52, 'Negocio del restaurante', 'o-tit');
+      ['Ingresos', 'Ticket medio', 'Ocupación actual'].forEach((v, k) => {
+        const x = 32 + k * 265;
+        tarjeta(x, 80, 246, 118);
+        tx(x + 18, 114, v, 'o-lab');
+        el('rect', { x: x + 18, y: 134, width: 150, height: 40, rx: 6, class: 'o-hueco' }, s);
+      });
+      tarjeta(32, 218, 776, 222);
+      tx(50, 252, 'Productos servidos', 'o-lab');
+      [120, 84, 140, 60, 104, 40, 76].forEach((h, k) => el('rect', { x: 84 + k * 100, y: 420 - h, width: 56, height: h, rx: 4, class: 'o-hueco' }, s));
+      el('path', { d: sk.linea(60, 420, 780, 420, 0.3), class: 'o-trazo' }, s);
+    } else {
+      tx(32, 52, '1 mensaje = 1 traza', 'o-tit');
+      const X0 = 272, W = 536;
+      [
+        ['libreta (BFF)', 0, '--cielo', [[0, 1]]],
+        ['camarero', 16, '--naranja-2', [[.015, .985]]],
+        ['modelo', 32, '--menta', [[.03, .12], [.22, .28], [.86, .97]]],
+        ['carta · búsqueda', 32, '--arena', [[.125, .215]]],
+        ['cocina · A2A', 32, '--rosa', [[.29, .85]]],
+      ].forEach(([v, sangria, color, tramos], k) => {
+        const y = 104 + k * 62;
+        tx(32 + sangria, y + 7, v, 'o-lab');
+        tramos.forEach(([a, b]) => {
+          const x = X0 + a * W, w = (b - a) * W;
+          el('rect', { x, y: y - 15, width: w, height: 30, rx: 4, fill: `var(${color})` }, s);
+          el('path', { d: sk.rect(x, y - 15, w, 30, 0.25), class: 'o-trazo fino' }, s);
+        });
+      });
+      el('path', { d: sk.linea(X0, 410, X0 + W, 410, 0.3), class: 'o-trazo' }, s);
+      tx(X0 + W, 440, 'tiempo →', 'o-sub', { 'text-anchor': 'end' });
+    }
   });
 }
 
@@ -1703,6 +1889,8 @@ function arranca() {
   encaja();
   addEventListener('resize', encaja);
   pintaBocetos();
+  pintaPatrones();
+  pintaObservabilidad();
   pintaChistera();
   $$('.slide').forEach(s => {
     s.dataset.paso = 0;
