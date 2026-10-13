@@ -6,7 +6,6 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from decimal import Decimal
-from functools import partial
 from pathlib import Path
 
 import pytest
@@ -24,9 +23,9 @@ from restaurant_contracts.bar import (
 )
 from restaurant_contracts.kitchen import KitchenSource
 
-from frontend.fake_bar import fake_bar_report
-from frontend.fake_client import FakeRestaurant
-from frontend.fake_kitchen import fake_kitchen_report
+from tests.support.fake_bar import fake_bar_report
+from tests.support.fake_client import FakeRestaurant, fake_connector
+from tests.support.fake_kitchen import fake_kitchen_report
 from frontend.markup import (
     BAR_FAILED,
     BAR_LABEL,
@@ -167,7 +166,10 @@ def test_the_simulated_bar_serves_at_once_and_its_drinks_are_billed() -> None:
     assert (request.role, bar.role, reply.role) == ("user", "bar", "assistant")
     assert [(item.carta_id, item.quantity) for item in bar.bar.result.served] == [("cana-de-cerveza", 2)]
     assert visit.snapshot.served_orders == [bar.bar.result.round_id]
-    assert [step.label for step in request.activity][-2:] == ["Barra: sirve las bebidas", "Foundry IQ: bebidas de la carta"]
+    assert [step.label for step in request.activity][-2:] == [
+        "Barra: sirve las bebidas",
+        "Agentic Retrieval: bebidas de la carta",
+    ]
 
     visit.send_message("La cuenta, por favor")
     assert visit.snapshot.messages[-2].cashier.result.total == Decimal("5.00")
@@ -216,13 +218,11 @@ APP = Path(__file__).resolve().parents[1] / "src" / "frontend" / "app.py"
 
 
 @pytest.fixture
-def app(monkeypatch) -> AppTest:
-    import frontend.config
-
-    monkeypatch.setenv("FRONTEND_BFF_CLIENT", "fake")
-    monkeypatch.setenv("FRONTEND_FAKE_PAUSE_SECONDS", "0")
-    monkeypatch.setattr(frontend.config, "FakeRestaurant", partial(FakeRestaurant, serve_seconds=0))
-    return AppTest.from_file(str(APP), default_timeout=15).run()
+def app() -> AppTest:
+    at = AppTest.from_file(str(APP), default_timeout=15)
+    at.session_state["connect"] = fake_connector(FakeRestaurant(serve_seconds=0))
+    at.session_state["farewell_seconds"] = 4
+    return at.run()
 
 
 def test_the_bar_bubble_sits_between_the_chef_and_the_waiter(app) -> None:

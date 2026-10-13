@@ -1,4 +1,4 @@
-"""Greeting of the simulated waiter.
+"""Greeting used by the test waiter double.
 
 Until the real waiter is connected through the BFF, the form of address is
 deduced from the first name: names ending in "a" are addressed as "maja",

@@ -46,17 +46,17 @@ La fase 3A añade contratos tipados, fixtures y pruebas compartidas en
 los contratos y su compatibilidad, y la coherencia de la carta, el recetario y
 los ingredientes.
 
-La vista de cliente en Streamlit ([`apps/frontend`](apps/frontend)) funciona
-con un camarero simulado: `./scripts/setup-frontend.sh` y después
-`./scripts/run-frontend.sh` (puerto 8501); sus pruebas, con
-`./scripts/test-frontend.sh`.
+La vista de cliente en Streamlit ([`apps/frontend`](apps/frontend)) se conecta
+siempre al BFF: `./scripts/setup-frontend.sh` y después
+`FRONTEND_BFF_URL=http://127.0.0.1:8000 ./scripts/run-frontend.sh` (puerto
+8501); sus pruebas, con `./scripts/test-frontend.sh`.
 
 El BFF ([`apps/bff`](apps/bff)) conecta esa vista con el agente independiente
 por Responses 2.0. El agente usa el modelo de Microsoft Foundry y escucha en
 el puerto 8088; el BFF escucha en el 8000. Usa `./scripts/setup-bff.sh`,
 `./scripts/test-bff.sh` y `./scripts/run-bff.sh`. La vista lo usa con
-`FRONTEND_BFF_CLIENT=http FRONTEND_BFF_URL=http://127.0.0.1:8000
-./scripts/run-frontend.sh`. Configuración y permisos en
+`FRONTEND_BFF_URL=http://127.0.0.1:8000 ./scripts/run-frontend.sh`.
+Configuración y permisos en
 [su README](apps/bff/README.md).
 
 Las mesas y la barra (fase 4) salen del MCP de asientos

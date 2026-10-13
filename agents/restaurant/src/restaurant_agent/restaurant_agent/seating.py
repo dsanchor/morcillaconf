@@ -129,6 +129,11 @@ _ONLY_CONTEXT = (
     "Solo puedes presentar como propuesta la que aparezca en este estado; "
     "nunca una que solo esté en el historial."
 )
+_NO_SEATING_GUIDANCE = (
+    "No existe lista de espera ni se envían avisos automáticos: no prometas "
+    "avisar o notificar. Si no hay otra opción disponible, invita al cliente "
+    "a volver a intentarlo dentro de un rato."
+)
 
 State = MutableMapping[str, Any]
 
@@ -839,7 +844,10 @@ class SeatingToolContextMiddleware(FunctionMiddleware):
                 )
                 return
             if preference not in options:
-                context.result = f"no_seating: la opción {preference} ya no está disponible"
+                context.result = (
+                    f"no_seating: la opción {preference} ya no está disponible. "
+                    f"{_NO_SEATING_GUIDANCE}"
+                )
                 return
         if isinstance(state.get(SEATED_KEY), dict):
             context.result = "conflict: el grupo ya está sentado en esta visita"
@@ -858,7 +866,7 @@ class SeatingToolContextMiddleware(FunctionMiddleware):
             # there is no room (Agent Framework hides exception details).
             context.result = (
                 f"no_seating: no hay ningún sitio libre para {party_size} "
-                f"con la preferencia {preference}"
+                f"con la preferencia {preference}. {_NO_SEATING_GUIDANCE}"
                 if code == "no_seating"
                 else "conflict: el grupo ya tiene sitio en esta visita"
             )

@@ -70,12 +70,6 @@ body {
 .comando .arg { color: var(--piedra-tenue); font-style: italic; }
 .comando:hover { background: rgba(242, 176, 74, .08); }
 .comando:hover code { color: var(--luz); }
-.simulado {
-  justify-self: end; margin: -8px 4px -2px;
-  font-size: .92rem; letter-spacing: .04em; color: var(--piedra-tenue);
-}
-.simulado::before { content: "●"; margin-right: .5em; color: var(--luz); }
-
 .sala {
   display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 18px;
   min-height: 0; padding: 26px 32px 18px;
@@ -179,7 +173,6 @@ body {
   }
   .abrir-menu code { font: 500 1rem ui-monospace, "SF Mono", Menlo, monospace; }
   .sala { padding: 62px 12px 12px; gap: 12px; }
-  .simulado { margin: -4px 2px 0; }
   .ventana { border-width: 7px; }
   .mensajes { padding: 18px 14px; }
   .msg { max-width: 94%; }

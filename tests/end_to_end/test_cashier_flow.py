@@ -69,7 +69,8 @@ def test_the_served_dishes_are_billed_from_the_carta_paid_once_and_the_visit_clo
     assert cashier.cashier.task is not None
     assert visit.snapshot.pending_bill.bill_id == bill.bill_id
     labels = [step.label for step in request.activity]
-    assert "Caja A2A: envía la cuenta" in labels and "Caja: consulta precios en la carta" in labels
+    assert "A2A: envía la cuenta" in labels
+    assert "Agentic Retrieval: consulta precios en la carta" in labels
 
     visit.send_message("Pago con tarjeta")
     assert visit.snapshot.pending_bill.bill_id == bill.bill_id

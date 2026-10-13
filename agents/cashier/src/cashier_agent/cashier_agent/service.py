@@ -122,11 +122,13 @@ class CashierService:
         )
         entries = len({line.carta_id for line in request.lines})
         step = await Step(
-            "caja", "Caja: consulta precios en la carta", f"{entries} platos o bebidas servidos"
+            "foundry_iq",
+            "Agentic Retrieval: consulta precios en la carta",
+            f"{entries} platos o bebidas servidos",
         ).start()
         async with agent:
             if getattr(knowledge_tool, "unavailable", False):
-                await step.finish("Foundry IQ no disponible", failed=True)
+                await step.finish("Agentic Retrieval no disponible", failed=True)
                 return cashier_failure(request.bill_id, CashierFailureCode.KNOWLEDGE_UNAVAILABLE)
             response = await agent.run(lookup_prompt(request))
         try:

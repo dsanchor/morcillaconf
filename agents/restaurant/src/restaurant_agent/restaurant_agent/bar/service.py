@@ -107,11 +107,11 @@ class BarService:
             return bar_failure(request.round_id, BarFailureCode.BAR_UNAVAILABLE)
 
     async def _lookup(self, query_variants: list[str], evidence: BarEvidence) -> None:
-        with tracked("foundry_iq", "Foundry IQ: bebidas de la carta") as step:
+        with tracked("foundry_iq", "Agentic Retrieval: bebidas de la carta") as step:
             text = await self._carta.retrieve(query_variants)
             parse([text], evidence)
             if text.startswith(UNAVAILABLE.split(":", 1)[0]):
-                step.detail = "Foundry IQ no disponible"
+                step.detail = "Agentic Retrieval no disponible"
                 step.failed = True
             else:
                 versions = ", ".join(sorted(evidence.versions)) or "?"

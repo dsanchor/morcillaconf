@@ -27,7 +27,6 @@ from frontend.markup import (
     identity_markup,
     plan_markup,
     proposal_markup,
-    simulated_markup,
 )
 from frontend.slash_commands import SlashCommand, parse_slash_command
 from frontend.stylesheets import base_stylesheet, stage_stylesheet
@@ -126,8 +125,6 @@ def _render_inside(*, opening: bool) -> None:
             card = st.empty()
             payment = st.empty()
             text = st.chat_input("Escribe al camarero", key="redactor", max_chars=2_000)
-        if state.get("simulated", True):
-            st.markdown(simulated_markup(), unsafe_allow_html=True)
         # Drawn before any blocking work (a waiter turn, /new) so it never
         # disappears while the waiter thinks.
         _live_plan(opening)
@@ -362,7 +359,6 @@ def _enter() -> None:
         except BffClientError as exc:
             state.door_notice = exc.error.message
             return
-        state.simulated = client.simulated
         visit = VisitSession(client)
         # The same name resumes its active visit: reloading or leaving and
         # entering again never opens a new one. Only /new does.

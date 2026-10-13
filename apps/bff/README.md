@@ -36,7 +36,7 @@ curl http://127.0.0.1:8000/healthz   # {"status":"ok","waiter":"remote"}
 Arranca antes el agente con sus variables de Foundry mediante
 `./scripts/run-local.sh`. El BFF no incluye un modo de ejecución simulado; sus
 dobles deterministas se inyectan exclusivamente desde las pruebas. La vista se conecta con
-`FRONTEND_BFF_CLIENT=http FRONTEND_BFF_URL=http://127.0.0.1:8000 ./scripts/run-frontend.sh`
+`FRONTEND_BFF_URL=http://127.0.0.1:8000 ./scripts/run-frontend.sh`
 ([README del frontend](../frontend/README.md)).
 
 No hace falta cargar `.local/restaurant.env.sh` ni un entorno de `azd`: todo se

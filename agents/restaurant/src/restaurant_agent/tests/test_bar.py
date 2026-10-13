@@ -357,7 +357,13 @@ async def test_one_retrieval_serves_the_round_when_the_drinks_section_is_whole()
     assert isinstance(result, BarRound) and result.verdict == "served"
     assert carta.queries == [[DRINKS_QUERY, "cañas", "agua con gas"]]
     done = [(step.component, step.label, step.detail) for step in steps if step.status == "done"]
-    assert done == [("foundry_iq", "Foundry IQ: bebidas de la carta", "5 bebidas en la carta v1")]
+    assert done == [
+        (
+            "foundry_iq",
+            "Agentic Retrieval: bebidas de la carta",
+            "5 bebidas en la carta v1",
+        )
+    ]
 
 
 async def test_a_second_retrieval_only_when_the_drinks_section_came_back_cut() -> None:
@@ -388,7 +394,10 @@ async def test_without_the_drinks_of_the_carta_nothing_is_served(carta, code, re
     assert result.status == "failed" and result.code is code
     assert len(carta.queries if carta else []) == retrievals
     if code is BarFailureCode.KNOWLEDGE_UNAVAILABLE:
-        assert steps[-1].status == "failed" and steps[-1].detail == "Foundry IQ no disponible"
+        assert (
+            steps[-1].status == "failed"
+            and steps[-1].detail == "Agentic Retrieval no disponible"
+        )
 
 
 async def test_a_drinks_section_that_never_comes_back_whole_serves_nothing() -> None:

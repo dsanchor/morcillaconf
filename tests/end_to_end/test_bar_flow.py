@@ -66,7 +66,8 @@ def test_drinks_are_served_from_the_carta_billed_and_paid() -> None:
     ]
     assert served.round_id in visit.snapshot.served_orders
     labels = [step.label for step in request.activity]
-    assert "Barra: sirve las bebidas" in labels and "Foundry IQ: bebidas de la carta" in labels
+    assert "Barra: sirve las bebidas" in labels
+    assert "Agentic Retrieval: bebidas de la carta" in labels
 
     for message, reason in (
         ("Ponme un agua", "En la carta hay varias: Agua con gas o Agua sin gas."),

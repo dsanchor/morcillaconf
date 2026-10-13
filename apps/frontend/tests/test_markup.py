@@ -32,7 +32,6 @@ from frontend.markup import (
     identity_markup,
     kitchen_row,
     plan_markup,
-    simulated_markup,
     text_html,
 )
 from frontend.slash_commands import COMMAND_LIST
@@ -112,7 +111,7 @@ def test_every_fragment_is_a_single_html_block() -> None:
     fragments = [
         facade_markup("cerrada"), facade_markup("llama", 1), facade_markup("abriendo"),
         door_hint_markup(), identity_markup("Ana"), command_row_markup("/new"),
-        simulated_markup(), plan_markup("Ana", "llegando", entering=True),
+        plan_markup("Ana", "llegando", entering=True),
         conversation_markup(ConversationView(messages=(GREETING, QUESTION), waiting=True)),
         kitchen_row(KITCHEN),
     ]
@@ -169,10 +168,9 @@ def test_sidebar_fragments_escape_and_dim_arguments() -> None:
     assert _text(row) == "/acción <id> <texto>"
 
 
-def test_door_hint_and_simulated_label() -> None:
+def test_door_hint_is_accessible() -> None:
     hint = _parse(door_hint_markup())
     assert hint.find("p").get("role") == "alert" and _text(hint) == DOOR_HINT
-    assert _text(_parse(simulated_markup())) == "Camarero simulado"
 
 
 def test_facade_markup_alternates_to_rattle_again() -> None:
@@ -228,6 +226,8 @@ def test_the_activity_panel_shows_each_component_live_and_escaped() -> None:
             "activity": [
                 ActivityStep(step_id="m", component="memoria", label="Lee la memoria del cliente", detail="<alergia> & leche", duration_ms=4),
                 ActivityStep(step_id="c", component="cocina", label="A2A: envía la comanda a cocina", status="running"),
+                ActivityStep(step_id="a", component="caja", label="A2A: envía la cuenta"),
+                ActivityStep(step_id="r", component="foundry_iq", label="Agentic Retrieval: consulta precios en la carta"),
                 ActivityStep(step_id="p", component="especialista", label="Parrilla revisa sus tareas", detail="OK", duration_ms=2500),
             ]
         }
@@ -235,10 +235,18 @@ def test_the_activity_panel_shows_each_component_live_and_escaped() -> None:
     root = _parse(activity_markup([GREETING, order]))
     steps = root.findall(".//li")
     assert [step.get("class") for step in steps] == [
-        "capo-paso memoria done", "capo-paso cocina running", "capo-paso especialista done",
+        "capo-paso memoria done",
+        "capo-paso cocina running",
+        "capo-paso caja done",
+        "capo-paso foundry_iq done",
+        "capo-paso especialista done",
     ]
     assert _text(steps[0]) == "Memoria4 msLee la memoria del cliente<alergia> & leche"
-    assert "en curso" in _text(steps[1]) and "2,5 s" in _text(steps[2])
+    assert _text(steps[2]) == "Caja A2AA2A: envía la cuenta"
+    assert _text(steps[3]) == (
+        "Agentic RetrievalAgentic Retrieval: consulta precios en la carta"
+    )
+    assert "en curso" in _text(steps[1]) and "2,5 s" in _text(steps[4])
     assert root.get("aria-label") == "Bajo el capó"
     assert "Escribe al camarero" in _text(_parse(activity_markup([GREETING])))
 

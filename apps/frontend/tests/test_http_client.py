@@ -26,7 +26,7 @@ from restaurant_contracts.application import (
 from restaurant_contracts.client import BffClientError
 
 from frontend.config import FrontendSettings, client_connector
-from frontend.fake_client import FakeRestaurant
+from tests.support.fake_client import FakeRestaurant
 from frontend.http_client import UNREACHABLE, HttpBffClient
 from frontend.visit import VisitSession
 
@@ -193,14 +193,12 @@ def test_the_name_is_sent_once_and_then_only_a_bearer_token(bff) -> None:
 
     assert client.identity == ActorContext(actor_id="ana", authenticated=True)
     assert client.active_visit_id is None
-    assert client.simulated is True
     method, path, headers, body = bff.requests[0]
     assert (method, path, json.loads(body)) == ("POST", "/v1/sessions", {"name": "Ana"})
     for _, _, headers, body in bff.requests[1:]:
         assert headers["Authorization"].startswith("Bearer ")
         assert b"Ana" not in body
-    # The BFF reports "remote" for the real waiter: only "scripted" is simulated.
-    assert HttpBffClient.open(bff.url, "Real").simulated is False
+    assert HttpBffClient.open(bff.url, "Real").identity.actor_id == "real"
 
 
 def test_a_visit_runs_over_http_and_is_resumed_by_name(bff) -> None:
@@ -265,7 +263,7 @@ def test_an_unreachable_bff_is_unavailable_and_retryable() -> None:
         port = probe.getsockname()[1]
     connect = client_connector(
         FrontendSettings.from_env(
-            {"FRONTEND_BFF_CLIENT": "http", "FRONTEND_BFF_URL": f"http://127.0.0.1:{port}"}
+            {"FRONTEND_BFF_URL": f"http://127.0.0.1:{port}"}
         )
     )
 

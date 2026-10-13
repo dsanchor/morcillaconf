@@ -5,7 +5,7 @@ from datetime import timedelta
 from restaurant_contracts.application import Action, ActorContext
 from restaurant_contracts.seating import RoomView, SeatingView
 
-from frontend.fake_client import FakeRestaurant
+from tests.support.fake_client import FakeRestaurant
 from frontend.floor_plan import WALK_SECONDS, floor_plan_svg
 from frontend.markup import plan_markup, proposal_markup
 from frontend.visit import VisitSession

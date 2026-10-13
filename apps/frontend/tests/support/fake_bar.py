@@ -1,4 +1,4 @@
-"""Simulated bar for the simulated waiter: a tiny fixed carta of drinks and no model.
+"""Test bar double with a tiny fixed carta of drinks and no model.
 
 The drinks of a message that starts with «Pido…» or «Ponme…» are served from
 the bar with a round that follows the public contract, so the bar's bubble can

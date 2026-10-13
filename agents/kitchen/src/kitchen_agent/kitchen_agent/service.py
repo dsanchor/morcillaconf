@@ -185,7 +185,7 @@ class KitchenService:
         chef = await Step("chef", "Chef analiza la comanda", f"{len(order.lines)} líneas").start()
         async with agent:
             if getattr(knowledge_tool, "unavailable", False):
-                await chef.finish("Foundry IQ no disponible", failed=True)
+                await chef.finish("Agentic Retrieval no disponible", failed=True)
                 return kitchen_failure(
                     order, KitchenFailureCode.KNOWLEDGE_UNAVAILABLE
                 )
@@ -196,7 +196,7 @@ class KitchenService:
         )
         await done(
             "foundry_iq",
-            "Foundry IQ: carta y recetario",
+            "Agentic Retrieval: carta y recetario",
             f"{evidence.retrievals} consultas"
             + (f" · {documents}" if documents else "")
             + f" · {len(evidence.dishes)} platos de la carta"

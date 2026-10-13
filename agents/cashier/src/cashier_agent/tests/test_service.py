@@ -92,8 +92,16 @@ async def test_the_bill_is_priced_from_the_retrieved_carta_and_reported_as_a_ste
     assert model.prompts[0].startswith("Platos y bebidas servidos")
     assert '"cantidad"' not in model.prompts[0] and "quantity" not in model.prompts[0]
     assert [(step.component, step.label, step.status) for step in steps] == [
-        ("caja", "Caja: consulta precios en la carta", "running"),
-        ("caja", "Caja: consulta precios en la carta", "done"),
+        (
+            "foundry_iq",
+            "Agentic Retrieval: consulta precios en la carta",
+            "running",
+        ),
+        (
+            "foundry_iq",
+            "Agentic Retrieval: consulta precios en la carta",
+            "done",
+        ),
     ]
     assert "total 17,50 €" in (steps[-1].detail or "")
 

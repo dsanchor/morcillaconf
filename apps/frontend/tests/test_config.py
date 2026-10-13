@@ -1,39 +1,30 @@
 import pytest
 
-from frontend.config import (
-    ClientConfigurationError,
-    ClientKind,
-    FrontendSettings,
-    client_connector,
-)
-from frontend.fake_client import FakeBffClient
+import frontend.config
+from frontend.config import ClientConfigurationError, FrontendSettings, client_connector
 
 
-def test_fake_client_is_the_explicit_default() -> None:
-    settings = FrontendSettings.from_env({})
-    assert settings.client_kind is ClientKind.FAKE
-    assert settings.fake_pause_seconds > 0
+def test_http_client_is_the_only_connector(monkeypatch) -> None:
+    opened: list[tuple[str, str, float]] = []
+    expected = object()
 
+    def open_client(url: str, name: str, *, timeout: float):
+        opened.append((url, name, timeout))
+        return expected
 
-def test_connector_binds_the_door_name_as_authenticated_identity() -> None:
-    connect = client_connector(FrontendSettings.from_env({"FRONTEND_FAKE_PAUSE_SECONDS": "0"}))
-    client = connect("Ana")
-    assert isinstance(client, FakeBffClient)
-    assert client.identity.actor_id == "Ana"
-    assert client.identity.authenticated is True
-
-
-def test_http_client_is_configured_from_the_environment() -> None:
+    monkeypatch.setattr(frontend.config.HttpBffClient, "open", open_client)
     settings = FrontendSettings.from_env(
         {
-            "FRONTEND_BFF_CLIENT": "http",
             "FRONTEND_BFF_URL": "https://bff.example.com/",
             "FRONTEND_BFF_TIMEOUT_SECONDS": "12",
         }
     )
-    assert settings.client_kind is ClientKind.HTTP
-    assert settings.bff_url == "https://bff.example.com/"
-    assert settings.timeout_seconds == 12
+
+    assert client_connector(settings)("Ana") is expected
+    assert opened == [("https://bff.example.com/", "Ana", 12)]
+
+
+def test_local_bff_is_the_default() -> None:
     assert FrontendSettings.from_env({}).bff_url == "http://127.0.0.1:8000"
 
 
@@ -42,19 +33,9 @@ def test_the_farewell_after_paying_lasts_a_few_seconds_by_default() -> None:
     assert FrontendSettings.from_env({"FRONTEND_FAREWELL_SECONDS": "0"}).farewell_seconds == 0
 
 
-def test_fake_client_knows_the_active_visit_and_is_simulated() -> None:
-    connect = client_connector(FrontendSettings.from_env({"FRONTEND_FAKE_PAUSE_SECONDS": "0"}))
-    client = connect("Ana")
-    assert client.simulated is True
-    assert client.active_visit_id is None
-
-
 @pytest.mark.parametrize(
     "environ",
     [
-        {"FRONTEND_BFF_CLIENT": "agent"},
-        {"FRONTEND_FAKE_PAUSE_SECONDS": "rápido"},
-        {"FRONTEND_FAKE_PAUSE_SECONDS": "-1"},
         {"FRONTEND_BFF_URL": "bff:8000"},
         {"FRONTEND_BFF_TIMEOUT_SECONDS": "0"},
         {"FRONTEND_BFF_TIMEOUT_SECONDS": "pronto"},

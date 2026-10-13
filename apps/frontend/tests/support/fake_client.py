@@ -1,4 +1,4 @@
-"""Simulated BFF, the default adapter; ``HttpBffClient`` talks to the real one.
+"""In-memory BFF double for frontend tests.
 
 Everything here is fake and presented as such: an in-memory restaurant that
 answers with valid 3A contracts and a waiter that only knows a few scripted
@@ -53,8 +53,8 @@ from restaurant_contracts.kitchen import KitchenPlan, KitchenReport
 from restaurant_contracts.memory import MemoryKind
 from restaurant_contracts.seating import RoomView
 
-from frontend.fake_bar import bar_reply, fake_bar_report
-from frontend.fake_cashier import (
+from tests.support.fake_bar import bar_reply, fake_bar_report
+from tests.support.fake_cashier import (
     GOODBYE,
     NOTHING_SERVED,
     PAY_WITH_BUTTONS,
@@ -63,9 +63,9 @@ from frontend.fake_cashier import (
     fake_bill,
     fake_receipt,
 )
-from frontend.fake_kitchen import fake_kitchen_report, kitchen_reply, served_reply
-from frontend.fake_seating import FakeRoom, party_size
-from frontend.greeting import greeting
+from tests.support.fake_kitchen import fake_kitchen_report, kitchen_reply, served_reply
+from tests.support.fake_seating import FakeRoom, party_size
+from tests.support.greeting import greeting
 
 ProcessStatus = Literal["idle", "processing", "awaiting_customer"]
 
@@ -73,6 +73,15 @@ MAX_MEMORIES_PER_KIND = 20
 MAX_VALUES_PER_MESSAGE = 5
 MAX_CUSTOMER_ITEMS = 20
 MESSAGE_LIMIT = 2_000
+
+
+def fake_connector(restaurant: FakeRestaurant):
+    """Bind names to a shared in-memory restaurant for Streamlit tests."""
+
+    def connect(name: str) -> FakeBffClient:
+        return restaurant.client(ActorContext(actor_id=name, authenticated=True))
+
+    return connect
 MEMORY_LIMIT = 200
 SCRIPTED_REPLIES = ("Tomo nota.", "Entendido, {name}.", "Te escucho.")
 
@@ -522,24 +531,24 @@ class FakeRestaurant:
 
         steps = [
             step("memoria", "Lee la memoria del cliente", "Simulada", 4),
-            step("camarero", "El camarero razona con el modelo", "Camarero simulado", 900),
+            step("camarero", "El camarero razona con el modelo", "Doble de prueba", 900),
         ]
         if kitchen is not None:
             lines = len(kitchen.order.lines)
             steps += [
                 step("cocina", "A2A: envía la comanda a cocina", f"{lines} líneas", 1200),
                 step("chef", "Chef analiza la comanda", f"{lines} líneas", 600),
-                step("foundry_iq", "Foundry IQ: carta y recetario", "Carta simulada", 300),
+                step("foundry_iq", "Agentic Retrieval: carta y recetario", "Carta simulada", 300),
             ]
         if bar is not None:
             steps += [
                 step("camarero", "Barra: sirve las bebidas", _drinks(len(bar.request.items)), 60),
-                step("foundry_iq", "Foundry IQ: bebidas de la carta", "Carta simulada", 300),
+                step("foundry_iq", "Agentic Retrieval: bebidas de la carta", "Carta simulada", 300),
             ]
         if bill is not None:
             steps += [
-                step("caja", "Caja A2A: envía la cuenta", f"{len(bill.request.lines)} líneas servidas", 700),
-                step("caja", "Caja: consulta precios en la carta", "Carta simulada", 300),
+                step("caja", "A2A: envía la cuenta", f"{len(bill.request.lines)} líneas servidas", 700),
+                step("foundry_iq", "Agentic Retrieval: consulta precios en la carta", "Carta simulada", 300),
             ]
         if remembered:
             steps.append(step("memoria", "Guarda en memoria", "; ".join(remembered)[:200], 5))
@@ -853,10 +862,6 @@ class FakeBffClient:
     @property
     def active_visit_id(self) -> str | None:
         return self._restaurant.active_visit_id(self._identity)
-
-    @property
-    def simulated(self) -> bool:
-        return True
 
     async def submit(self, command: Command) -> CommandResult:
         return self._restaurant.submit(self._identity, command)

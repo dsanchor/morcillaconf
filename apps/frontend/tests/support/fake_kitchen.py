@@ -1,4 +1,4 @@
-"""Simulated chef for the simulated waiter: a tiny fixed carta and no model.
+"""Test chef double with a tiny fixed carta and no model.
 
 It answers messages that start with «Pido…» or «Ponme…» with a kitchen report
 that follows the public contract, so the chef's bubble can be seen and tested
@@ -24,7 +24,7 @@ from restaurant_contracts.kitchen import (
     StationTask,
 )
 
-from frontend.fake_bar import is_drink
+from tests.support.fake_bar import is_drink
 
 _ORDER = re.compile(r"^\s*(?:pido|pedimos|ponme|ponnos)\s+(?P<items>.+)$", re.IGNORECASE | re.DOTALL)
 _CELIAC = re.compile(r",?\s*(?:y\s+)?(?:soy|somos)\s+cel[ií]ac[oa]s?\b", re.IGNORECASE)

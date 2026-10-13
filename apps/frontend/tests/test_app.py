@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.fake_client import FakeRestaurant, fake_connector
+
 pytest.importorskip("streamlit")
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
@@ -10,10 +12,11 @@ GREETING = "Hombre, Ana, ¿qué tal, maja? ¿Has venido sola o acompañada?"
 
 
 @pytest.fixture
-def app(monkeypatch) -> AppTest:
-    monkeypatch.setenv("FRONTEND_BFF_CLIENT", "fake")
-    monkeypatch.setenv("FRONTEND_FAKE_PAUSE_SECONDS", "0")
-    return AppTest.from_file(str(APP), default_timeout=15).run()
+def app() -> AppTest:
+    at = AppTest.from_file(str(APP), default_timeout=15)
+    at.session_state["connect"] = fake_connector(FakeRestaurant(pause_seconds=0))
+    at.session_state["farewell_seconds"] = 4
+    return at.run()
 
 
 def _markup(at: AppTest) -> str:
@@ -48,7 +51,7 @@ def test_a_name_opens_the_door_and_the_waiter_greets(app) -> None:
     assert 'class="escena abriendo"' in markup
     assert 'class="planta llegando"' in markup
     assert "revelar-door" in markup and GREETING in markup
-    assert "Camarero simulado" in markup
+    assert "Camarero simulado" not in markup
     assert at.session_state["stage"] == "inside"
     at = at.run()
     markup = _markup(at)
@@ -100,7 +103,6 @@ def test_leaving_and_entering_again_starts_a_fresh_visit(app) -> None:
 
 
 def test_an_unreachable_bff_keeps_the_door_closed_with_a_notice(monkeypatch) -> None:
-    monkeypatch.setenv("FRONTEND_BFF_CLIENT", "http")
     monkeypatch.setenv("FRONTEND_BFF_URL", "http://127.0.0.1:9")
     monkeypatch.setenv("FRONTEND_BFF_TIMEOUT_SECONDS", "2")
     at = AppTest.from_file(str(APP), default_timeout=15).run()

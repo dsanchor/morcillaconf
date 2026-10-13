@@ -6,7 +6,6 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from decimal import Decimal
-from functools import partial
 from pathlib import Path
 
 import pytest
@@ -21,8 +20,15 @@ from restaurant_contracts.cashier import (
     cashier_failure,
 )
 
-from frontend.fake_cashier import GOODBYE, NOTHING_SERVED, PAY_WITH_BUTTONS, SERVE_FIRST, fake_bill, fake_receipt
-from frontend.fake_client import FakeRestaurant
+from tests.support.fake_cashier import (
+    GOODBYE,
+    NOTHING_SERVED,
+    PAY_WITH_BUTTONS,
+    SERVE_FIRST,
+    fake_bill,
+    fake_receipt,
+)
+from tests.support.fake_client import FakeRestaurant, fake_connector
 from frontend.floor_plan import CASHIER, DOOR_GAP, floor_plan_svg
 from frontend.markup import (
     CASHIER_LABEL,
@@ -147,13 +153,13 @@ def test_the_cashier_speaks_white_on_pine_green() -> None:
 def test_the_pending_bill_card_and_the_activity_name_the_cashier() -> None:
     card = _text(_parse(bill_card_markup(BillView.of(BILL.result))))
     assert card == "Total 26,50 €Elige cómo pagar."
-    assert COMPONENT_LABELS["caja"] == "Caja"
+    assert COMPONENT_LABELS["caja"] == "Caja A2A"
     paid = ChatMessage.model_validate({
         **_message(RECEIPT).model_dump(),
         "activity": [{"step_id": "c1", "component": "caja", "label": "Caja: cobra con tarjeta", "duration_ms": 40}],
     })
     panel = _text(_parse(activity_markup([paid])))
-    assert panel == "Cobro en cajaCaja40 msCaja: cobra con tarjeta"
+    assert panel == "Cobro en cajaCaja A2A40 msCaja: cobra con tarjeta"
 
 
 # The till on the plan
@@ -204,7 +210,8 @@ def test_the_simulated_cashier_bills_only_served_dishes_and_closes_the_visit() -
     assert visit.snapshot.pending_bill.bill_id == bill.cashier.bill_id
     assert visit.allows(Action.DECIDE_PAYMENT)
     assert [step.label for step in request.activity][-2:] == [
-        "Caja A2A: envía la cuenta", "Caja: consulta precios en la carta",
+        "A2A: envía la cuenta",
+        "Agentic Retrieval: consulta precios en la carta",
     ]
     visit.send_message("Pago con tarjeta, la cuenta")
     assert visit.snapshot.messages[-1].text == PAY_WITH_BUTTONS
@@ -273,14 +280,11 @@ APP = Path(__file__).resolve().parents[1] / "src" / "frontend" / "app.py"
 
 
 @pytest.fixture
-def app(monkeypatch) -> AppTest:
-    import frontend.config
-
-    monkeypatch.setenv("FRONTEND_BFF_CLIENT", "fake")
-    monkeypatch.setenv("FRONTEND_FAKE_PAUSE_SECONDS", "0")
-    monkeypatch.setenv("FRONTEND_FAREWELL_SECONDS", "30")
-    monkeypatch.setattr(frontend.config, "FakeRestaurant", partial(FakeRestaurant, serve_seconds=0))
-    return AppTest.from_file(str(APP), default_timeout=15).run()
+def app() -> AppTest:
+    at = AppTest.from_file(str(APP), default_timeout=15)
+    at.session_state["connect"] = fake_connector(FakeRestaurant(serve_seconds=0))
+    at.session_state["farewell_seconds"] = 30
+    return at.run()
 
 
 def _markup(at: AppTest) -> str:

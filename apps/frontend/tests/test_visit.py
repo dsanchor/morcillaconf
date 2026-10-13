@@ -7,7 +7,7 @@ from restaurant_contracts.application import (
 )
 from restaurant_contracts.client import BffClientError
 
-from frontend.fake_client import FakeRestaurant
+from tests.support.fake_client import FakeRestaurant
 from frontend.visit import (
     MESSAGES_CLOSED,
     TRY_NEW_VISIT,

@@ -627,8 +627,12 @@ async def test_the_cli_asks_the_operator_to_decide(waiter, seating_server, capsy
 
 
 async def test_no_room_is_an_answer_the_model_can_read(waiter, seating_server) -> None:
-    ana = waiter([hold(9), say("Lo siento, no hay sitio para nueve.", 9)])
-    await ana.say("Somos nueve")
+    expected = (
+        "Lo siento, ahora mismo no hay sitio para nueve. "
+        "Os invito a volver a intentarlo dentro de un rato."
+    )
+    ana = waiter([hold(9), say(expected, 9)])
+    response = await ana.say("Somos nueve")
     tool_results = [
         item[3]
         for role, items in ana.model.calls[-1]["messages"]
@@ -636,6 +640,9 @@ async def test_no_room_is_an_answer_the_model_can_read(waiter, seating_server) -
         if item[0] == "function_result"
     ]
     assert tool_results and tool_results[-1].startswith("no_seating: no hay ningún sitio libre para 9")
+    assert "No existe lista de espera ni se envían avisos automáticos" in tool_results[-1]
+    assert "no prometas avisar o notificar" in tool_results[-1]
+    assert response.reply == expected
     assert ana.report()["status"] == "none"
 
 

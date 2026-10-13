@@ -1,4 +1,4 @@
-"""Simulated cashier for the simulated waiter: fixed carta prices and no model.
+"""Test cashier double with fixed carta prices and no model.
 
 It prices the kitchen dishes and the bar drinks already served when the
 customer asks for the bill, and records the payment chosen with the buttons,

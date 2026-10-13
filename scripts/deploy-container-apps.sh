@@ -463,7 +463,6 @@ BFF_FQDN="$(az containerapp show --name "$BFF_APP_NAME" --resource-group "$AZURE
 
 log "Creating or updating frontend (external ingress)"
 apply_app "$FRONTEND_APP_NAME" "$FRONTEND_IMAGE" external 8501 false \
-  "FRONTEND_BFF_CLIENT=http" \
   "FRONTEND_BFF_URL=https://$BFF_FQDN" \
   "FRONTEND_BFF_TIMEOUT_SECONDS=30" \
   "FRONTEND_PORT=8501"

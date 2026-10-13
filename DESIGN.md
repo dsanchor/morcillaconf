@@ -257,7 +257,7 @@ La geometría distintiva viene de los materiales: arco de dovelas, portón parti
 - **Do** usar ámbar solo para acción, estado, foco o confirmación.
 - **Do** mantener pocos textos visibles y hacer que las formas del mesón expliquen el sistema.
 - **Do** respetar `prefers-reduced-motion` en toda apertura, llegada y escritura.
-- **Do** etiquetar lo simulado con discreción, como `Camarero simulado`.
+- **Do** mostrar claramente los errores de conexión con el BFF sin sustituirlo por datos ficticios.
 
 ### Don't:
 - **Don't** añadir una cabecera de chatbot, panel de mando genérico o burbujas sin materialidad del mesón.

@@ -2,10 +2,8 @@
 
 Carril 3B de la [fase 3](../../PLAN_IMPLEMENTACION.md#fase-3-una-vista-de-cliente-bff-y-continuidad):
 una única vista de cliente que habla solo con el contrato público del BFF
-([`packages/contracts`](../../packages/contracts/README.md)). Por defecto el
-camarero es **simulado** mediante `FakeBffClient` y la vista lo indica con
-«Camarero simulado». Con `FRONTEND_BFF_CLIENT=http` la vista habla con el
-[BFF](../bff/README.md) y, a través de él, con el camarero real.
+([`packages/contracts`](../../packages/contracts/README.md)). La vista se
+conecta siempre al [BFF](../bff/README.md) mediante HTTP y SSE.
 
 ## Probar y ejecutar localmente con Docker
 
@@ -38,10 +36,8 @@ variables disponibles son:
 
 | Variable | Valores | Por defecto |
 |---|---|---|
-| `FRONTEND_BFF_CLIENT` | `fake` (simulado) o `http` (BFF real) | `fake` |
 | `FRONTEND_BFF_URL` | URL base del BFF con `http` | `http://127.0.0.1:8000` |
 | `FRONTEND_BFF_TIMEOUT_SECONDS` | Espera máxima de cada llamada y del stream SSE, 1-300 | `30` |
-| `FRONTEND_FAKE_PAUSE_SECONDS` | Pausa simulada del camarero antes de responder, 0-10 | `0.9` |
 | `FRONTEND_FAREWELL_SECONDS` | Tiempo que el recibo y la despedida siguen en pantalla tras pagar, antes de volver a la puerta, 0-30 | `4` |
 | `FRONTEND_PORT` | Puerto del servidor Streamlit dentro del contenedor | `8501` |
 
@@ -54,9 +50,9 @@ docker run --rm --name morcillaconf-frontend \
   morcillaconf-frontend:local
 ```
 
-La vista queda disponible en `http://localhost:8501`. Con
-`FRONTEND_BFF_CLIENT=http`, `FRONTEND_BFF_URL` debe apuntar al BFF accesible
-desde el contenedor. En ningún caso hay que configurar credenciales de
+La vista queda disponible en `http://localhost:8501`.
+`FRONTEND_BFF_URL` debe apuntar al BFF accesible desde el contenedor. En
+ningún caso hay que configurar credenciales de
 Foundry, MCP o agentes en este contenedor: solo el BFF las usa.
 
 ## Preparar, probar y arrancar en Codespaces
@@ -73,20 +69,18 @@ Desde la raíz del repositorio:
 usan `--frozen`. Si falta el lockfile, `setup-frontend.sh` lo genera y hay que
 versionarlo. En el Codespace abre el puerto 8501 reenviado.
 
-### Con el BFF real
+### Con el BFF
 
 Arranca el BFF en otra terminal (ver [su README](../bff/README.md)) y después:
 
 ```bash
-FRONTEND_BFF_CLIENT=http FRONTEND_BFF_URL=http://127.0.0.1:8000 ./scripts/run-frontend.sh
+FRONTEND_BFF_URL=http://127.0.0.1:8000 ./scripts/run-frontend.sh
 ```
 
 El cliente HTTP (`http_client.py`) usa solo la biblioteca estándar (`urllib`
 en hilos con `asyncio.to_thread`), así que no cambia `uv.lock`. El nombre de la
 puerta se envía una sola vez para abrir la sesión de demo; después solo viaja
 un token opaco. Si el BFF no responde, la puerta sigue cerrada con un aviso.
-«Camarero simulado» solo aparece con el falso del frontend o los dobles
-inyectados por las pruebas; el BFF en ejecución informa siempre `remote`.
 
 ## Imagen de contenedor y despliegue en Container Apps
 
@@ -148,7 +142,7 @@ az containerapp create --name "$APP_NAME" --resource-group "$RG" \
   --registry-password <PAT con read:packages> \
   --target-port 8501 --ingress external \
   --min-replicas 1 --max-replicas 1 \
-  --env-vars FRONTEND_BFF_CLIENT=fake FRONTEND_PORT=8501
+  --env-vars FRONTEND_BFF_URL=https://<bff-fqdn> FRONTEND_PORT=8501
 
 az containerapp show --name "$APP_NAME" --resource-group "$RG" \
   --query properties.configuration.ingress.fqdn --output tsv
@@ -156,8 +150,7 @@ az containerapp show --name "$APP_NAME" --resource-group "$RG" \
 
 Para una versión nueva, `az containerapp update --name "$APP_NAME"
 --resource-group "$RG" --image ghcr.io/dsanchor/morcillaconf-frontend:<sha>`.
-Para usar el [BFF](../bff/README.md), basta con cambiar las variables
-(`FRONTEND_BFF_CLIENT=http` y `FRONTEND_BFF_URL` con la URL del BFF) mediante
+Para cambiar el [BFF](../bff/README.md), actualiza `FRONTEND_BFF_URL` mediante
 `az containerapp update --set-env-vars ...`.
 
 Particularidades de Streamlit:
@@ -168,8 +161,6 @@ Particularidades de Streamlit:
   set --affinity sticky`).
 - Con `--min-replicas 0` la aplicación escala a cero y la primera visita paga
   un arranque en frío.
-- El camarero simulado guarda su estado en memoria: se pierde al reiniciar o
-  redesplegar la réplica.
 - El PAT solo necesita `read:packages`; Container Apps lo guarda como secreto
   de la aplicación. Si el paquete se hace público, se pueden omitir las
   credenciales del registro.
@@ -184,21 +175,14 @@ Particularidades de Streamlit:
    puerta abriéndose, la ventana, el saludo y el camarero acercándose; la
    siguiente ya pinta la sala sin repetir la animación.
 3. **Dentro:** lateral con el nombre y los comandos `/new` y `/exit`, ventana
-   de conversación, «Camarero simulado» y el plano. Las preferencias se
+   de conversación y el plano. Las preferencias se
    consultan o cambian conversando con el agente; el frontend no ofrece un
    panel de memoria. `/exit` vuelve a la puerta cerrada.
 
-El camarero simulado adapta el saludo: «¿Has venido sola o acompañada?» tras
-«maja» y «¿Has venido solo o acompañado?» tras «majo». Responde frases breves y convierte «prefiero …» y «soy
-alérgica a …» en recuerdos visibles. Los recuerdos pertenecen a la identidad:
-sobreviven a `/new` y a salir y volver a entrar con el mismo nombre mientras
-dure la sesión del navegador.
-
 Entrar con el mismo nombre recupera la visita activa (la última) en lugar de
 abrir otra: `/exit` y volver a entrar continúa la conversación, y solo `/new`
-abre una visita nueva. Con el falso, recargar la página empieza de cero porque
-el estado vive en la sesión del navegador; con el BFF, recargar y volver a
-escribir el nombre recupera la misma visita sin reenviar mensajes. Si al
+abre una visita nueva. Al recargar y volver a escribir el nombre, el BFF
+recupera la misma visita sin reenviar mensajes. Si al
 recuperarla el camarero aún responde un mensaje anterior, la vista sigue el
 stream hasta que termina.
 
@@ -209,8 +193,8 @@ stream hasta que termina.
   «Barra · Puestos 1 a 3») y dos botones: «Confirmar» y «Rechazar». Envían
   `table.confirmation_decided` con el `proposal_id` y la versión; una frase
   en el chat nunca confirma: si el cliente escribe con la propuesta pendiente,
-  el sitio sigue reservado y la tarjeta vuelve a aparecer (el falso hace lo
-  mismo). Si la reserva ha caducado, la vista muestra el
+  el sitio sigue reservado y la tarjeta vuelve a aparecer. Si la reserva ha
+  caducado, la vista muestra el
   aviso y la tarjeta desaparece.
 - El plano se dibuja desde `RoomView` y se refresca solo cada 3 segundos
   (`st.fragment`), sin tocar la conversación ni el cuadro de texto: otros
@@ -225,9 +209,6 @@ stream hasta que termina.
   `prefers-reduced-motion`.
 - Sin asientos en el BFF (`seating_enabled=false`) el plano es la sala
   decorativa de la fase 3.
-- El falso aplica las mismas reglas en memoria (mesas exclusivas, barra sin
-  huecos, caducidad, `/new`), pero solo dentro de una sesión del navegador:
-  para ver clientes en paralelo hace falta el BFF.
 
 ### Cocina (chef v1)
 
@@ -239,9 +220,6 @@ stream hasta que termina.
   sus alérgenos, lo rechazado con su motivo, los avisos, el reparto por
   partidas y las fuentes; si cocina no ha podido revisarlo, lo dice. Todo el
   texto sale del informe tipado y se escapa.
-- El falso incluye un chef simulado con una carta mínima: los mensajes que
-  empiezan por «Pido…» o «Ponme…» reciben su burbuja, por ejemplo
-  «Pido una morcilla a la brasa y una hamburguesa sin queso».
 
 ### Barra (Barra v1, 08/10)
 
@@ -254,10 +232,6 @@ stream hasta que termina.
   servido con su motivo (una alergia declarada, «No está en la carta.» o, si
   el nombre es ambiguo, las opciones de la carta), los avisos y las fuentes; si
   la barra no ha podido consultar la carta, lo dice y no hay nada servido.
-- El falso sirve las bebidas de los mensajes que empiezan por «Pido…» o
-  «Ponme…» con una carta mínima de bebidas: «un agua» es ambigua, una caña no
-  se sirve a quien dice ser celíaco y lo demás no está en la carta. Sus
-  bebidas servidas se cobran en la cuenta simulada.
 
 ### Caja (acuerdo del 06/10)
 
@@ -283,9 +257,6 @@ stream hasta que termina.
   en la esquina inferior izquierda: el cajero (la misma figura cenital que el
   resto) detrás de un pequeño mostrador con la caja registradora. Se ilumina
   con el halo ámbar mientras hay una cuenta pendiente de pago.
-- El falso incluye una caja simulada: «la cuenta, por favor» cobra solo los
-  platos ya servidos con precios fijos (morcilla 8,50 €, croquetas 9,00 €), se
-  niega con platos en el pase y el pago siempre se aprueba.
 
 ## Fronteras de arquitectura
 
@@ -295,30 +266,25 @@ stream hasta que termina.
 - La vista sustituye su proyección por snapshots confirmados. El texto del
   camarero no mueve el plano ni cambia estados; los fragmentos
   `conversation.text_delta` se muestran como provisionales.
-- Los controles se habilitan según `allowed_actions`; el servidor (aquí, el
-  falso) sigue validando cada comando.
+- Los controles se habilitan según `allowed_actions`; el BFF sigue validando
+  cada comando.
 - Cada comando conserva su `event_id`. Si un rerun interrumpe una operación,
   la siguiente ejecución consulta `get_result(event_id)` en lugar de
   reenviarla. Un cursor caducado se recupera con un snapshot nuevo.
-- `FakeBffClient` sigue el contrato 3A: resultados `pending`/`completed`/
-  `failed`, snapshots válidos con `pending_fields`, `allowed_actions`,
-  `process_status` y cursor, eventos correlacionados, idempotencia por
-  `(actor_id, event_id)` y errores públicos explícitos. Su stream reproduce el
-  registro y termina; el del BFF queda abierto y la vista lo cierra cuando el
-  comando se resuelve.
+- Los dobles de BFF, cocina, barra, caja y asientos viven exclusivamente en
+  `tests/support`; no se incluyen en el paquete ni pueden activarse en runtime.
 
 ## Módulos
 
 | Módulo | Responsabilidad |
 |---|---|
 | `app.py` | Vista Streamlit y estados `outside`, `opening` e `inside` |
-| `config.py` | Selección explícita del adaptador (`FRONTEND_BFF_CLIENT`, `FRONTEND_BFF_URL`) |
+| `config.py` | Configuración de la conexión HTTP mediante `FRONTEND_BFF_URL` |
 | `http_client.py` | `HttpBffClient`: API HTTP y SSE del BFF con la biblioteca estándar |
-| `fake_client.py` | `FakeRestaurant` y `FakeBffClient`: BFF simulado en memoria |
 | `visit.py` | Proyección de la visita, comandos, eventos y tarjetas |
 | `slash_commands.py` | Comandos escritos con «/» |
 | `markup.py` | Fragmentos HTML escapados: burbujas, tarjetas, lateral, escena |
-| `facade.py`, `floor_plan.py`, `greeting.py` | Escena y saludo, solo biblioteca estándar |
+| `facade.py`, `floor_plan.py` | Escena del restaurante, solo biblioteca estándar |
 | `styles/scene.css`, `styles/app.css` | Tokens y animaciones; adaptación al DOM de Streamlit |
 
 Las escenas SVG se insertan con `st.markdown(..., unsafe_allow_html=True)`
@@ -331,9 +297,9 @@ No se usa JavaScript: todo se anima con keyframes y respeta
 
 ## Vista previa estática del diseño
 
-`preview/` conserva el prototipo aprobado como herramienta de diseño, sin
-dependencias. Importa los módulos de escena del paquete y simula el camarero
-en JavaScript:
+`preview/` conserva el prototipo visual aprobado como herramienta de diseño,
+sin dependencias. Importa los módulos de escena del paquete y reproduce una
+conversación estática en JavaScript:
 
 ```bash
 cd apps/frontend/preview
@@ -350,14 +316,8 @@ El sistema visual está descrito en [DESIGN.md](../../DESIGN.md) y
 
 ## Limitaciones
 
-- El camarero simulado solo entiende las frases descritas («somos N»,
-  «barra», «mesa» para los asientos); con el BFF y Foundry responde el
-  camarero real. La caja simulada solo conoce los precios de la morcilla y de
-  las croquetas.
 - La vista previa estática muestra la sala decorativa, sin asientos.
 - La identidad es el nombre escrito en la puerta: identidad sintética de
   desarrollo, no autenticación.
-- El estado simulado vive en la sesión del navegador y se pierde al recargar;
-  con el BFF vive en su SQLite.
 - El CSS depende de la estructura de Streamlit 1.64; al actualizar Streamlit
   hay que revisar la vista.

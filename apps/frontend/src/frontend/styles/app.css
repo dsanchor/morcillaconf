@@ -370,12 +370,6 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .st-key-redactor [data-testid="InputInstructions"],
 .stApp .st-key-redactor .stChatInputInstructions { display: none !important; }
 
-/* «Camarero simulado» right below the window, then the plan. */
-.stApp .simulado {
-  margin: 0 4px; text-align: right;
-  font: 400 .92rem/1.5 var(--sans); letter-spacing: .04em; color: var(--piedra-tenue);
-}
-.stApp .simulado::before { content: "●"; margin-right: .5em; color: var(--luz); }
 .stApp .planta-marco {
   display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   align-items: stretch; gap: 12px; width: min(100%, 1040px); margin: 8px auto 0;
@@ -454,7 +448,6 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   .stApp .planta-marco { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 5px; }
   .stApp .planta-marco .planta { max-height: 24vh; }
   .stApp .cocina-plano .plato-cocina { display: none; }
-  .stApp .simulado { margin: 0 2px; }
 }
 
 @keyframes pensar { 0%, 70%, 100% { opacity: .25; transform: none; } 35% { opacity: 1; transform: translateY(-4px); } }

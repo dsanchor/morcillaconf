@@ -4,12 +4,20 @@ from types import SimpleNamespace
 
 import pytest
 
-from restaurant_agent.agent import create_waiter_agent
+from restaurant_agent.agent import create_waiter_agent, load_instructions
 from restaurant_agent.config import Settings
 from restaurant_agent.seating import (
     SeatingToolContextMiddleware,
     VisitContextProvider,
 )
+
+
+def test_waiter_never_promises_a_seating_notification() -> None:
+    instructions = " ".join(load_instructions().split())
+
+    assert "No existe lista de espera" in instructions
+    assert "nunca prometas avisar, notificar o contactar al cliente" in instructions
+    assert "volver a intentarlo dentro de un rato" in instructions
 
 
 @pytest.mark.asyncio

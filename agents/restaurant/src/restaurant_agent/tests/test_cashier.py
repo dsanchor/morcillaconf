@@ -412,7 +412,11 @@ class StubCashierExecutor(AgentExecutor):
             task = new_task_from_user_message(context.message)
             await event_queue.enqueue_event(task)
         updater = TaskUpdater(event_queue, task.id, context.context_id)
-        step = ActivityStep(step_id=f"c-{uuid.uuid4().hex[:6]}", component="caja", label="Caja: consulta precios en la carta")
+        step = ActivityStep(
+            step_id=f"c-{uuid.uuid4().hex[:6]}",
+            component="foundry_iq",
+            label="Agentic Retrieval: consulta precios en la carta",
+        )
         await updater.update_status(
             TaskState.TASK_STATE_WORKING,
             message=updater.new_agent_message([Part(text=json.dumps({"activity": step.model_dump(mode="json")}))]),
@@ -486,7 +490,9 @@ async def test_the_waiter_reaches_a_live_a2a_cashier_and_relays_its_steps() -> N
         assert (await cashier.pay(cancelled, CHOICE.model_copy(update={"bill_id": "bill_2"}))).result.code is (
             CashierFailureCode.BILL_NOT_FOUND
         )
-    assert [step.label for step in steps] == ["Caja: consulta precios en la carta"]
+    assert [step.label for step in steps] == [
+        "Agentic Retrieval: consulta precios en la carta"
+    ]
 
 
 # The remote waiter

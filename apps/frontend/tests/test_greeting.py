@@ -1,6 +1,6 @@
 import pytest
 
-from frontend.greeting import form_of_address, greeting
+from tests.support.greeting import form_of_address, greeting
 
 
 @pytest.mark.parametrize(

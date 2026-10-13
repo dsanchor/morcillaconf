@@ -1,10 +1,10 @@
-"""Simulated room for the fake BFF: the seating service's rules, in memory.
+"""Test room double with the seating service's rules in memory.
 
 One group per table (best fit by capacity), contiguous bar stools that leave
 the smallest gap, holds that expire, confirmation and rejection with a
 versioned proposal, and an anonymous room view. It lives with its
 ``FakeRestaurant``, so it simulates one browser session: parallel customers
-need the real BFF (``FRONTEND_BFF_CLIENT=http``).
+need the real BFF.
 """
 
 from __future__ import annotations
@@ -191,7 +191,10 @@ class FakeRoom:
         if hold is None:
             if preference == "table":
                 return f"No queda ninguna mesa libre para {size}. Si queréis, os busco sitio en la barra."
-            return f"Lo siento, ahora mismo no hay sitio para {size}."
+            return (
+                f"Lo siento, ahora mismo no hay sitio para {size}. "
+                "Probad de nuevo dentro de un rato."
+            )
         buttons = "Confirmadlo o rechazadlo con los botones."
         if hold.kind == "bar":
             lead = f"No queda mesa libre para {size}; os propongo {hold.text()}." if preference == "any" else f"Os propongo {hold.text()}."

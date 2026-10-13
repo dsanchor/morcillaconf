@@ -24,7 +24,6 @@ pytestmark = pytest.mark.skipif(not BFF_URL, reason="E2E_BFF_URL is not set")
 
 def enter(name: str) -> VisitSession:
     client = HttpBffClient.open(BFF_URL, name, timeout=30)
-    assert client.simulated is False  # the BFF reports the remote waiter
     visit = VisitSession(client)
     visit.arrive()
     assert visit.snapshot is not None

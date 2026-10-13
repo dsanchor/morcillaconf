@@ -1,8 +1,8 @@
 """Build index.html for the static design preview from the package modules (stdlib only).
 
 Run ``python3 build_preview.py`` here and serve this folder, for example with
-``python3 -m http.server``. The preview simulates the waiter in JavaScript;
-the Streamlit view uses FakeBffClient instead.
+``python3 -m http.server``. The preview reproduces a static conversation in
+JavaScript; the Streamlit view always connects to the BFF.
 """
 
 import sys
@@ -101,7 +101,6 @@ def build() -> str:
         <button type="submit" aria-label="Enviar">{SEND_ICON}</button>
       </form>
     </section>
-    <p class="simulado">Camarero simulado</p>
     <div class="planta-marco">{floor_plan_svg("Ana", "barra")}</div>
   </main>
 </div>

@@ -18,8 +18,8 @@ from restaurant_contracts.application import (
 from restaurant_contracts.client import BffClient, BffClientError
 from restaurant_contracts.memory import MemoryKind
 
-from frontend.fake_client import FakeBffClient, FakeRestaurant, extract_memories
-from frontend.fake_kitchen import fake_kitchen_report, kitchen_reply
+from tests.support.fake_client import FakeBffClient, FakeRestaurant, extract_memories
+from tests.support.fake_kitchen import fake_kitchen_report, kitchen_reply
 
 AT = datetime(2026, 9, 27, 20, 0, tzinfo=UTC)
 SNAPSHOT_ADAPTER = TypeAdapter(RestaurantSnapshot)
@@ -288,7 +288,6 @@ async def test_the_latest_visit_is_the_active_one_per_identity() -> None:
     second = await ana.submit(_command("customer.arrived", "cmd_new"))
     assert ana.active_visit_id == second.visit_id
     assert _client("Luis", restaurant).active_visit_id is None
-    assert ana.simulated is True
 
 
 async def test_turn_limit_is_reported_and_removes_the_action() -> None:
@@ -392,7 +391,7 @@ def test_view_modules_do_not_import_agents_frameworks_or_databases() -> None:
         [
             sys.executable, "-c",
             "import sys\n"
-            "import frontend.config, frontend.fake_client, frontend.fake_kitchen, frontend.http_client\n"
+            "import frontend.config, frontend.http_client\n"
             "import frontend.markup\n"
             "import frontend.slash_commands, frontend.stylesheets, frontend.visit\n"
             "forbidden = ('restaurant_agent', 'agent_framework', 'azure', 'mcp', 'a2a',\n"

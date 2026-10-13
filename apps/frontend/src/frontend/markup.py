@@ -44,7 +44,6 @@ from frontend.visit import Card, ConversationView
 
 
 DOOR_HINT = "Dinos tu nombre y te abrimos."
-SIMULATED_LABEL = "Camarero simulado"
 TYPING_LABEL = "El camarero está escribiendo"
 KITCHEN_LABEL = "Platos cocinados"
 KITCHEN_VERDICTS = {
@@ -106,20 +105,16 @@ def command_row_markup(command: str) -> str:
     return f'<div class="comando estatico"><code>{shown}</code></div>'
 
 
-def simulated_markup() -> str:
-    return f'<div class="simulado-linea"><p class="simulado">{SIMULATED_LABEL}</p></div>'
-
-
 COMPONENT_LABELS = {
     "camarero": "Camarero",
     "memoria": "Memoria",
     "mcp": "MCP mesas",
     "cocina": "Cocina A2A",
-    "foundry_iq": "Foundry IQ",
+    "foundry_iq": "Agentic Retrieval",
     "chef": "Chef",
     "especialista": "Especialista",
     "entrega": "Entrega",
-    "caja": "Caja",
+    "caja": "Caja A2A",
 }
 ACTIVITY_TURNS = 3
 

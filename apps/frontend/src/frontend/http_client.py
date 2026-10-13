@@ -62,7 +62,6 @@ class _Session:
     identity: ActorContext
     presented_name: str
     active_visit_id: str | None
-    simulated: bool
 
 
 class HttpBffClient:
@@ -89,7 +88,6 @@ class HttpBffClient:
                 identity=ActorContext.model_validate(body["identity"]),
                 presented_name=body["presented_name"],
                 active_visit_id=body.get("active_visit_id"),
-                simulated=body.get("waiter") == "scripted",
             )
         except (KeyError, TypeError, ValidationError):
             raise _error(ErrorCode.INTERNAL_ERROR, UNEXPECTED) from None
@@ -102,10 +100,6 @@ class HttpBffClient:
     @property
     def active_visit_id(self) -> str | None:
         return self._session.active_visit_id
-
-    @property
-    def simulated(self) -> bool:
-        return self._session.simulated
 
     async def submit(self, command: Command) -> CommandResult:
         body = await asyncio.to_thread(

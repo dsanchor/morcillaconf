@@ -502,7 +502,7 @@ MCP, tampoco en pruebas.
   puede. El modo `scripted` simula los asientos en memoria.
 - **MCP.** `expires_at` en los sitios bloqueados del mapa y documentación del
   camarero como único cliente.
-- **Vista.** «Camarero simulado» solo con el camarero `scripted`.
+- **Vista.** El frontend se conecta siempre al BFF; los dobles quedan limitados a pruebas.
 - **Despliegue.** El script deja de pasar `SEATING_MCP_URL` al BFF.
 - **Recorrido sin Foundry.** `./scripts/test-e2e-seating.sh` levanta MCP,
   camarero independiente con un modelo guionizado y BFF remoto.
@@ -928,9 +928,9 @@ Decisiones:
 
 - Aplicación Streamlit en [`apps/frontend`](apps/frontend) con una única vista:
   puerta, sala con comandos, conversación y plano, según el diseño aprobado.
-- `FakeBffClient` implementa el protocolo `BffClient` de 3A con un camarero
-  simulado, identificado en la vista como «Camarero simulado». El adaptador se
-  elige con `FRONTEND_BFF_CLIENT`; `http` falla con un mensaje claro hasta 3C.
+- La vista usa exclusivamente el cliente HTTP/SSE del BFF. Los dobles que
+  ejercitan el protocolo `BffClient` viven en `tests/support` y no forman
+  parte del paquete ejecutable.
 - Identidad sintética de desarrollo: el nombre escrito en la puerta, vinculado
   por el adaptador y nunca enviado en los comandos.
 - Proyección desde snapshots confirmados, eventos consumidos por cursor,
@@ -999,9 +999,8 @@ davía no se ha ejecutado.
   ofrecerlo como modo de ejecución del BFF.
 - Comandos de memoria contra el almacén del camarero, con ids cortos por
   cliente (`m1`, `m2`…) que no se reutilizan.
-- Cliente HTTP/SSE del frontend (`FRONTEND_BFF_CLIENT=http`,
-  `FRONTEND_BFF_URL`) con la biblioteca estándar: `apps/frontend/uv.lock` no
-  cambia.
+- Cliente HTTP/SSE del frontend (`FRONTEND_BFF_URL`) con la biblioteca
+  estándar: `apps/frontend/uv.lock` no cambia.
 - Recuperación al arrancar de turnos interrumpidos, spans sin contenido,
   `Dockerfile` con etapas `test` y `runtime`, workflow `bff-image.yml` filtrado
   por ruta y scripts `setup-bff.sh`, `test-bff.sh` y `run-bff.sh`.

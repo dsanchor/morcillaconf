@@ -90,11 +90,14 @@ TOOL_STEPS: dict[str, tuple[ActivityComponent, str]] = {
     "seating_hold_seating": ("mcp", "MCP mesas: bloquea un sitio"),
     "seating_confirm_seating": ("mcp", "MCP mesas: confirma el sitio"),
     "seating_confirm_solo_seating": ("mcp", "MCP mesas: confirma el sitio"),
-    "knowledge_base_retrieve": ("foundry_iq", "Foundry IQ: consulta carta y recetario"),
+    "knowledge_base_retrieve": (
+        "foundry_iq",
+        "Agentic Retrieval: consulta carta y recetario",
+    ),
     "pedir_a_cocina": ("cocina", "A2A: envía la comanda a cocina"),
     # The waiter serves the drinks himself: no other agent takes part.
     "servir_bebidas": ("camarero", "Barra: sirve las bebidas"),
-    "pedir_la_cuenta": ("caja", "Caja A2A: envía la cuenta"),
+    "pedir_la_cuenta": ("caja", "A2A: envía la cuenta"),
 }
 
 

@@ -32,7 +32,11 @@ class CartaLookup:
         self._retrieval = f"[1] Origen: {LABEL}\n{CARTA.read_text(encoding='utf-8')}"
 
     async def price(self, request: BillRequest) -> Bill | CashierFailure:
-        step = await Step("caja", "Caja: consulta precios en la carta", "Carta versionada").start()
+        step = await Step(
+            "foundry_iq",
+            "Agentic Retrieval: consulta precios en la carta",
+            "Carta versionada",
+        ).start()
         result = price_bill(request, parse([self._retrieval]))
         detail = euros(result.total) if isinstance(result, Bill) else result.code.value
         await step.finish(detail, failed=isinstance(result, CashierFailure))
