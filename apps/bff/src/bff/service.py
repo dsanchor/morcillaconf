@@ -1187,22 +1187,9 @@ class RestaurantService:
             self._emit_status(tx, row, job.event_id, job.correlation_id, result)
             tx.update_result(job.actor.actor_id, result, now)
             current_seat = tx.get_seating(row.conversation_id)
-        if (
-            current_seat is not None
-            and current_seat.status == "proposed"
-            and (
-                previous_seat is None
-                or previous_seat.token != current_seat.token
-                or previous_seat.status != "proposed"
-            )
-        ):
-            self._business.seating_proposed(
-                visit_id=row.visit_id,
-                conversation_id=row.conversation_id,
-                occurred_at=now,
-                place_kind=current_seat.kind,
-                party_size=current_seat.party_size,
-            )
+        self._record_observed_seating_transition(
+            row, previous_seat, current_seat, occurred_at=now
+        )
         if not isinstance(outcome, WaiterTurnResult):
             self._business.turn_failed(
                 visit_id=row.visit_id,
@@ -1455,6 +1442,49 @@ class RestaurantService:
         tx.put_seating(row)
         return True
 
+    def _record_observed_seating_transition(
+        self,
+        conversation: ConversationRow,
+        previous: SeatingRow | None,
+        current: SeatingRow | None,
+        *,
+        occurred_at: datetime,
+    ) -> None:
+        if current is None:
+            return
+        same_token = previous is not None and previous.token == current.token
+        if current.status == "proposed":
+            if not same_token or previous.status != "proposed":
+                self._business.seating_proposed(
+                    visit_id=conversation.visit_id,
+                    conversation_id=conversation.conversation_id,
+                    occurred_at=occurred_at,
+                    place_kind=current.kind,
+                    party_size=current.party_size,
+                )
+            return
+        if same_token and previous.status == "seated":
+            return
+        if not same_token or previous.status != "proposed":
+            self._business.seating_proposed(
+                visit_id=conversation.visit_id,
+                conversation_id=conversation.conversation_id,
+                occurred_at=occurred_at,
+                place_kind=current.kind,
+                party_size=current.party_size,
+            )
+        self._business.seating_decided(
+            visit_id=conversation.visit_id,
+            conversation_id=conversation.conversation_id,
+            occurred_at=occurred_at,
+            place_kind=current.kind,
+            party_size=current.party_size,
+            outcome="confirmed",
+            time_to_seat_seconds=max(
+                0.0, (occurred_at - conversation.created_at).total_seconds()
+            ),
+        )
+
     @staticmethod
     def _seating_place(seat: SeatingRow) -> SeatingPlace:
         return SeatingPlace(
@@ -1532,22 +1562,9 @@ class RestaurantService:
             if self._apply_report(tx, conversation_id, result.seating):
                 self._emit_snapshot(tx, current, new_id("sync"), new_id("corr"))
             current_seat = tx.get_seating(conversation_id)
-        if (
-            current_seat is not None
-            and current_seat.status == "proposed"
-            and (
-                previous_seat is None
-                or previous_seat.token != current_seat.token
-                or previous_seat.status != "proposed"
-            )
-        ):
-            self._business.seating_proposed(
-                visit_id=current.visit_id,
-                conversation_id=conversation_id,
-                occurred_at=self._clock(),
-                place_kind=current_seat.kind,
-                party_size=current_seat.party_size,
-            )
+        self._record_observed_seating_transition(
+            current, previous_seat, current_seat, occurred_at=self._clock()
+        )
         self._notifier.notify(conversation_id)
         return result
 

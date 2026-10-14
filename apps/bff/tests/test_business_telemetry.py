@@ -95,6 +95,36 @@ async def test_business_events_are_not_repeated_by_command_replays(
     assert telemetry.counts()["visit_abandoned"] == 1
 
 
+async def test_solo_seating_emits_proposed_and_confirmed_telemetry(
+    make_service, commands, clock
+) -> None:
+    telemetry = RecordingTelemetry()
+    seating = ScriptedSeating(clock)
+    service = make_service(seating=seating, telemetry=telemetry)
+    session = service.authenticate(service.open_session("Ana").token)
+
+    arrival = await service.submit(session, commands.arrive())
+    await service.drain()
+    await service.submit(
+        session,
+        commands.say(arrival.conversation_id, "He venido sola"),
+    )
+    await service.drain()
+    await service.submit(
+        session,
+        commands.say(arrival.conversation_id, "Prefiero mesa"),
+    )
+    await service.drain()
+
+    assert telemetry.counts()["seating_proposed"] == 1
+    assert telemetry.counts()["seating_decided"] == 1
+    decision = next(
+        fields for name, fields in telemetry.calls if name == "seating_decided"
+    )
+    assert decision["outcome"] == "confirmed"
+    assert decision["party_size"] == 1
+
+
 async def test_business_telemetry_never_receives_customer_identity(
     make_service, commands
 ) -> None:
