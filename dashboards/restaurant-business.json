@@ -394,8 +394,8 @@
       "targets": [
         {
           "azureLogAnalytics": {
-            "dashboardTime": true,
-            "query": "customMetrics\n| where name == \"restaurant.seating.occupied_guests\"\n| summarize arg_max(timestamp, valueSum) by cloud_RoleInstance\n| summarize current=sum(valueSum)\n| project ['Ocupación']=max_of(0.0, current)",
+            "dashboardTime": false,
+            "query": "customMetrics\n| where timestamp >= ago(1m)\n| where name == \"restaurant.seating.occupied_guests\"\n| summarize arg_max(timestamp, valueSum) by cloud_RoleInstance\n| summarize current=sum(valueSum)\n| project ['Ocupación']=max_of(0.0, current)",
             "resources": [
               "$applicationInsightsResourceId"
             ],

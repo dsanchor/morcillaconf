@@ -21,12 +21,17 @@ EVENTS = """let BusinessEvents = dependencies
 """
 
 
-def query(text: str, result_format: str = "time_series") -> list[dict[str, Any]]:
+def query(
+    text: str,
+    result_format: str = "time_series",
+    *,
+    dashboard_time: bool = True,
+) -> list[dict[str, Any]]:
     prefix = "" if text.lstrip().startswith("customMetrics") else EVENTS
     return [
         {
             "azureLogAnalytics": {
-                "dashboardTime": True,
+                "dashboardTime": dashboard_time,
                 "query": prefix + text,
                 "resources": ["$applicationInsightsResourceId"],
                 "resultFormat": result_format,
@@ -52,6 +57,7 @@ def panel(
     unit: str = "short",
     description: str = "",
     result_format: str = "time_series",
+    dashboard_time: bool = True,
 ) -> dict[str, Any]:
     options: dict[str, Any]
     if kind == "stat":
@@ -97,7 +103,7 @@ def panel(
         "id": panel_id,
         "options": options,
         "pluginVersion": "12.4.3",
-        "targets": query(text, result_format),
+        "targets": query(text, result_format, dashboard_time=dashboard_time),
         "title": title,
         "type": kind,
     }
@@ -173,6 +179,7 @@ def build() -> dict[str, Any]:
         (
             "Ocupación actual",
             """customMetrics
+| where timestamp >= ago(1m)
 | where name == "restaurant.seating.occupied_guests"
 | summarize arg_max(timestamp, valueSum) by cloud_RoleInstance
 | summarize current=sum(valueSum)
@@ -199,6 +206,7 @@ def build() -> dict[str, Any]:
             w=6,
             h=4,
             unit=unit,
+            dashboard_time=title != "Ocupación actual",
         )
 
     add_row("Afluencia, ocupación y recorrido", 9)
