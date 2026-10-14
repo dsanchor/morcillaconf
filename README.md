@@ -434,6 +434,10 @@ estructura importable y las consultas sobre `customMetrics` siguen además el
 Los paneles contables y las series usan `customMetrics`; los embudos, tiempos
 entre etapas y combinaciones usan spans `restaurant.business.event` de
 `dependencies`, con sus dimensiones en `customDimensions`.
+Los diagramas circulares muestran todas las filas y usan `palette-classic`
+para asignar un color distinto a cada porción. No uses
+`palette-classic-by-name` con estas tablas: las categorías comparten el mismo
+campo numérico y recibirían el mismo color.
 
 El despliegue es idempotente y no construye ni publica imágenes, pero no realiza
 una previsualización: revisa el fichero de entorno antes de ejecutarlo. Para

@@ -93,13 +93,7 @@ def panel(
         "description": description,
         "fieldConfig": {
             "defaults": {
-                "color": {
-                    "mode": (
-                        "palette-classic-by-name"
-                        if kind == "piechart"
-                        else "palette-classic"
-                    )
-                },
+                "color": {"mode": "palette-classic"},
                 "mappings": [],
                 "unit": unit,
             },
