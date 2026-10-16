@@ -1,9 +1,10 @@
-"""HTML fragments of the Streamlit view; every dynamic text is escaped here.
+"""HTML fragments of the Streamlit view; dynamic text never supplies raw HTML.
 
 Streamlit renders them with ``st.markdown(..., unsafe_allow_html=True)``
 because ``st.html`` sanitizes SVG away. Each fragment is one line that starts
 with ``<div`` so Markdown treats it as a raw HTML block and never parses the
-customer's text as Markdown, math or shortcodes.
+customer's text as Markdown, math or shortcodes. Assistant messages are
+rendered as Markdown here, with raw HTML and embedded images disabled.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from dataclasses import dataclass
 from html import escape
 from typing import Literal
 
+from markdown_it import MarkdownIt
 from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ChatMessage
 from restaurant_contracts.bar import BarFailure, BarRound
@@ -60,6 +62,11 @@ BILL_STATES = {
     "paid": "Pagada.",
     "void": "Anulada: pedid la cuenta otra vez.",
 }
+_CHAT_MARKDOWN = (
+    MarkdownIt("commonmark", {"html": False, "breaks": True, "xhtmlOut": True})
+    .enable(["table", "strikethrough"])
+    .disable("image")
+)
 
 
 @dataclass(frozen=True)
@@ -78,6 +85,13 @@ def text_html(value: str) -> str:
         escape(line, quote=True).replace("$", "&#36;").replace(":", "&#58;") for line in lines
     )
     return "<br/>".join(escaped)
+
+
+def markdown_html(value: str) -> str:
+    """Render safe chat Markdown in one HTML source line, preserving code line breaks."""
+
+    rendered = _CHAT_MARKDOWN.render(value).strip()
+    return rendered.replace("\n", "&#10;").replace("$", "&#36;").replace(":", "&#58;")
 
 
 def facade_markup(state: str, knocks: int = 0) -> str:
@@ -244,7 +258,7 @@ def conversation_markup(view: ConversationView, *, reveal: Reveal | None = None)
             if reveal is not None and reveal.message_id == message.message_id:
                 rows.append(_revealed_greeting(message.text, reveal.pace))
             else:
-                rows.append(_waiter_row(text_html(message.text)))
+                rows.append(_waiter_row(markdown_html(message.text)))
         elif message.role == "kitchen":
             rows.append(kitchen_row(message))
         elif message.role == "bar":
@@ -261,7 +275,7 @@ def conversation_markup(view: ConversationView, *, reveal: Reveal | None = None)
     rows.extend(_card(card) for anchor, cards in placed.items() if anchor not in known for card in cards)
     if view.outgoing is not None:
         rows.append(_customer_row(view.outgoing, extra=" enviando"))
-    rows.extend(_waiter_row(text_html(text), extra=" provisional") for _, text in view.provisional)
+    rows.extend(_waiter_row(markdown_html(text), extra=" provisional") for _, text in view.provisional)
     if view.waiting:
         rows.append(_typing_row())
     return (
@@ -551,7 +565,7 @@ def _revealed_greeting(text: str, pace: str) -> str:
         f'<div class="msg camarero aguarda" aria-hidden="true">{waiter_icon_svg()}'
         '<div class="burbuja escribiendo"><i></i><i></i><i></i></div></div>'
     )
-    greeting = _waiter_row(text_html(text), extra=" saludo")
+    greeting = _waiter_row(markdown_html(text), extra=" saludo")
     return f'<div class="pila revelar-{pace}">{dots}{greeting}</div>'
 
 

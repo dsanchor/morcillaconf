@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Vista única de cliente en Streamlit para la demo del restaurante multiagente."
 requires-python = ">=3.13"
 dependencies = [
+    "markdown-it-py>=4,<5",
     "morcillaconf-contracts",
     "pydantic>=2.12",
     "streamlit>=1.64,<2",

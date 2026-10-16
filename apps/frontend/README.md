@@ -5,6 +5,12 @@ una única vista de cliente que habla solo con el contrato público del BFF
 ([`packages/contracts`](../../packages/contracts/README.md)). La vista se
 conecta siempre al [BFF](../bff/README.md) mediante HTTP y SSE.
 
+Las respuestas del camarero admiten Markdown: negritas, cursivas, listas,
+enlaces, citas, tablas y bloques de código, también mientras llegan por streaming.
+El HTML se muestra como texto y no se cargan imágenes incrustadas; los enlaces
+se validan para impedir protocolos ejecutables. Los mensajes del cliente y los
+campos de las tarjetas siguen mostrándose literalmente.
+
 La planta mantiene la estética del mesón: los recorridos de clientes y servicio
 usan curvas suaves y conservan el progreso entre actualizaciones.
 El camarero acompaña al cliente hasta su asiento y permanece a su lado, sin

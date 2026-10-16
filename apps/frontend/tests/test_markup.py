@@ -2,6 +2,7 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 
+import pytest
 from restaurant_contracts.activity import ActivityStep
 from restaurant_contracts.application import ChatMessage
 from restaurant_contracts.kitchen import (
@@ -31,6 +32,7 @@ from frontend.markup import (
     facade_markup,
     identity_markup,
     kitchen_row,
+    markdown_html,
     plan_markup,
     text_html,
 )
@@ -105,6 +107,89 @@ def test_text_is_escaped_for_raw_html_markdown_blocks() -> None:
     assert "<script>" not in escaped
     assert "$" not in escaped and ":" not in escaped
     assert escaped.endswith("<br/>fin")
+
+
+def test_markdown_renders_formatting_lists_links_and_tables() -> None:
+    root = _parse("<div>" + markdown_html(
+        "**Morcilla** y *croquetas*, ~~agotadas~~. [Carta](https://example.com/carta)\n\n"
+        "- Agua\n- Pan\n\n1. Pedir\n2. Confirmar\n\n> Sin gluten\n\n"
+        "| Plato | Precio |\n| --- | --- |\n| Morcilla | 5 € |"
+    ) + "</div>")
+    assert root.find(".//strong").text == "Morcilla"
+    assert root.find(".//em").text == "croquetas"
+    assert root.find(".//s").text == "agotadas"
+    assert root.find(".//a").get("href") == "https://example.com/carta"
+    assert [item.text for item in root.findall(".//ul/li")] == ["Agua", "Pan"]
+    assert [item.text for item in root.findall(".//ol/li")] == ["Pedir", "Confirmar"]
+    assert root.find(".//blockquote/p").text == "Sin gluten"
+    assert [cell.text for cell in root.findall(".//table/tbody/tr/td")] == ["Morcilla", "5 €"]
+
+
+def test_markdown_preserves_code_indentation_and_literal_symbols_in_one_source_line() -> None:
+    code = 'def pedido():\n    return "**literal** <b> $5 :smile:"\n'
+    markup = markdown_html(f"Precio: $5 :smile:\nOtra línea\n\n```python\n{code}```")
+    assert "\n" not in markup and "$" not in markup and ":" not in markup
+    root = _parse(f"<div>{markup}</div>")
+    assert root.find(".//pre/code").text == code
+    assert root.find(".//pre/code").get("class") == "language-python"
+    assert root.find(".//p/br") is not None
+    assert "Precio: $5 :smile:" in _text(root)
+    assert root.find(".//strong") is None
+
+
+@pytest.mark.parametrize("value", [
+    '<script>alert("x")</script><img src=x onerror=alert(1)>',
+    '<svg onload="alert(1)"></svg><iframe src="https://example.com"></iframe>',
+    '[Abrir](javascript:alert(1))',
+    '[Abrir](JaVaScRiPt:alert(1))',
+    '[Abrir](java&#x73;cript:alert(1))',
+    '[Abrir](javascript&#58;alert(1))',
+    '[Abrir](vbscript:alert(1))',
+    '[Abrir](file:///etc/passwd)',
+    '[Abrir](data:text/html;base64,PHNjcmlwdD4=)',
+    '![Imagen](https://example.com/tracking.png)',
+    '```python" onmouseover="alert(1)\nx\n```',
+])
+def test_chat_markdown_does_not_create_executable_html_or_embedded_images(value) -> None:
+    root = _parse(f"<div>{markdown_html(value)}</div>")
+    assert not any(node.tag in ("script", "img", "svg", "iframe", "style") for node in root.iter())
+    for node in root.iter():
+        assert not any(name.lower().startswith("on") for name in node.attrib)
+        if node.tag == "a":
+            assert node.get("href").startswith("https://")
+
+
+def test_markdown_is_used_for_confirmed_provisional_and_revealed_waiter_messages() -> None:
+    message = GREETING.model_copy(update={"text": "**Hola**, Ana"})
+    views = [
+        (ConversationView(messages=(message,)), None),
+        (ConversationView(provisional=(("msg_1", "**Hola**, Ana"),)), None),
+        (ConversationView(messages=(message,)), Reveal("msg_1", "door")),
+    ]
+    for view, reveal in views:
+        markup = conversation_markup(view, reveal=reveal)
+        assert "\n" not in markup
+        root = _parse(markup)
+        assert root.find(".//strong").text == "Hola"
+        assert "**" not in _text(root)
+
+
+def test_inline_and_indented_code_remain_literal() -> None:
+    root = _parse("<div>" + markdown_html(
+        "Usa `**sin negrita** <b>`\n\n    <script>x</script>\n    segunda línea\n"
+    ) + "</div>")
+    assert root.find(".//p/code").text == "**sin negrita** <b>"
+    assert root.find(".//pre/code").text == "<script>x</script>\nsegunda línea\n"
+    assert root.find(".//script") is None and root.find(".//strong") is None
+
+
+def test_customer_markdown_remains_literal_while_sending_and_after_confirmation() -> None:
+    text = "**Hola** <b>Ana</b> $5 :smile:"
+    view = ConversationView(messages=(QUESTION.model_copy(update={"text": text}),), outgoing=text)
+    root = _parse(conversation_markup(view))
+    bubbles = root.findall(".//div[@class='burbuja']")
+    assert [_text(bubble) for bubble in bubbles] == [text, text]
+    assert root.find(".//strong") is None and root.find(".//b") is None
 
 
 def test_every_fragment_is_a_single_html_block() -> None:

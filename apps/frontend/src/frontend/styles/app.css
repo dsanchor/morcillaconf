@@ -202,7 +202,33 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .burbuja { padding: .7rem 1rem; box-shadow: 0 2px 0 rgba(0, 0, 0, .35); overflow-wrap: anywhere; }
 .stApp .msg.camarero .burbuja {
   background: var(--piedra); color: var(--tinta);
+  min-width: 0;
   font: 400 1.24rem/1.45 var(--serif); border-radius: 3px 12px 12px 12px;
+}
+.stApp .msg.camarero .burbuja :is(p, ul, ol, li, blockquote, pre, table, h1, h2, h3, h4, h5, h6) {
+  font: inherit; color: inherit;
+}
+.stApp .msg.camarero .burbuja :is(p, ul, ol, blockquote, pre, table, h1, h2, h3, h4, h5, h6) {
+  margin: .55em 0;
+}
+.stApp .msg.camarero .burbuja > :first-child { margin-top: 0; }
+.stApp .msg.camarero .burbuja > :last-child { margin-bottom: 0; }
+.stApp .msg.camarero .burbuja :is(strong, h1, h2, h3, h4, h5, h6) { font-weight: 700; }
+.stApp .msg.camarero .burbuja :is(ul, ol) { padding-left: 1.4em; }
+.stApp .msg.camarero .burbuja li + li { margin-top: .2em; }
+.stApp .msg.camarero .burbuja a { color: inherit; text-decoration: underline; }
+.stApp .msg.camarero .burbuja blockquote {
+  padding-left: .75em; border-left: 3px solid var(--veta);
+}
+.stApp .msg.camarero .burbuja code { font-family: var(--mono); font-size: .85em; }
+.stApp .msg.camarero .burbuja pre {
+  padding: .6em; background: rgba(36, 24, 15, .07); white-space: pre; overflow-x: auto;
+}
+.stApp .msg.camarero .burbuja table {
+  display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse;
+}
+.stApp .msg.camarero .burbuja :is(th, td) {
+  padding: .3em .5em; border: 1px solid var(--veta);
 }
 .stApp .msg.cliente { align-self: flex-end; }
 .stApp .msg.cliente .burbuja {

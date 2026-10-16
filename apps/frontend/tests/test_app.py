@@ -71,6 +71,15 @@ def test_messages_and_unknown_commands(app) -> None:
     assert "Ese comando no lo conozco" in _markup(at)
 
 
+def test_waiter_markdown_is_rendered_without_changing_the_customers_message(app) -> None:
+    at = _enter(app, "Ana").run()
+    at = _say(at, "Prefiero **la tortilla**")
+    assert not at.exception
+    markup = _markup(at)
+    assert "Prefiero **la tortilla**" in markup
+    assert "Apuntado&#58; <strong>la tortilla</strong>." in markup
+
+
 def test_new_visit_greets_again(app) -> None:
     at = _enter(app, "Ana").run()
     at = _say(at, "Prefiero la tortilla")
