@@ -107,7 +107,15 @@ def kitchen_plan_svg(
         and step.component in ("chef", "especialista", "cocina")
     ]
     active = active or bool(running)
-    if active:
+    preparing = any(
+        step.component == "cocina"
+        and step.label == "Cocina prepara los platos"
+        and step.status in ("running", "done")
+        for step in activity
+    )
+    if active and running and not preparing:
+        state, status = "validando", "VALIDANDO"
+    elif active:
         state, status = "activa", "EN PREPARACIÓN"
     elif plan is None:
         state, status = "espera", "EN ESPERA"

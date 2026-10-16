@@ -189,14 +189,17 @@ def _walls() -> str:
     )
 
 
-def _cashier_station(pending: bool) -> str:
+def _cashier_station(pending: bool, active: bool = False) -> str:
     """The till by the door: the cashier, a small counter and the till on it."""
 
     x, y = CASHIER
     left, top, width, height = TILL_COUNTER
     css = "caja pendiente" if pending else "caja"
+    if active:
+        css += " trabajando"
+    status = "en actividad" if active else "cuenta pendiente de pago" if pending else "en espera"
     return (
-        f'<g class="{css}">'
+        f'<g class="{css}" aria-label="Caja: {status}">'
         f'<circle class="halo-caja" cx="{x + 6}" cy="{y}" r="38" fill="url(#p-halo)"/>'
         f'<rect x="{left}" y="{top}" width="{width}" height="{height}" rx="3" {WOOD}/>'
         f'<rect x="{left + 2.5}" y="{top + 16}" width="{width - 5}" height="24" rx="2" '
@@ -553,6 +556,7 @@ def floor_plan_svg(
     served_dishes: int = 0,
     serve_elapsed: float | None = None,
     bill_pending: bool = False,
+    cashier_active: bool = False,
 ) -> str:
     """Plan with the customer, the waiter in the given state and, with a room, every group.
 
@@ -561,6 +565,7 @@ def floor_plan_svg(
     ``served_dishes`` rest on the customer's table; ``serve_elapsed`` plays the
     waiter's walk from the pass with the tray once, before they appear.
     ``bill_pending`` lights the till while a bill waits for card or cash.
+    ``cashier_active`` highlights the cashier while its A2A call is running.
     """
 
     if waiter not in WAITER_STATES:
@@ -612,6 +617,8 @@ def floor_plan_svg(
         if bill_pending
         else "; la caja, junto a la puerta."
     )
+    if cashier_active:
+        label += " Caja está atendiendo tu cuenta."
     bar = "" if live else _bar()
     serving = (
         seated
@@ -678,7 +685,7 @@ def floor_plan_svg(
         f'aria-label="{label}">'
         f"{_defs()}"
         f'<rect x="24" y="24" width="{PLAN_W - 48}" height="{PLAN_H - 48}" fill="url(#p-baldosa)"/>'
-        f"{bar}{tables}{plates}{groups}{_cashier_station(bill_pending)}"
+        f"{bar}{tables}{plates}{groups}{_cashier_station(bill_pending, cashier_active)}"
         f"{_walls()}{_pass_hatch()}{customer}"
         f"{waiter_markup}"
         "</svg>"

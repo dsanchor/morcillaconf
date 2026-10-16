@@ -411,8 +411,11 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .cocina-plano .estado-agente { fill: var(--piedra-tenue); stroke: var(--nogal); stroke-width: 2; }
 .stApp .cocina-plano .halo-agente,
 .stApp .cocina-plano .estado-agente { transition: opacity .3s ease, fill .3s ease; }
+.stApp .cocina-plano.validando .trabajando .halo-agente,
 .stApp .cocina-plano.activa .trabajando .halo-agente { opacity: 1; animation: pulso-cocina 1.4s ease-in-out infinite; }
+.stApp .cocina-plano.validando .trabajando .estado-agente,
 .stApp .cocina-plano.activa .trabajando .estado-agente { fill: var(--luz); }
+.stApp .cocina-plano.validando .estado-cocina { fill: var(--luz); font-weight: 700; }
 .stApp .cocina-plano.lista .estado-agente { fill: var(--luz); }
 .stApp .cocina-plano.servida .estado-agente { fill: var(--vino); }
 /* At the pass: an amber pill and glowing stations, so the waiter's cue stands out. */

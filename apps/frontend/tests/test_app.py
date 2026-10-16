@@ -189,7 +189,66 @@ def test_the_plan_is_drawn_before_the_waiter_answers(app, monkeypatch) -> None:
     events.clear()
     at = _say(at, "Venimos tres")
     assert not at.exception
-    assert events[:2] == ["plan", "send"]
+    assert events[0] == "plan" and events.index("send") > 0
     # The new proposal is drawn right after the turn, not a refresh later.
     assert events[-1] == "plan" and events.count("plan") >= 2
     assert "asiento-propio" in _markup(at)
+
+
+@pytest.mark.parametrize("component", ["cocina", "caja"])
+@pytest.mark.parametrize("outcome", ["done", "failed"])
+def test_plan_updates_during_a2a_without_waiting_for_the_turn_to_finish(
+    app, monkeypatch, component: str, outcome: str,
+) -> None:
+    from restaurant_contracts.activity import ActivityStep
+    from frontend import markup
+    from frontend.visit import VisitSession
+
+    drawn: list[str] = []
+    draw = markup.plan_markup
+
+    def spy_plan(*args, **kwargs):
+        result = draw(*args, **kwargs)
+        drawn.append(result)
+        return result
+
+    def send(self, text, on_update=None):
+        original = self.snapshot
+        message = original.messages[-1]
+        call = ActivityStep(
+            step_id="a2a", component=component, label="A2A: solicitud", status="running",
+        )
+        self.snapshot = original.model_copy(update={
+            "process_status": "processing",
+            "messages": [
+                *original.messages[:-1],
+                message.model_copy(update={"activity": [call]}),
+            ],
+        })
+        on_update()
+        assert drawn
+        assert ("VALIDANDO" in drawn[-1]) == (component == "cocina")
+        assert ('class="caja trabajando"' in drawn[-1]) == (component == "caja")
+
+        self.snapshot = original.model_copy(update={
+            "process_status": "idle",
+            "messages": [
+                *original.messages[:-1],
+                message.model_copy(update={
+                    "activity": [call.model_copy(update={"status": outcome})],
+                }),
+            ],
+        })
+        on_update()
+        assert "VALIDANDO" not in drawn[-1]
+        assert 'class="caja trabajando"' not in drawn[-1]
+
+    at = _enter(app, "Ana").run()
+    monkeypatch.setattr(markup, "plan_markup", spy_plan)
+    monkeypatch.setattr(VisitSession, "send_message", send)
+
+    at = _say(at, "Pide al agente")
+
+    assert not at.exception
+    assert "VALIDANDO" not in _markup(at)
+    assert 'class="caja trabajando"' not in _markup(at)

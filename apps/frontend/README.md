@@ -20,6 +20,11 @@ Al detenerse, el camarero ocupa el hueco libre más cercano al cliente, sin
 superponer su cuerpo ni la bandeja con mesas, sillas, comensales u otros iconos.
 Las sillas de las mesas redondas se orientan hacia el centro. En cocina, el halo identifica al chef o
 especialista con actividad `running`, no a todas las partidas por igual.
+La cocina muestra «VALIDANDO» desde la invocación A2A, mientras el chef y las
+partidas revisan la comanda; cambia a «EN PREPARACIÓN» al comenzar la preparación
+simulada. Caja se ilumina durante las llamadas A2A de su agente y conserva el
+resaltado de cuenta pendiente hasta el pago. El plano se actualiza con los eventos
+de actividad, también mientras el camarero está esperando una respuesta.
 La preferencia del navegador de reducir movimiento desactiva los recorridos
 animados y muestra directamente la posición final.
 La barra recta, con ocho puestos, queda frente a la entrada, arriba a la izquierda.

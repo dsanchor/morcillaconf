@@ -186,7 +186,7 @@ def plan_markup(
     seating: SeatingView | None = None,
     walk_elapsed: float | None = None,
     kitchen_active: bool = False,
-    kitchen_activity: Sequence[ActivityStep] = (),
+    activity: Sequence[ActivityStep] = (),
     kitchen_plan: KitchenPlan | None = None,
     kitchen_served: bool = False,
     served_dishes: int = 0,
@@ -203,9 +203,13 @@ def plan_markup(
         served_dishes=served_dishes,
         serve_elapsed=serve_elapsed,
         bill_pending=bill_pending,
+        cashier_active=any(
+            step.component == "caja" and step.status == "running"
+            for step in activity
+        ),
     )
     kitchen = kitchen_plan_svg(
-        kitchen_active, kitchen_plan, kitchen_served, activity=kitchen_activity
+        kitchen_active, kitchen_plan, kitchen_served, activity=activity
     )
     return f'<div class="{classes}">{_one_line(svg)}{_one_line(kitchen)}</div>'
 

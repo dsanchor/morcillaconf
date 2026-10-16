@@ -107,12 +107,16 @@
 .planta .camarero.sirviendo { animation: servir 2.6s cubic-bezier(.45, 0, .2, 1) both; }
 .planta text.pase,
 .planta text.rotulo-caja { font-family: var(--sans); font-size: 13px; fill: var(--piedra-tenue); letter-spacing: .08em; }
-/* The till by the door: quiet until a bill waits, then lit like the lantern. */
+/* The till lights while the cashier works or a bill waits for payment. */
 .planta .caja .halo-caja { opacity: 0; transition: opacity .5s var(--ease-salida); }
+.planta .caja.trabajando .halo-caja,
 .planta .caja.pendiente .halo-caja { opacity: 1; animation: pulso-caja 1.6s ease-in-out infinite; }
 .planta .caja .pantalla-caja { fill: #8fb89c; }
+.planta .caja.trabajando .pantalla-caja,
 .planta .caja.pendiente .pantalla-caja { fill: var(--luz); }
+.planta .caja.trabajando text.rotulo-caja,
 .planta .caja.pendiente text.rotulo-caja { fill: var(--luz); }
+.planta .caja.trabajando .cajero > ellipse { stroke: var(--luz); stroke-width: 2.5; }
 
 @keyframes pulso-caja { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 
@@ -166,6 +170,7 @@
   .planta .camarero.acompanando,
   .planta .posicion-camarero,
   .planta .camarero.sirviendo,
+  .planta .caja.trabajando .halo-caja,
   .planta .caja.pendiente .halo-caja,
   .escena .resplandor,
   .escena.llama .hojas,

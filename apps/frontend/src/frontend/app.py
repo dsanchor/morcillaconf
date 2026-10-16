@@ -127,7 +127,8 @@ def _render_inside(*, opening: bool) -> None:
             text = st.chat_input("Escribe al camarero", key="redactor", max_chars=2_000)
         # Drawn before any blocking work (a waiter turn, /new) so it never
         # disappears while the waiter thinks.
-        _live_plan(opening)
+        plan = st.empty()
+        _live_plan(opening, plan)
     if opening:
         with st.container(key="puerta"):
             st.markdown(facade_markup("abriendo"), unsafe_allow_html=True)
@@ -140,6 +141,7 @@ def _render_inside(*, opening: bool) -> None:
             activity.markdown(activity_markup(visit.view().messages), unsafe_allow_html=True)
         else:
             activity.empty()
+        _draw_plan(opening, plan)
 
     plan_before = _plan_state(visit)
     if text is not None:
@@ -251,7 +253,7 @@ def _farewell_clock() -> None:
 
 
 @st.fragment(run_every=PLAN_REFRESH_SECONDS)
-def _live_plan(opening: bool) -> None:
+def _live_plan(opening: bool, slot) -> None:
     """The plan reads the room by itself, without touching conversation or composer."""
 
     state = st.session_state
@@ -260,6 +262,16 @@ def _live_plan(opening: bool) -> None:
         return
     if visit.refresh_room() or visit.refresh_service():
         st.rerun()
+    _draw_plan(opening, slot)
+
+
+def _draw_plan(opening: bool, slot) -> None:
+    """Redraw from streamed activity as well as the periodic room refresh."""
+
+    state = st.session_state
+    visit: VisitSession | None = state.get("visit")
+    if visit is None or visit.snapshot is None:
+        return
     entering = opening and time.monotonic() - state.get("opened_at", 0.0) < ENTRANCE_SECONDS
     seating = visit.snapshot.seating
     waiter = "llegando" if entering else "atendiendo"
@@ -287,7 +299,7 @@ def _live_plan(opening: bool) -> None:
         if plan.order_id in served
         for item in plan.accepted
     )
-    st.markdown(
+    slot.markdown(
         plan_markup(
             visit.name,
             waiter,
@@ -296,7 +308,7 @@ def _live_plan(opening: bool) -> None:
             seating=seating,
             walk_elapsed=visit.walk_elapsed(),
             kitchen_active=cooking,
-            kitchen_activity=activity,
+            activity=activity,
             kitchen_plan=None if cooking else cooked,
             kitchen_served=cooked is not None and cooked.order_id in served,
             served_dishes=served_dishes,

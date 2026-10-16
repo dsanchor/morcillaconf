@@ -351,7 +351,7 @@ def test_only_running_kitchen_agents_are_highlighted() -> None:
             status="done",
         ),
     ]
-    root = _parse(plan_markup("Ana", "barra", kitchen_activity=steps))
+    root = _parse(plan_markup("Ana", "barra", activity=steps))
     working = [
         node for node in root.iter("{http://www.w3.org/2000/svg}g")
         if "trabajando" in node.get("class", "").split()
@@ -360,7 +360,7 @@ def test_only_running_kitchen_agents_are_highlighted() -> None:
     assert working[0].get("aria-label") == "Parrilla: en actividad"
 
     steps[0] = steps[0].model_copy(update={"status": "running"})
-    root = _parse(plan_markup("Ana", "barra", kitchen_activity=steps))
+    root = _parse(plan_markup("Ana", "barra", activity=steps))
     assert any(
         "trabajando" in node.get("class", "").split()
         and node.get("aria-label") == "Chef: en actividad"
@@ -368,7 +368,7 @@ def test_only_running_kitchen_agents_are_highlighted() -> None:
     )
 
     completed = [step.model_copy(update={"status": "done"}) for step in steps]
-    root = _parse(plan_markup("Ana", "barra", kitchen_activity=completed))
+    root = _parse(plan_markup("Ana", "barra", activity=completed))
     assert not any(
         "trabajando" in node.get("class", "").split()
         for node in root.iter("{http://www.w3.org/2000/svg}g")
@@ -378,10 +378,81 @@ def test_only_running_kitchen_agents_are_highlighted() -> None:
         step_id="bar", component="foundry_iq",
         label="Agentic Retrieval: bebidas de la carta", status="running",
     )
-    root = _parse(plan_markup("Ana", "barra", kitchen_activity=[retrieval]))
+    root = _parse(plan_markup("Ana", "barra", activity=[retrieval]))
     assert not any(
         "trabajando" in node.get("class", "").split()
         for node in root.iter("{http://www.w3.org/2000/svg}g")
+    )
+
+
+def test_kitchen_validates_from_the_a2a_call_then_prepares_without_regressing() -> None:
+    call = ActivityStep(
+        step_id="a2a", component="cocina", label="A2A: envía la comanda a cocina",
+        status="running",
+    )
+    preparation = ActivityStep(
+        step_id="prep", component="cocina", label="Cocina prepara los platos",
+        status="running",
+    )
+    stages = [
+        ([call], "validando", "VALIDANDO"),
+        ([call, preparation], "activa", "EN PREPARACIÓN"),
+        (
+            [call, preparation.model_copy(update={"status": "done"})],
+            "activa", "EN PREPARACIÓN",
+        ),
+        (
+            [
+                call.model_copy(update={"status": "done"}),
+                preparation.model_copy(update={"status": "done"}),
+            ],
+            "lista", "EN EL PASE",
+        ),
+    ]
+    for activity, state, label in stages:
+        root = _parse(plan_markup("Ana", "atendiendo", activity=activity, kitchen_plan=PLAN))
+        kitchen = next(
+            node for node in root.iter()
+            if "cocina-plano" in node.get("class", "").split()
+        )
+        assert state in kitchen.get("class").split()
+        assert label in _text(kitchen)
+
+
+@pytest.mark.parametrize("status", ["done", "failed"])
+def test_finished_a2a_call_does_not_leave_the_kitchen_validating(status: str) -> None:
+    call = ActivityStep(
+        step_id="a2a", component="cocina", label="A2A: envía la comanda a cocina",
+        status=status,
+    )
+    markup = plan_markup("Ana", "atendiendo", activity=[call])
+    assert "VALIDANDO" not in markup
+    assert "EN ESPERA" in markup
+
+
+@pytest.mark.parametrize("status", ["running", "done", "failed"])
+@pytest.mark.parametrize("pending", [False, True])
+def test_cashier_highlight_tracks_a2a_activity_independently_of_pending_bill(
+    status: str, pending: bool,
+) -> None:
+    call = ActivityStep(
+        step_id="bill", component="caja", label="A2A: envía la cuenta", status=status,
+    )
+    root = _parse(plan_markup("Ana", "atendiendo", activity=[call], bill_pending=pending))
+    cashier = next(
+        node for node in root.iter() if "caja" in node.get("class", "").split()
+    )
+    assert ("trabajando" in cashier.get("class").split()) == (status == "running")
+    assert ("pendiente" in cashier.get("class").split()) == pending
+    assert cashier.get("aria-label") == (
+        "Caja: en actividad" if status == "running"
+        else "Caja: cuenta pendiente de pago" if pending else "Caja: en espera"
+    )
+    assert "VALIDANDO" not in _text(root)
+    css = base_stylesheet()
+    assert ".planta .caja.trabajando .halo-caja" in css
+    assert re.search(
+        r"prefers-reduced-motion[^@]*\.planta \.caja\.trabajando \.halo-caja", css
     )
 
 
