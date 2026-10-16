@@ -263,9 +263,14 @@ def _live_plan(opening: bool) -> None:
     entering = opening and time.monotonic() - state.get("opened_at", 0.0) < ENTRANCE_SECONDS
     seating = visit.snapshot.seating
     waiter = "llegando" if entering else "barra" if seating.status == "seated" else "atendiendo"
-    cooking = (
-        visit.snapshot.process_status == "processing"
-        and bool(visit.snapshot.order_draft.items)
+    activity = next(
+        (message.activity for message in reversed(visit.snapshot.messages) if message.activity),
+        [],
+    ) if visit.snapshot.process_status == "processing" else []
+    cooking = any(
+        step.status == "running"
+        and step.component in ("cocina", "chef", "especialista")
+        for step in activity
     )
     cooked_plans = [
         message.kitchen.result
@@ -291,6 +296,7 @@ def _live_plan(opening: bool) -> None:
             seating=seating,
             walk_elapsed=visit.walk_elapsed(),
             kitchen_active=cooking,
+            kitchen_activity=activity,
             kitchen_plan=None if cooking else cooked,
             kitchen_served=cooked is not None and cooked.order_id in served,
             served_dishes=served_dishes,

@@ -177,16 +177,6 @@ def build() -> dict[str, Any]:
             "percent",
         ),
         (
-            "Ocupación actual",
-            """customMetrics
-| where timestamp >= ago(1m)
-| where name == "restaurant.seating.occupied_guests"
-| summarize arg_max(timestamp, valueSum) by cloud_RoleInstance
-| summarize current=sum(valueSum)
-| project ['Ocupación']=max_of(0.0, current)""",
-            "short",
-        ),
-        (
             "Abandono",
             """customMetrics
 | where name in ("restaurant.visits.started", "restaurant.visits.abandoned")
@@ -206,7 +196,6 @@ def build() -> dict[str, Any]:
             w=6,
             h=4,
             unit=unit,
-            dashboard_time=title != "Ocupación actual",
         )
 
     add_row("Afluencia, ocupación y recorrido", 9)

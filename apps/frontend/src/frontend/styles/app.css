@@ -371,8 +371,8 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .st-key-redactor .stChatInputInstructions { display: none !important; }
 
 .stApp .planta-marco {
-  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  align-items: stretch; gap: 12px; width: min(100%, 1040px); margin: 8px auto 0;
+  display: grid; grid-template-columns: minmax(0, 1280fr) minmax(0, 500fr);
+  align-items: stretch; gap: 12px; width: min(100%, 1240px); margin: 8px auto 0;
 }
 .stApp .planta-marco .planta { width: 100%; max-height: 33vh; }
 .stApp .cocina-plano .titulo-cocina { font-size: 22px; font-weight: 700; }
@@ -383,8 +383,10 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
 .stApp .cocina-plano .toque { fill: #f1e8d6; stroke: #6b5a4a; stroke-width: 1; }
 .stApp .cocina-plano .halo-agente { opacity: 0; }
 .stApp .cocina-plano .estado-agente { fill: var(--piedra-tenue); stroke: var(--nogal); stroke-width: 2; }
-.stApp .cocina-plano.activa .especialista .halo-agente { opacity: 1; animation: pulso-cocina 1.4s ease-in-out infinite; }
-.stApp .cocina-plano.activa .estado-agente { fill: var(--luz); }
+.stApp .cocina-plano .halo-agente,
+.stApp .cocina-plano .estado-agente { transition: opacity .3s ease, fill .3s ease; }
+.stApp .cocina-plano.activa .trabajando .halo-agente { opacity: 1; animation: pulso-cocina 1.4s ease-in-out infinite; }
+.stApp .cocina-plano.activa .trabajando .estado-agente { fill: var(--luz); }
 .stApp .cocina-plano.lista .estado-agente { fill: var(--luz); }
 .stApp .cocina-plano.servida .estado-agente { fill: var(--vino); }
 /* At the pass: an amber pill and glowing stations, so the waiter's cue stands out. */
@@ -445,7 +447,7 @@ section[data-testid="stSidebar"][aria-expanded="true"] {
   .stApp .msg.caja .burbuja { font-size: 1rem; }
   .stApp .msg.barra { max-width: 100%; }
   .stApp .msg.barra .burbuja { font-size: 1rem; }
-  .stApp .planta-marco { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 5px; }
+  .stApp .planta-marco { gap: 5px; }
   .stApp .planta-marco .planta { max-height: 24vh; }
   .stApp .cocina-plano .plato-cocina { display: none; }
 }

@@ -24,14 +24,17 @@ from html import escape
 
 from restaurant_contracts.seating import RoomPlace, RoomView, SeatingView
 
-PLAN_W, PLAN_H = 1000, 340
+PLAN_W, PLAN_H = 1280, 340
+ROOM_BOTTOM = PLAN_H - 24
+ROOM_RIGHT = PLAN_W - 24
 DOOR_GAP = (80, 168)
-CUSTOMER = (124, 264)
-WAITER_AT_BAR = (560, 124)
-WAITER_AT_DOOR = (192, 272)
-ROUND_TABLES = ((300, 104), (300, 244), (462, 174), (858, 246))
-LONG_TABLE = (582, 206, 200, 46)
-STOOLS = tuple((x, 88) for x in (628, 674, 720, 766, 812, 858)) + ((910, 116), (910, 160))
+CUSTOMER = (124, PLAN_H - 76)
+WAITER_AT_BAR = (414, 156)
+WAITER_AT_DOOR = (192, PLAN_H - 68)
+ROUND_TABLES = ((760, 244), (1040, 244), (760, 104), (1040, 104))
+LONG_TABLE = (480, 74, 46, 200)
+BAR_COUNTER = (62, 42, 324, 34)
+STOOLS = tuple((82 + index * 40, 102) for index in range(8))
 WAITER_STATES = ("barra", "llegando", "atendiendo")
 WAITER_LABELS = {
     "barra": "el camarero, en la barra",
@@ -44,19 +47,19 @@ CUSTOMER_BODY = "#8c1c2b"
 GUEST_BODY = "#7b6553"
 CASHIER_BODY = "#1f5b3f"
 # The cashier stands against the left wall, facing the room, just above the door.
-CASHIER = (42, 181)
-TILL_COUNTER = (58, 150, 20, 62)
+CASHIER = (42, PLAN_H - 159)
+TILL_COUNTER = (58, PLAN_H - 190, 20, 62)
 # Behind the customer at the door, where companions gather before walking in.
 COMPANION_OFFSETS = ((-26, 34), (26, 34), (-52, 14), (52, 14), (0, 56), (-52, 50), (52, 50))
-# The group walks along the aisle between the left tables before sitting.
-AISLE_Y = 174
+# The first aisle runs between the bar and the six-seat table.
+AISLE_Y = 130
 WALK_SECONDS = 3.6
 SERVE_SECONDS = 2.6
 # The pass: the hatch in the right wall through which the kitchen hands out dishes.
-PASS = (944, 258)
+PASS = (PLAN_W - 56, 258)
 # The hatch's span in the right wall; the kitchen opens its left wall at the same height.
 PASS_OPENING = (228, 288)
-SERVE_MIDPOINT = (560, 140)
+SERVE_MIDPOINT = (PASS[0], 192)
 ROUND_SLOTS = 4
 MAX_ROUND_CHAIRS = 6
 MAX_LONG_CHAIRS = 6
@@ -99,12 +102,12 @@ def _round_chairs(cx: int, cy: int, count: int) -> list[tuple[float, float, bool
 
 def _long_chairs(count: int) -> list[tuple[float, float, bool]]:
     x, y, width, height = LONG_TABLE
-    top = (count + 1) // 2
-    rows = ((y - 24, top), (y + height + 24, count - top))
+    left = (count + 1) // 2
+    rows = ((x - 24, left), (x + width + 24, count - left))
     chairs = []
-    for row_y, seats in rows:
+    for column_x, seats in rows:
         for index in range(seats):
-            chairs.append((x + width * (index + 1) / (seats + 1), row_y, False))
+            chairs.append((column_x, y + height * (index + 1) / (seats + 1), True))
     return chairs
 
 
@@ -132,7 +135,11 @@ def _round_table(
     number: str | None = None,
 ) -> str:
     chairs = chairs if chairs is not None else _round_chairs(cx, cy, 4)
-    drawn = "".join(_chair(x, y, vertical) for x, y, vertical in chairs)
+    drawn = "".join(
+        f'<g transform="rotate({math.degrees(math.atan2(y - cy, x - cx)) + 90:.1f},{x},{y})">'
+        f'{_chair(x, y, False)}</g>'
+        for x, y, _ in chairs
+    )
     return (
         f"{drawn}<circle{extra} cx=\"{cx}\" cy=\"{cy}\" r=\"34\" {WOOD}/>"
         f'<circle cx="{cx}" cy="{cy}" r="25" fill="none" stroke="#81603f" stroke-width="1.5"/>'
@@ -155,10 +162,12 @@ def _long_table(
 
 
 def _bar(stools: tuple[tuple[int, int], ...] = STOOLS) -> str:
+    x, y, width, height = BAR_COUNTER
     counter = (
-        '<path d="M600,24 H976 V196 H934 V66 H600 Z" fill="#4a3322" '
-        'stroke="#8a6644" stroke-width="2"/>'
-        '<path d="M600,66 H934 V196" fill="none" stroke="#b08457" stroke-width="3"/>'
+        f'<rect x="{x}" y="{y}" width="{width}" height="{height}" rx="6" '
+        'fill="#4a3322" stroke="#8a6644" stroke-width="2"/>'
+        f'<path d="M{x + 8},{y + height} H{x + width - 8}" fill="none" '
+        'stroke="#b08457" stroke-width="3"/>'
     )
     return counter + "".join(f'<circle cx="{x}" cy="{y}" r="11" {SEAT}/>' for x, y in stools)
 
@@ -167,12 +176,12 @@ def _walls() -> str:
     gap_left, gap_right = DOOR_GAP
     pass_top, pass_bottom = PASS_OPENING
     return (
-        f'<path d="M{gap_right},316 H976 V{pass_bottom} M976,{pass_top} V24 H24 V316 H{gap_left}" '
+        f'<path d="M{gap_right},{ROOM_BOTTOM} H{ROOM_RIGHT} V{pass_bottom} M{ROOM_RIGHT},{pass_top} V24 H24 V{ROOM_BOTTOM} H{gap_left}" '
         'fill="none" stroke="#cdba95" stroke-width="10" stroke-linecap="square"/>'
-        f'<path d="M{gap_left},316 V{316 - (gap_right - gap_left)}" stroke="#cdba95" '
+        f'<path d="M{gap_left},{ROOM_BOTTOM} V{ROOM_BOTTOM - (gap_right - gap_left)}" stroke="#cdba95" '
         'stroke-width="3"/>'
-        f'<path d="M{gap_right},316 A{gap_right - gap_left},{gap_right - gap_left} 0 0 0 '
-        f'{gap_left},{316 - (gap_right - gap_left)}" fill="none" stroke="#cdba95" '
+        f'<path d="M{gap_right},{ROOM_BOTTOM} A{gap_right - gap_left},{gap_right - gap_left} 0 0 0 '
+        f'{gap_left},{ROOM_BOTTOM - (gap_right - gap_left)}" fill="none" stroke="#cdba95" '
         'stroke-opacity=".45" stroke-width="2" stroke-dasharray="5 6"/>'
     )
 
@@ -285,6 +294,36 @@ class _Walk:
     elapsed: float | None
 
 
+def _motion_path(
+    x0: float, y0: float, xm: float, ym: float, x1: float, y1: float
+) -> str:
+    return (
+        f"--recorrido:path('M {x0} {y0} Q {x0} {ym} {xm} {ym} "
+        f"Q {x1} {ym} {x1} {y1}');"
+    )
+
+
+def _customer_motion_path(
+    x0: float, y0: float, xm: float, ym: float, x1: float, y1: float
+) -> str:
+    left, _, width, _ = LONG_TABLE
+    lower_aisle = ROOM_BOTTOM - 22
+    if x1 == left + width + 24:
+        corridor = left + width + 84
+        return (
+            f"--recorrido:path('M {x0} {y0} Q {x0} {lower_aisle} {corridor - 20} {lower_aisle} "
+            f"Q {corridor} {lower_aisle} {corridor} {lower_aisle - 20} L {corridor} {y1 + 20} "
+            f"Q {corridor} {y1} {corridor - 20} {y1} L {x1} {y1}');"
+        )
+    if ym < AISLE_Y:
+        return (
+            f"--recorrido:path('M {x0} {y0} Q {x0} {AISLE_Y} 400 {AISLE_Y} "
+            f"Q 420 {AISLE_Y} 420 {AISLE_Y - 20} L 420 {ym + 20} "
+            f"Q 420 {ym} 440 {ym} Q {x1} {ym} {x1} {y1}');"
+        )
+    return _motion_path(x0, y0, xm, ym, x1, y1)
+
+
 def _walking_group(walk: _Walk, name: str) -> str:
     """The customer and companions: at the door, then walking to their seats.
 
@@ -307,11 +346,20 @@ def _walking_group(walk: _Walk, name: str) -> str:
             )
             continue
         delay = index * 0.12 - walk.elapsed
-        xm = 200 if x1 < 380 else 380
+        xm = 200 if x1 < 420 else 420
+        left, top, width, height = LONG_TABLE
+        if x1 > left + width:
+            aisle_y = 42 if y1 < top + height / 2 else ROOM_BOTTOM - 22
+        elif left <= x1 <= left + width and y1 > top + height:
+            aisle_y = ROOM_BOTTOM - 22
+        else:
+            aisle_y = AISLE_Y
         parts.append(
             f'<g class="{css} caminando" transform="translate({x1},{y1})" '
-            f'style="--x0:{x0}px;--y0:{y0}px;--xm:{xm}px;--ym:{AISLE_Y}px;'
-            f'--x1:{x1}px;--y1:{y1}px;animation-delay:{delay:.2f}s">'
+            f'style="--x0:{x0}px;--y0:{y0}px;--xm:{xm}px;--ym:{aisle_y}px;'
+            f'--x1:{x1}px;--y1:{y1}px;'
+            f'{_customer_motion_path(x0, y0, xm, aisle_y, x1, y1)}'
+            f'animation-delay:{delay:.2f}s">'
             f"{_person(CUSTOMER_BODY)}{label}</g>"
         )
     return "".join(parts)
@@ -369,16 +417,20 @@ def _plate_spot(slot: _Slot, seat: tuple[float, float, bool]) -> tuple[float, fl
         cx, cy = int(slot.outline[1]), int(slot.outline[2])
         return round(x + (cx - x) * 0.58, 1), round(y + (cy - y) * 0.58, 1)
     if slot.outline[0] == "long":
-        _, top, _, height = LONG_TABLE
-        return x, top + 12 if y < top else top + height - 12
-    return x, 50
+        left, _, width, _ = LONG_TABLE
+        return left + 12 if x < left else left + width - 12, y
+    _, top, _, height = BAR_COUNTER
+    return x, top + height / 2
 
 
 def _plates(slot: _Slot, seats: list[tuple[float, float, bool]], count: int) -> str:
     plates = []
     for index in range(min(count, 2 * len(seats))):
         x, y = _plate_spot(slot, seats[index % len(seats)])
-        x += 9 * (index // len(seats))
+        if slot.outline[0] == "long":
+            y += 9 * (index // len(seats))
+        else:
+            x += 9 * (index // len(seats))
         plates.append(
             f'<g class="plato-servido" transform="translate({x},{y})">'
             '<circle r="8" fill="#f1e8d6" stroke="#6f675d" stroke-width="1.5"/>'
@@ -391,7 +443,7 @@ def _pass_hatch() -> str:
     x, _ = PASS
     top, bottom = PASS_OPENING
     return (
-        f'<rect x="969" y="{top}" width="14" height="{bottom - top}" rx="2" fill="#4a3322" '
+        f'<rect x="{ROOM_RIGHT - 7}" y="{top}" width="14" height="{bottom - top}" rx="2" fill="#4a3322" '
         'stroke="#b08457" stroke-width="2"/>'
         f'<text class="pase" x="{x - 2}" y="{bottom + 16}" text-anchor="middle" aria-hidden="true">pase</text>'
     )
@@ -473,12 +525,38 @@ def floor_plan_svg(
         label += " Tu comida está servida en la mesa."
     if serving:
         x1, y1, _ = own_seats[0]
-        x1, y1 = x1 + 30, y1 - 18
         (x0, y0), (xm, ym) = PASS, SERVE_MIDPOINT
+        if own_slot.outline[0] == "long":
+            x1 += -48 if x1 < LONG_TABLE[0] else 48
+            lower_aisle = ROOM_BOTTOM - 22
+            path = (
+                f"--recorrido:path('M {x0} {y0} L {x0} {lower_aisle - 20} "
+                f"Q {x0} {lower_aisle} {x0 - 20} {lower_aisle} "
+                f"L {x1 + 20} {lower_aisle} Q {x1} {lower_aisle} "
+                f"{x1} {lower_aisle - 20} L {x1} {y1}');"
+            )
+        elif own_slot.outline[0] == "bar":
+            y1 += 32
+            path = (
+                f"--recorrido:path('M {x0} {y0} L {x0} {ym + 20} "
+                f"Q {x0} {ym} {x0 - 20} {ym} L 430 {ym} "
+                f"Q 410 {ym} 410 {ym - 20} L 410 {y1 + 20} "
+                f"Q 410 {y1} 390 {y1} L {x1} {y1}');"
+            )
+        else:
+            x1, y1 = int(own_slot.outline[1]) - 84, int(own_slot.outline[2])
+            bend_y = ym + (20 if y1 > ym else -20)
+            path = (
+                f"--recorrido:path('M {x0} {y0} L {x0} {ym + 20} "
+                f"Q {x0} {ym} {x0 - 20} {ym} L {x1 + 20} {ym} "
+                f"Q {x1} {ym} {x1} {bend_y} L {x1} {y1}');"
+            )
         waiter_markup = (
             f'<g class="camarero sirviendo" transform="translate({x1},{y1})" '
             f'style="--x0:{x0}px;--y0:{y0}px;--xm:{xm}px;--ym:{ym}px;'
-            f'--x1:{x1}px;--y1:{y1}px;animation-delay:{-serve_elapsed:.2f}s">'
+            f'--x1:{x1}px;--y1:{y1}px;'
+            f'{path}'
+            f'animation-delay:{-serve_elapsed:.2f}s">'
             f"{_person('#15110f', tray=True, collar=True)}</g>"
         )
         label += " El camarero te trae la comida desde el pase."
@@ -491,7 +569,7 @@ def floor_plan_svg(
         f'<svg class="planta {waiter}" viewBox="0 0 {PLAN_W} {PLAN_H}" role="img" '
         f'aria-label="{label}">'
         f"{_defs()}"
-        '<rect x="24" y="24" width="952" height="292" fill="url(#p-baldosa)"/>'
+        f'<rect x="24" y="24" width="{PLAN_W - 48}" height="{PLAN_H - 48}" fill="url(#p-baldosa)"/>'
         f"{bar}{tables}{plates}{groups}{_cashier_station(bill_pending)}"
         f"{_walls()}{_pass_hatch()}{customer}"
         f"{waiter_markup}"

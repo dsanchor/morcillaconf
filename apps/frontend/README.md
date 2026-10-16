@@ -5,6 +5,20 @@ una única vista de cliente que habla solo con el contrato público del BFF
 ([`packages/contracts`](../../packages/contracts/README.md)). La vista se
 conecta siempre al [BFF](../bff/README.md) mediante HTTP y SSE.
 
+La planta mantiene la estética del mesón: los recorridos de clientes y servicio
+usan curvas suaves y conservan el progreso entre actualizaciones. Las sillas
+de las mesas redondas se orientan hacia el centro. En cocina, el halo identifica al chef o
+especialista con actividad `running`, no a todas las partidas por igual.
+La preferencia del navegador de reducir movimiento desactiva los recorridos
+animados y muestra directamente la posición final.
+La barra recta, con ocho puestos, queda frente a la entrada, arriba a la izquierda.
+El comedor es más largo en horizontal, sin aumentar su altura. La mesa 5,
+de seis plazas, queda en vertical a la derecha de la barra, con tres sillas
+a cada lado y espacio libre entre ambos muebles.
+Las mesas de cuatro (3 y 4) quedan arriba a la derecha y las de dos (1 y 2),
+debajo. La cocina mantiene la misma altura y su marco conserva el pase alineado.
+La capacidad y los identificadores de las mesas y puestos de barra no cambian.
+
 ## Probar y ejecutar localmente con Docker
 
 El frontend se prueba y ejecuta sin instalar Python, `uv`, `pip` ni

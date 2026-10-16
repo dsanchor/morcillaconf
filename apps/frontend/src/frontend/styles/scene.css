@@ -84,7 +84,7 @@
   to { opacity: 1; transform: translate(124px, 264px) scale(1); }
 }
 @keyframes acercarse {
-  from { transform: translate(560px, 124px); }
+  from { transform: translate(414px, 156px); }
   to { transform: translate(192px, 272px); }
 }
 
@@ -129,7 +129,31 @@
   100% { transform: translate(var(--x1), var(--y1)); }
 }
 
+@supports (offset-path: path("M 0 0 Q 10 0 10 10")) {
+  .planta.llegando .camarero:not(.sirviendo) {
+    offset-path: path("M 414 156 Q 414 130 394 130 L 170 130 Q 150 130 150 150 L 150 252 Q 150 272 192 272");
+    offset-anchor: 0px 0px;
+    offset-rotate: 0deg;
+    animation-name: recorrer-planta;
+  }
+  .planta .comensal.caminando,
+  .planta .camarero.sirviendo {
+    offset-path: var(--recorrido);
+    offset-anchor: 0px 0px;
+    offset-rotate: 0deg;
+    animation-name: recorrer-planta;
+    animation-timing-function: cubic-bezier(.35, 0, .25, 1);
+  }
+  @keyframes recorrer-planta {
+    from { transform: translate(0, 0); offset-distance: 0%; }
+    to { transform: translate(0, 0); offset-distance: 100%; }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .planta.llegando .camarero,
+  .planta .comensal.caminando,
+  .planta .camarero.sirviendo { offset-path: none; }
   .planta .comensal.caminando,
   .planta .camarero.sirviendo,
   .planta .caja.pendiente .halo-caja,

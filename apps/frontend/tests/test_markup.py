@@ -251,12 +251,66 @@ def test_the_activity_panel_shows_each_component_live_and_escaped() -> None:
     assert "Escribe al camarero" in _text(_parse(activity_markup([GREETING])))
 
 
+def test_only_running_kitchen_agents_are_highlighted() -> None:
+    steps = [
+        ActivityStep(
+            step_id="chef", component="chef", label="Chef analiza la comanda",
+            status="done",
+        ),
+        ActivityStep(
+            step_id="grill", component="especialista", label="Parrilla revisa sus tareas",
+            status="running",
+        ),
+        ActivityStep(
+            step_id="fry", component="especialista", label="Fritos revisa sus tareas",
+            status="done",
+        ),
+    ]
+    root = _parse(plan_markup("Ana", "barra", kitchen_activity=steps))
+    working = [
+        node for node in root.iter("{http://www.w3.org/2000/svg}g")
+        if "trabajando" in node.get("class", "").split()
+    ]
+    assert len(working) == 1
+    assert working[0].get("aria-label") == "Parrilla: en actividad"
+
+    steps[0] = steps[0].model_copy(update={"status": "running"})
+    root = _parse(plan_markup("Ana", "barra", kitchen_activity=steps))
+    assert any(
+        "trabajando" in node.get("class", "").split()
+        and node.get("aria-label") == "Chef: en actividad"
+        for node in root.iter("{http://www.w3.org/2000/svg}g")
+    )
+
+    completed = [step.model_copy(update={"status": "done"}) for step in steps]
+    root = _parse(plan_markup("Ana", "barra", kitchen_activity=completed))
+    assert not any(
+        "trabajando" in node.get("class", "").split()
+        for node in root.iter("{http://www.w3.org/2000/svg}g")
+    )
+
+    retrieval = ActivityStep(
+        step_id="bar", component="foundry_iq",
+        label="Agentic Retrieval: bebidas de la carta", status="running",
+    )
+    root = _parse(plan_markup("Ana", "barra", kitchen_activity=[retrieval]))
+    assert not any(
+        "trabajando" in node.get("class", "").split()
+        for node in root.iter("{http://www.w3.org/2000/svg}g")
+    )
+
+
 def test_the_kitchen_scene_matches_the_floor_plan_and_shows_the_agents() -> None:
     active = _parse(plan_markup("Ana", "atendiendo", kitchen_active=True))
     scenes = [element for element in active.iter() if element.tag.endswith("svg")]
-    assert [scene.get("viewBox") for scene in scenes] == ["0 0 1000 340", "0 0 500 340"]
+    assert [scene.get("viewBox") for scene in scenes] == ["0 0 1280 340", "0 0 500 340"]
     kitchen = next(scene for scene in scenes if "cocina-plano activa" in scene.get("class"))
     assert kitchen.get("aria-label") == "Cocina: en preparación"
+    walls = next(
+        node for node in kitchen.iter("{http://www.w3.org/2000/svg}path")
+        if node.get("stroke-width") == "10"
+    )
+    assert walls.get("d") == "M24,316 V288 M24,228 V24 H476 V316 H24"
     assert all(name in _text(kitchen) for name in ("Chef", "Parrilla", "Fritos", "General"))
 
     cooked = _parse(plan_markup("Ana", "atendiendo", kitchen_plan=PLAN))
@@ -277,7 +331,7 @@ def test_the_kitchen_scene_matches_the_floor_plan_and_shows_the_agents() -> None
     assert "SERVIDO" in _text(served_kitchen)
     assert "Morcilla" not in _text(served_kitchen)
     css = base_stylesheet()
-    assert "grid-template-columns: minmax(0, 2fr) minmax(0, 1fr)" in css
+    assert "grid-template-columns: minmax(0, 1280fr) minmax(0, 500fr)" in css
 
 
 def test_a_kitchen_failure_is_said_in_the_chefs_bubble() -> None:

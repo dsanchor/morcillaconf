@@ -6,7 +6,10 @@ from restaurant_contracts.application import Action, ActorContext
 from restaurant_contracts.seating import RoomView, SeatingView
 
 from tests.support.fake_client import FakeRestaurant
-from frontend.floor_plan import WALK_SECONDS, floor_plan_svg
+from frontend.floor_plan import (
+    BAR_COUNTER, LONG_TABLE, PLAN_H, PLAN_W, ROUND_TABLES,
+    WALK_SECONDS, floor_plan_svg,
+)
 from frontend.markup import plan_markup, proposal_markup
 from frontend.visit import VisitSession
 
@@ -141,7 +144,7 @@ def test_the_waiter_brings_the_tray_from_the_pass_and_then_the_dishes_rest_on_th
         floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED, served_dishes=2, serve_elapsed=0.5)
     )
     [waiter] = _classes(walking, "sirviendo")
-    assert "--x0:944px;--y0:258px" in waiter.get("style")
+    assert "--x0:1224px;--y0:258px" in waiter.get("style")
     assert not _classes(walking, "plato-servido")
 
     served = _parse(floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED, served_dishes=2))
@@ -165,11 +168,11 @@ def _numbers(root: ET.Element) -> list[tuple[str, str, str]]:
 def test_tables_show_their_layout_number_and_stools_do_not() -> None:
     root = _parse(floor_plan_svg("Ana", "atendiendo", room=ROOMS[1]))
     assert _numbers(root) == [
-        ("1", "300", "104"),
-        ("2", "300", "244"),
-        ("3", "462", "174"),
-        ("4", "858", "246"),
-        ("5", "682.0", "229.0"),
+        ("1", "760", "244"),
+        ("2", "1040", "244"),
+        ("3", "760", "104"),
+        ("4", "1040", "104"),
+        ("5", "503.0", "174.0"),
     ]
     assert all(text.get("aria-hidden") == "true" for text in _classes(root, "numero-mesa"))
 
@@ -198,6 +201,79 @@ def test_chairs_follow_each_capacity() -> None:
     assert len(chairs) == 2 + 2 + 4 + 4 + 6
     stools = [circle for circle in root.iter(f"{SVG}circle") if circle.get("r") == "11"]
     assert len(stools) == 8
+
+
+def test_round_chairs_face_the_table() -> None:
+    root = _parse(floor_plan_svg("Ana", "barra", room=ROOMS[1]))
+    chair_groups = [
+        group for group in root.iter(f"{SVG}g")
+        if (group.get("transform") or "").startswith("rotate(")
+    ]
+    assert len(chair_groups) == 2 + 2 + 4 + 4
+    assert chair_groups[0].get("transform") == "rotate(270.0,706,244)"
+    assert chair_groups[1].get("transform") == "rotate(90.0,814,244)"
+
+
+def test_six_seat_table_is_vertical_with_three_chairs_on_each_side() -> None:
+    root = _parse(floor_plan_svg("Ana", "barra", room=ROOMS[1]))
+    table = next(
+        rect for rect in root.iter(f"{SVG}rect")
+        if rect.get("x") == "480" and rect.get("y") == "74"
+    )
+    assert (table.get("width"), table.get("height")) == ("46", "200")
+    chairs = [
+        rect for rect in root.iter(f"{SVG}rect")
+        if rect.get("rx") == "5" and rect.get("x") in ("446.0", "540.0")
+    ]
+    assert len(chairs) == 6
+    assert {rect.get("y") for rect in chairs} == {"110.0", "160.0", "210.0"}
+
+
+def test_bar_has_eight_stools_in_one_row_opposite_the_entrance() -> None:
+    root = _parse(floor_plan_svg("Ana", "barra", room=ROOMS[1]))
+    stools = [circle for circle in root.iter(f"{SVG}circle") if circle.get("r") == "11"]
+    assert len(stools) == 8
+    assert {stool.get("cy") for stool in stools} == {"102"}
+    assert len({stool.get("cx") for stool in stools}) == 8
+    assert max(float(stool.get("cx")) for stool in stools) < 420
+
+
+def test_expanded_room_keeps_bar_and_tables_separate() -> None:
+    assert (PLAN_W, PLAN_H) == (1280, 340)
+    bar_x, _, bar_width, _ = BAR_COUNTER
+    left, top, width, height = LONG_TABLE
+    assert left - 24 - 21 >= bar_x + bar_width + 40
+    assert all(cx - 75 >= left + width + 24 + 21 + 40 for cx, _ in ROUND_TABLES)
+    assert top >= 24 and top + height <= PLAN_H - 24
+    assert ROUND_TABLES[0][1] > ROUND_TABLES[2][1]
+    assert ROUND_TABLES[1][1] > ROUND_TABLES[3][1]
+
+
+def test_vertical_table_keeps_guests_plates_and_service_on_the_correct_sides() -> None:
+    data = ROOMS[1].model_dump(mode="json")
+    data["places"][2].update(state="free", mine=False, party_size=None)
+    data["places"][4].update(state="occupied", mine=True, party_size=6)
+    room = RoomView.model_validate(data)
+    seating = SEATED.model_copy(update={
+        "place": SEATED.place.model_copy(update={"place_id": "table-05", "label": "Mesa 5", "capacity": 6}),
+        "party_size": 6,
+    })
+    root = _parse(floor_plan_svg("Ana", "barra", room=room, seating=seating, served_dishes=6))
+    guests = _classes(root, "comensal")
+    assert len(guests) == 6
+    assert {guest.get("transform") for guest in guests} == {
+        f"translate({x},{y})" for x in (456, 550) for y in (124.0, 174.0, 224.0)
+    }
+    plates = _classes(root, "plato-servido")
+    assert len(plates) == 6
+    assert {plate.get("transform") for plate in plates} == {
+        f"translate({x},{y})" for x in (492, 514) for y in (124.0, 174.0, 224.0)
+    }
+    serving = _parse(floor_plan_svg(
+        "Ana", "barra", room=room, seating=seating, served_dishes=6, serve_elapsed=0.5,
+    ))
+    [waiter] = _classes(serving, "sirviendo")
+    assert "--x1:408px;--y1:124.0px" in waiter.get("style")
 
 
 def test_other_groups_are_anonymous_figures_and_holds_are_reserved() -> None:
@@ -231,7 +307,8 @@ def test_the_walk_plays_once_and_continues_across_renders() -> None:
     start = _parse(floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED, walk_elapsed=0.0))
     walking = _classes(start, "caminando")
     assert len(walking) == 3
-    assert "--x0:124px;--y0:264px;--xm:380px;--ym:174px" in walking[0].get("style")
+    assert "--x0:124px;--y0:264px;--xm:420px;--ym:42px" in walking[0].get("style")
+    assert "--recorrido:path('M 124 264 Q 124 130 400 130 Q " in walking[0].get("style")
     assert walking[1].get("style").endswith("animation-delay:0.12s")
     later = _parse(floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED, walk_elapsed=1.0))
     assert _classes(later, "caminando")[0].get("style").endswith("animation-delay:-1.00s")
