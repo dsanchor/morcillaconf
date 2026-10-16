@@ -344,6 +344,11 @@ ${EDITOR:-vi} scripts/container-apps.env
 ./scripts/deploy-container-apps.sh scripts/container-apps.env
 ```
 
+Al actualizar una aplicación, el script descarta el `revisionSuffix` de la
+configuración desplegada para que Azure genere el de la nueva revisión.
+Esto permite volver a desplegar después de una recreación sin reutilizar los
+sufijos `reset-...`, que Azure no permite asignar a otra revisión.
+
 El fichero usa sintaxis simple `NOMBRE=valor`; el script lo analiza sin
 ejecutarlo como Bash. No necesita secretos ni credenciales de registro: recibe
 seis referencias públicas completas de GHCR y las despliega directamente. Usa preferentemente digest

@@ -319,6 +319,8 @@ with open(path, encoding="utf-8") as stream:
     spec = json.load(stream)
 spec["properties"]["configuration"]["registries"] = []
 template = spec["properties"]["template"]
+# Revision suffixes cannot be reused when the template changes.
+template.pop("revisionSuffix", None)
 container = template["containers"][0]
 container["image"] = image
 container["env"] = [
