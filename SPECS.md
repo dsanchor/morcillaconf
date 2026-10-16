@@ -676,9 +676,20 @@ frecuencia y recencia y pregunta de forma natural cuál prefiere antes de crear
 el borrador. El orden se calcula internamente: nunca se revelan al cliente
 frecuencias, contadores ni recencia. Esto evita inferir una opción ambigua y no
 confirma la comanda ni reafirma restricciones recordadas.
-Las combinaciones solapadas se consolidan semánticamente a nivel de producto:
-el camarero contrapone alternativas equivalentes una sola vez y pregunta por
-separado si el cliente desea los complementos opcionales.
+El context provider recupera y ordena la memoria sin invocar modelos. El propio
+camarero interpreta la intención y redacta las aclaraciones, sin agentes
+auxiliares de clasificación o consolidación. Puede agrupar coincidencias entre
+pedidos, pero no supone que productos que aparecen juntos sean excluyentes.
+Cada opción lleva el ID estable de su recuerdo; el camarero lo indica en
+`habitual_order_option_id` y el dominio valida la selección contra las opciones
+cargadas para esa identidad antes de materializar un borrador no verificado.
+Una aclaración posterior puede resolver una opción exacta. Los cambios sobre el
+habitual se tramitan como un borrador normal, no como una repetición exacta.
+Los resúmenes omiten cantidades y notas: se propone una unidad por producto y,
+si el resumen está truncado, se pide aclaración en vez de reconstruirlo.
+Se conserva la respuesta del camarero y no se añade una consulta de memoria
+redundante. La selección no reconfirma restricciones ni confirma o envía la
+comanda; esos pasos conservan sus controles y el HITL posterior.
 La memoria se acota de forma determinista: existe una cuota independiente para
 preferencias y restricciones. Se conservan varios resúmenes de pedidos dentro
 de la cuota de preferencias, un resumen idéntico se actualiza sin duplicarse y

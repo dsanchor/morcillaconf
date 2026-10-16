@@ -19,14 +19,9 @@ from restaurant_agent.kitchen import A2AKitchen
 from restaurant_agent.kitchen_tool import create_kitchen_tool
 from restaurant_agent.knowledge import KnowledgeToolMiddleware, create_knowledge_tool
 from restaurant_agent.memory.context import DurableMemoryContextProvider
-from restaurant_agent.memory.intent import (
-    INTENT_CLASSIFIER_INSTRUCTIONS,
-    MemoryIntentDecision,
-)
 from restaurant_agent.memory.middleware import (
     HabitualOrderMiddleware,
 )
-from restaurant_agent.memory.options import HabitualOrderQuestion
 from restaurant_agent.memory.store import DurableMemoryRepository
 from restaurant_agent.seating import (
     CONFIRM_NAMES,
@@ -116,35 +111,6 @@ def create_waiter_agent(
         # Tools of one model response run in its order, never at once: the
         # bill must see the drinks served, and the dishes cooked, before it.
         configuration["allow_concurrent_invocation"] = False
-    intent_classifier = Agent(
-        id="memory-intent-classifier",
-        name="Clasificador de intención de memoria",
-        description="Clasifica si el cliente quiere repetir su pedido habitual.",
-        client=client,
-        instructions=INTENT_CLASSIFIER_INSTRUCTIONS,
-        default_options={
-            "store": False,
-            "response_format": MemoryIntentDecision,
-        },
-    )
-    option_merger = Agent(
-        id="habitual-order-option-merger",
-        name="Consolidador de pedidos habituales",
-        description=(
-            "Fusiona pedidos solapados en preguntas breves por producto."
-        ),
-        client=client,
-        instructions=(
-            "Consolida opciones de pedido solapadas sin enumerar combinaciones "
-            "completas. Agrupa alternativas equivalentes y pregunta aparte por "
-            "complementos opcionales. No inventes productos ni reveles "
-            "metadatos internos."
-        ),
-        default_options={
-            "store": False,
-            "response_format": HabitualOrderQuestion,
-        },
-    )
     seating_tools = create_seating_tools(settings)
     knowledge_tool = create_knowledge_tool(settings)
     carta = bar_carta or (KnowledgeCarta(knowledge_tool) if knowledge_tool else None)
@@ -166,8 +132,6 @@ def create_waiter_agent(
                     else None
                 ),
                 persist_fallback_candidates=settings.enable_dev_fake_identity,
-                intent_classifier=intent_classifier,
-                option_merger=option_merger,
             )
         )
     default_options: dict[str, Any] = {"store": False}
@@ -186,7 +150,7 @@ def create_waiter_agent(
         context_providers=context_providers,
         middleware=[
             ActivityToolMiddleware(),
-            HabitualOrderMiddleware(intent_classifier),
+            HabitualOrderMiddleware(),
             SeatingToolContextMiddleware(),
             KnowledgeToolMiddleware(),
             SeatingApprovalChatMiddleware(),

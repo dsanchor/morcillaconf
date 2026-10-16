@@ -12,51 +12,14 @@ from restaurant_agent.contracts import (
 )
 from restaurant_agent.memory.context import (
     DurableMemoryContextProvider,
-    rank_habitual_order_preferences,
 )
 from restaurant_agent.memory.contracts import (
     MemoryCandidate,
     MemoryIntent,
     MemoryKind,
 )
-from restaurant_agent.memory.intent import MemoryIntentDecision
-from restaurant_agent.memory.options import HabitualOrderQuestion
+from restaurant_agent.memory.options import rank_habitual_order_options
 from restaurant_agent.memory.store import SQLiteMemoryStore
-
-
-class FakeClassifier:
-    async def run(
-        self,
-        messages: str,
-        *,
-        options: dict[str, object],
-    ) -> AgentResponse[MemoryIntentDecision]:
-        return AgentResponse(
-            value=MemoryIntentDecision(
-                memory_intent=MemoryIntent.REUSE_LATEST_ORDER
-            )
-        )
-
-
-class FakeOptionMerger:
-    def __init__(self) -> None:
-        self.prompts: list[str] = []
-
-    async def run(
-        self,
-        messages: str,
-        *,
-        options: dict[str, object],
-    ) -> AgentResponse[HabitualOrderQuestion]:
-        self.prompts.append(messages)
-        return AgentResponse(
-            value=HabitualOrderQuestion(
-                question=(
-                    "¿Prefieres hoy Coca-Cola o agua con gas? "
-                    "¿Quieres también pincho de tortilla?"
-                )
-            )
-        )
 
 
 @pytest.mark.asyncio
@@ -103,20 +66,17 @@ async def test_context_provider_injects_identified_memory_without_consent(
 
 
 @pytest.mark.asyncio
-async def test_context_identifies_habitual_order_preference_for_repeat_intent(
+async def test_context_exposes_stable_options_without_interpreting_intent(
     tmp_path: Path,
 ) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
-    store.remember_memory(
+    memory = store.remember_memory(
         "customer-1",
         kind=MemoryKind.PREFERENCE,
         value="Preferencia de pedido: tortilla de patatas, agua con gas",
         source_conversation_id="conv-old",
     )
-    provider = DurableMemoryContextProvider(
-        store,
-        intent_classifier=FakeClassifier(),
-    )
+    provider = DurableMemoryContextProvider(store)
     session = AgentSession(session_id="conv-new")
     session.state["memory_identity"] = {
         "actor_id": "customer-1",
@@ -135,12 +95,19 @@ async def test_context_identifies_habitual_order_preference_for_repeat_intent(
 
     combined_instructions = "\n".join(context.instructions)
     assert (
-        '"habitual_order_preference": "tortilla de patatas, agua con gas"'
+        '"summary": "tortilla de patatas, agua con gas"'
         in combined_instructions
     )
-    assert "«lo de siempre»" in combined_instructions
-    assert "estado `unverified`" in combined_instructions
-    assert "La aplicación ha interpretado semánticamente" in combined_instructions
+    assert f'"option_id": "{memory.preference_id}"' in combined_instructions
+    assert "`unverified`" in combined_instructions
+    assert "La aplicación ha interpretado semánticamente" not in combined_instructions
+    assert "memory_intent" not in session.state
+    assert session.state["habitual_order_options"] == [
+        {
+            "option_id": memory.preference_id,
+            "summary": "tortilla de patatas, agua con gas",
+        }
+    ]
     assert '"occurrence_count"' not in combined_instructions
 
 
@@ -170,12 +137,9 @@ def test_habitual_orders_are_ranked_by_frequency_then_recency(
         source_conversation_id="conv-3",
     )
 
-    assert rank_habitual_order_preferences(
-        store.list_memories("customer-1")
-    ) == [
-        ("agua con gas", 2),
-        ("coca cola", 1),
-    ]
+    options = rank_habitual_order_options(store.list_memories("customer-1"))
+    assert [option.summary for option in options] == ["agua con gas", "coca cola"]
+    original_ids = {option.summary: option.option_id for option in options}
 
     store.remember_memory(
         "customer-1",
@@ -184,16 +148,13 @@ def test_habitual_orders_are_ranked_by_frequency_then_recency(
         source_conversation_id="conv-4",
     )
 
-    assert rank_habitual_order_preferences(
-        store.list_memories("customer-1")
-    ) == [
-        ("coca cola", 2),
-        ("agua con gas", 2),
-    ]
+    reordered = rank_habitual_order_options(store.list_memories("customer-1"))
+    assert [option.summary for option in reordered] == ["coca cola", "agua con gas"]
+    assert {option.summary: option.option_id for option in reordered} == original_ids
 
 
 @pytest.mark.asyncio
-async def test_context_merges_overlapping_habitual_orders_into_one_question(
+async def test_context_exposes_overlapping_combinations_without_merging_them(
     tmp_path: Path,
 ) -> None:
     store = SQLiteMemoryStore(tmp_path / "memory.db")
@@ -211,12 +172,7 @@ async def test_context_merges_overlapping_habitual_orders_into_one_question(
             value=value,
             source_conversation_id="conv-old",
         )
-    merger = FakeOptionMerger()
-    provider = DurableMemoryContextProvider(
-        store,
-        intent_classifier=FakeClassifier(),
-        option_merger=merger,
-    )
+    provider = DurableMemoryContextProvider(store)
     session = AgentSession(session_id="conv-new")
     session.state["memory_identity"] = {
         "actor_id": "customer-1",
@@ -233,13 +189,16 @@ async def test_context_merges_overlapping_habitual_orders_into_one_question(
         state={},
     )
 
-    question = (
-        "¿Prefieres hoy Coca-Cola o agua con gas? "
-        "¿Quieres también pincho de tortilla?"
-    )
-    assert merger.prompts
-    assert session.state["habitual_order_question"] == question
-    assert question in "\n".join(context.instructions)
+    options = session.state["habitual_order_options"]
+    assert {option["summary"] for option in options} == {
+        "agua con gas, pincho de tortilla",
+        "coca cola",
+        "agua con gas, pincho de tortilla, coca cola",
+    }
+    assert len({option["option_id"] for option in options}) == 3
+    assert "habitual_order_question" not in session.state
+    assert "memory_intent" not in session.state
+    assert "son excluyentes" in "\n".join(context.instructions)
 
 
 @pytest.mark.asyncio
@@ -386,7 +345,7 @@ async def test_clear_invalidates_habitual_order_state(tmp_path: Path) -> None:
         "customer", kind=MemoryKind.PREFERENCE,
         value="Preferencia de pedido: agua", source_conversation_id="old",
     )
-    provider = DurableMemoryContextProvider(store, intent_classifier=FakeClassifier())
+    provider = DurableMemoryContextProvider(store)
     session = AgentSession(session_id="current")
     session.state["memory_identity"] = {"actor_id": "customer", "authenticated": True}
     state: dict[str, object] = {}
@@ -395,7 +354,7 @@ async def test_clear_invalidates_habitual_order_state(tmp_path: Path) -> None:
         context=SessionContext(input_messages=[Message("user", ["Lo de siempre"])]),
         state=state,
     )
-    assert session.state["habitual_order_preference"] == "agua"
+    assert session.state["habitual_order_options"][0]["summary"] == "agua"
     store.delete_all_memories("customer")
     context = SessionContext(input_messages=[])
     await provider.before_run(agent=object(), session=session, context=context, state=state)

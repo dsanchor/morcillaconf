@@ -30,6 +30,7 @@ from restaurant_agent.memory.contracts import (
     summarize_order_preference,
 )
 from restaurant_agent.memory.store import DurableMemoryRepository
+from restaurant_agent.memory.options import HabitualOrderSelectionError
 
 
 def _compact_completed_tool_history(state: dict[str, Any]) -> None:
@@ -131,7 +132,10 @@ def _as_conversation_error(exc: Exception) -> ConversationError | None:
             "The seating service could not be reached "
             f"({_describe_service_failure(exc)})."
         )
-    if any(isinstance(item, ValidationError) for item in _exception_chain(exc)):
+    if any(
+        isinstance(item, (ValidationError, HabitualOrderSelectionError))
+        for item in _exception_chain(exc)
+    ):
         return InvalidAgentResponseError(
             "The waiter returned a response that does not match the contract"
         )

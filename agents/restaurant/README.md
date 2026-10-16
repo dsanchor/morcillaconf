@@ -30,13 +30,19 @@ Framework y el deployment `gpt-5.6-luna` del proyecto Foundry existente.
 - Interpreta «lo de siempre» y expresiones equivalentes para recuperar el
   pedido habitual: si solo existe uno lo propone como borrador; si hay varios,
   muestra las alternativas para que el cliente elija.
-- Usa clasificación semántica, no una comparación literal de frases, y añade
-  la intención resuelta al contexto antes de construir la respuesta.
+- El context provider recupera y ordena la memoria sin llamadas al modelo.
+  El propio camarero interpreta la intención y redacta las aclaraciones;
+  no hay agentes auxiliares de clasificación ni consolidación.
+- Cada opción conserva el ID de su recuerdo. El camarero selecciona
+  `habitual_order_option_id` en su salida estructurada y el dominio valida
+  que pertenezca al contexto actual antes de crear un borrador no verificado.
+  No se añade una herramienta de consulta redundante ni otra llamada al LLM.
 - Solo cuenta como «lo de siempre» una referencia al pedido habitual en
   conjunto, sin nombrar platos. Pedir otra ración de un plato concreto
   («ponme otra de croquetas», «dos cañas más») es un pedido nuevo de ese plato,
-  aunque forme parte del pedido habitual. Ante la duda, el clasificador
-  responde que no.
+  aunque forme parte del pedido habitual. Ante la duda, el camarero pregunta.
+  Las modificaciones del habitual son borradores normales, no repeticiones
+  exactas que puedan sobrescribir los cambios solicitados.
 - Permite consultar, corregir y borrar recuerdos individuales o todos.
 - El borrado total no bloquea el guardado de interacciones futuras.
 - Separa sesión, preferencias, restricciones e historial de pedidos completados.
@@ -630,9 +636,19 @@ otra sesión y ausencia de afirmaciones de reserva o confirmación no respaldada
   no lo vuelve a crear.
 - «Lo de siempre» utiliza directamente la memoria solo si existe una opción.
   Con varias, las muestra ordenadas por frecuencia y recencia sin elegir ni
-  revelar al cliente esos metadatos internos. Las opciones solapadas se
-  consolidan por producto para preguntar una sola vez por alternativas y
-  complementos.
+  revelar al cliente esos metadatos internos. El camarero agrupa coincidencias
+  para preguntar sin repeticiones, pero no convierte productos que aparecen
+  juntos en alternativas excluyentes. Una respuesta posterior puede resolver
+  una opción exacta mediante su ID estable; un ID ajeno, borrado o desconocido
+  se rechaza explícitamente, sin crear un borrador alternativo.
+- Los resúmenes no conservan cantidades ni notas: una repetición exacta propone
+  una unidad por producto. Si el resumen está truncado, se piden los productos
+  en lugar de tratar el fragmento como un pedido completo.
+- El middleware valida tanto las respuestas normales como las de streaming y
+  conserva la pregunta o explicación redactada por el camarero. La persistencia
+  local aplica la misma validación antes de guardar el resumen. Ni seleccionar
+  una opción ni crear el borrador reconfirma restricciones, consulta la carta,
+  confirma la comanda o la envía a cocina/barra; se mantiene el HITL posterior.
 - La compactación es determinista y no usa un modelo generativo.
 - No existe estado de consentimiento ni en el snapshot interno ni en la
   proyección pública `MemoryView`.

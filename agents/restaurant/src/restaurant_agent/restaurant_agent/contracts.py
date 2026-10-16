@@ -47,8 +47,20 @@ class WaiterModelResult(BaseModel):
     )
     memory_intent: MemoryIntent = Field(
         description=(
-            "Use reuse_latest_order when the customer semantically asks for "
-            "their usual or habitual order, even without naming its products."
+            "Use reuse_latest_order for an exact habitual-order request or "
+            "a choice resolving its pending clarification. Use none for new "
+            "product orders, same-visit repeats and modified habitual orders."
+        ),
+    )
+    habitual_order_option_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+        description=(
+            "ID from the current habitual_order_options, only for an exact "
+            "repeat of a uniquely resolved remembered order. Use null while "
+            "asking for clarification, for modified orders and for new orders. "
+            "Selecting an option creates an unverified draft, never confirmation."
         ),
     )
     remembered_memories: list[MemoryCandidate] = Field(

@@ -722,9 +722,11 @@ representan una nueva ejecución del smoke real con esta política.
   presenta por frecuencia y recencia para que el cliente elija, sin mostrarle
   contadores ni otros metadatos internos. Las combinaciones solapadas se
   consolidan por producto para no repetir alternativas.
-- Clasificador semántico especializado para decidir si el mensaje reutiliza el
-  pedido habitual; el context provider entrega esa decisión y la memoria al
-  camarero antes de generar el borrador.
+- La interpretación de intención y la redacción de aclaraciones pertenecen al
+  camarero. El context provider recupera y ordena opciones con IDs estables sin
+  invocar modelos; el dominio valida la selección estructurada y materializa el
+  borrador no verificado. Se han retirado los agentes auxiliares de clasificación
+  y consolidación, manteniendo la reconfirmación de restricciones y el HITL.
 - **Corrección del 05/10/2026.** El clasificador tomaba «ponme otra de
   croquetas» como «lo de siempre»: sus instrucciones aceptaban cualquier forma
   indirecta o coloquial de «repetir», y el pedido habitual sustituía al nuevo.

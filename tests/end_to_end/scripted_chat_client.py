@@ -37,8 +37,6 @@ from restaurant_agent.cashier_tool import CASHIER_TOOL
 from restaurant_agent.contracts import WaiterModelResult
 from restaurant_agent.kitchen_tool import KITCHEN_TOOL
 from restaurant_agent.memory.contracts import MemoryIntent
-from restaurant_agent.memory.intent import MemoryIntentDecision
-from restaurant_agent.memory.options import HabitualOrderQuestion
 from restaurant_agent.seating import place_text, seat_positions
 
 _STATE = re.compile(r"Estado confirmado antes de este turno:\n(?P<state>.*?)\n\n", re.S)
@@ -47,6 +45,7 @@ _MESSAGE = re.compile(
 )
 _FIXED = re.compile(r"Contexto fijado por la aplicación:\n(?P<context>[^\n]*)\n")
 _SEATING = re.compile(r"Estado de asiento de esta visita[^\n]*\n(?P<status>\{[^\n]*\})")
+_MEMORY = re.compile(r'(?m)^\{"memories": [^\n]*')
 _NUMBERS = {
     "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5,
     "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10,
@@ -127,13 +126,6 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
         return self._respond(list(messages), dict(options or {}))
 
     async def _respond(self, messages: list[Message], options: dict[str, Any]) -> ChatResponse:
-        response_format = options.get("response_format")
-        if response_format is MemoryIntentDecision:
-            usual = any(_USUAL.search(_text(message)) for message in messages[-1:])
-            intent = MemoryIntent.REUSE_LATEST_ORDER if usual else MemoryIntent.NONE
-            return self._json({"memory_intent": intent.value})
-        if response_format is HabitualOrderQuestion:
-            return self._json({"question": "¿Qué os apetece hoy de lo de siempre?"})
         index = next(
             (
                 i
@@ -174,6 +166,25 @@ class ScriptedChatClient(FunctionInvocationLayer, ChatMiddlewareLayer, BaseChatC
             OrderDraft.model_validate(state["order_draft"]),
             fixed_name,
         )
+        if _USUAL.search(message):
+            memory = _MEMORY.search(str(options.get("instructions") or ""))
+            choices = json.loads(memory[0])["habitual_order_options"] if memory else []
+            choice = choices[0] if len(choices) == 1 else None
+            reply = (
+                f"Propongo {choice['summary']} como borrador sin verificar ni confirmar."
+                if choice
+                else "¿Qué os apetece hoy de lo de siempre?"
+            )
+            return self._json(
+                result.model_copy(
+                    update={
+                        "reply": reply,
+                        "memory_intent": MemoryIntent.REUSE_LATEST_ORDER,
+                        "habitual_order_option_id": choice["option_id"] if choice else None,
+                        "order_draft": OrderDraft(),
+                    }
+                ).model_dump(mode="json")
+            )
         seating = self._seating(options)
         tools = {getattr(tool, "name", None) for tool in options.get("tools") or []}
         # «Pido …» is a clear order: it goes to the kitchen before the answer.
