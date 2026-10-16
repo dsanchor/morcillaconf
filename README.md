@@ -377,6 +377,43 @@ cada llamada A2A, con el mismo aviso de margen. La revisión humana en caja se
 despliega desactivada. Como las tareas y los pagos de caja viven en memoria,
 la aplicación se queda en una réplica, como las demás.
 
+### Recrear las seis aplicaciones con almacenamiento efímero limpio
+
+[`scripts/recreate-container-apps.py`](scripts/recreate-container-apps.py) crea una
+revisión nueva para cada una de las seis aplicaciones indicadas en el mismo
+fichero de configuración del despliegue. No recrea el grupo de recursos ni el
+entorno, y copia la configuración desplegada: no cambia imágenes, variables,
+identidades ni volúmenes. Requiere Python 3.10+ y Azure CLI con `containerapp`.
+
+```bash
+# Validar y mostrar los destinos, sin llamar a Azure:
+python3 scripts/recreate-container-apps.py scripts/container-apps.dsr.env --dry-run
+
+# Confirmar el reset de las seis aplicaciones (requiere az login):
+python3 scripts/recreate-container-apps.py scripts/container-apps.dsr.env --yes
+```
+
+Primero comprueba las seis aplicaciones; después las procesa en orden de
+dependencias: MCP, cocina, caja, camarero, BFF y frontend. Espera a que cada
+revisión nueva esté sana antes de pasar a la siguiente, y verifica que las
+revisiones anteriores queden inactivas. En modo de revisiones múltiples mueve
+el 100 % del tráfico a la revisión nueva; no conserva repartos de tráfico
+anteriores. `--timeout 900` permite ampliar los 600 segundos por defecto de
+cada llamada CLI y espera de disponibilidad o retirada. Si falla, se detiene
+con un error y no revierte automáticamente las aplicaciones ya procesadas.
+Sin argumento de fichero utiliza `scripts/container-apps.env`.
+
+**Aviso:** se pierden los ficheros temporales y las bases SQLite efímeras
+(`/data`), incluidas visitas, memoria y ocupación de mesas. No borra datos de
+volúmenes persistentes, Azure Files ni otros servicios externos. Solo afecta
+a las seis aplicaciones configuradas, no a otras apps del grupo de recursos.
+
+Pruebas locales sin acceder a Azure:
+
+```bash
+python3 -m unittest discover -s tests/scripts -v
+```
+
 ### Observabilidad distribuida y métricas de negocio
 
 La observabilidad usa los spans nativos de Agent Framework y OpenTelemetry,
