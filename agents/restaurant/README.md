@@ -438,6 +438,10 @@ docker run --rm morcillaconf-restaurant-agent:test
 
 Las pruebas unitarias no llaman a Foundry y validan contratos, correcciones,
 aislamiento entre sesiones, propiedad de la conversación y límite de turnos.
+La etapa `test` incluye también el cliente simulado compartido de
+[`tests/end_to_end/scripted_chat_client.py`](../../tests/end_to_end/scripted_chat_client.py),
+utilizado por las pruebas del flujo de memoria. Este archivo no se incorpora
+a la imagen de producción.
 
 ## Construir y ejecutar el contenedor
 

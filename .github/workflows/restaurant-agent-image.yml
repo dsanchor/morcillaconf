@@ -6,6 +6,7 @@ on:
       - agents/restaurant/**
       - agents/kitchen/**
       - packages/contracts/**
+      - tests/end_to_end/scripted_chat_client.py
       - .dockerignore
       - .github/workflows/restaurant-agent-image.yml
 

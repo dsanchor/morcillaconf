@@ -13,6 +13,7 @@ COPY agents/kitchen/src/kitchen_agent /workspace/agents/kitchen/src/kitchen_agen
 RUN uv sync --frozen --all-groups --no-install-project
 COPY agents/restaurant/src/restaurant_agent/restaurant_agent ./restaurant_agent
 COPY agents/restaurant/src/restaurant_agent/tests ./tests
+COPY tests/end_to_end/scripted_chat_client.py /workspace/tests/end_to_end/scripted_chat_client.py
 COPY agents/restaurant/src/restaurant_agent/main.py ./
 CMD ["/workspace/agents/restaurant/src/restaurant_agent/.venv/bin/python", "-m", "pytest"]
 
