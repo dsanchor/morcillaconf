@@ -125,6 +125,8 @@ def test_a_seating_proposal_is_decided_with_buttons(app) -> None:
     assert not at.exception
     markup = _markup(at)
     assert "Os acompaño a la Mesa 3." in markup
+    assert 'class="planta atendiendo"' in markup
+    assert 'class="camarero acompanando"' in markup
     assert "comensal cliente-propio caminando" in markup and markup.count("acompanante") == 2
     assert not [button for button in at.button if button.label in ("Confirmar", "Rechazar")]
     at = _say(at, "/new")

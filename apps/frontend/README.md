@@ -6,8 +6,13 @@ una única vista de cliente que habla solo con el contrato público del BFF
 conecta siempre al [BFF](../bff/README.md) mediante HTTP y SSE.
 
 La planta mantiene la estética del mesón: los recorridos de clientes y servicio
-usan curvas suaves y conservan el progreso entre actualizaciones. Las sillas
-de las mesas redondas se orientan hacia el centro. En cocina, el halo identifica al chef o
+usan curvas suaves y conservan el progreso entre actualizaciones.
+El camarero acompaña al cliente hasta su asiento y permanece a su lado, sin
+volver a una posición central entre actualizaciones ni después de servir.
+Los recorridos mantienen al camarero y su bandeja dentro de los bordes de la sala.
+Al detenerse, el camarero ocupa el hueco libre más cercano al cliente, sin
+superponer su cuerpo ni la bandeja con mesas, sillas, comensales u otros iconos.
+Las sillas de las mesas redondas se orientan hacia el centro. En cocina, el halo identifica al chef o
 especialista con actividad `running`, no a todas las partidas por igual.
 La preferencia del navegador de reducir movimiento desactiva los recorridos
 animados y muestra directamente la posición final.

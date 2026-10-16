@@ -97,6 +97,12 @@
 .planta .comensal text { font-size: 18px; }
 .planta .comensal.caminando { animation: caminar-a-la-mesa 2.6s cubic-bezier(.45, 0, .2, 1) both; }
 .planta .cliente-propio.caminando { animation-name: caminar-cliente; }
+.planta .camarero.acompanando { animation: caminar-cliente 2.6s cubic-bezier(.45, 0, .2, 1) both; }
+.planta .posicion-camarero { animation: colocarse 3s var(--ease-salida) both; animation-delay: inherit; }
+@keyframes colocarse {
+  0%, 86.6667% { transform: translate(var(--dx0), var(--dy0)); }
+  100% { transform: translate(var(--dx1), var(--dy1)); }
+}
 /* The waiter walks from the kitchen pass to the customer with the tray. */
 .planta .camarero.sirviendo { animation: servir 2.6s cubic-bezier(.45, 0, .2, 1) both; }
 .planta text.pase,
@@ -137,6 +143,7 @@
     animation-name: recorrer-planta;
   }
   .planta .comensal.caminando,
+  .planta .camarero.acompanando,
   .planta .camarero.sirviendo {
     offset-path: var(--recorrido);
     offset-anchor: 0px 0px;
@@ -153,8 +160,11 @@
 @media (prefers-reduced-motion: reduce) {
   .planta.llegando .camarero,
   .planta .comensal.caminando,
+  .planta .camarero.acompanando,
   .planta .camarero.sirviendo { offset-path: none; }
   .planta .comensal.caminando,
+  .planta .camarero.acompanando,
+  .planta .posicion-camarero,
   .planta .camarero.sirviendo,
   .planta .caja.pendiente .halo-caja,
   .escena .resplandor,

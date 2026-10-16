@@ -5,7 +5,8 @@ cashier behind a small counter, lit while a bill waits for card or cash.
 
 Standard library and the public contracts only. The waiter's position is a CSS
 state of the ``planta`` wrapper: ``barra`` (resting), ``llegando`` (walks to
-the door once) and ``atendiendo`` (standing by the customer).
+the door once) and ``atendiendo`` (standing by the customer). Once seated,
+the waiter follows the customer's walk and stays beside their seat.
 
 Without a room (seating off) the plan is the decorative room of phase 3. With
 a ``RoomView`` the places are drawn by display order: the first four tables
@@ -57,9 +58,11 @@ WALK_SECONDS = 3.6
 SERVE_SECONDS = 2.6
 # The pass: the hatch in the right wall through which the kitchen hands out dishes.
 PASS = (PLAN_W - 56, 258)
+# Keep the tray clear of the pass's wall, not just the waiter's centre.
+WAITER_AT_PASS = (ROOM_RIGHT - 44, PASS[1])
 # The hatch's span in the right wall; the kitchen opens its left wall at the same height.
 PASS_OPENING = (228, 288)
-SERVE_MIDPOINT = (PASS[0], 192)
+SERVE_MIDPOINT = (WAITER_AT_PASS[0], 192)
 ROUND_SLOTS = 4
 MAX_ROUND_CHAIRS = 6
 MAX_LONG_CHAIRS = 6
@@ -324,6 +327,28 @@ def _customer_motion_path(
     return _motion_path(x0, y0, xm, ym, x1, y1)
 
 
+def _walk_style(
+    seat: tuple[float, float, bool], index: int, elapsed: float
+) -> str:
+    doors = [CUSTOMER] + [(CUSTOMER[0] + dx, CUSTOMER[1] + dy) for dx, dy in COMPANION_OFFSETS]
+    x0, y0 = doors[min(index, len(doors) - 1)]
+    x1, y1, _ = seat
+    xm = 200 if x1 < 420 else 420
+    left, top, width, height = LONG_TABLE
+    if x1 > left + width:
+        aisle_y = 42 if y1 < top + height / 2 else ROOM_BOTTOM - 22
+    elif left <= x1 <= left + width and y1 > top + height:
+        aisle_y = ROOM_BOTTOM - 22
+    else:
+        aisle_y = AISLE_Y
+    return (
+        f"--x0:{x0}px;--y0:{y0}px;--xm:{xm}px;--ym:{aisle_y}px;"
+        f"--x1:{x1}px;--y1:{y1}px;"
+        f"{_customer_motion_path(x0, y0, xm, aisle_y, x1, y1)}"
+        f"animation-delay:{index * 0.12 - elapsed:.2f}s"
+    )
+
+
 def _walking_group(walk: _Walk, name: str) -> str:
     """The customer and companions: at the door, then walking to their seats.
 
@@ -332,9 +357,7 @@ def _walking_group(walk: _Walk, name: str) -> str:
     """
 
     parts = []
-    doors = [CUSTOMER] + [(CUSTOMER[0] + dx, CUSTOMER[1] + dy) for dx, dy in COMPANION_OFFSETS]
     for index, (x1, y1, _) in enumerate(walk.seats):
-        x0, y0 = doors[min(index, len(doors) - 1)]
         css = "comensal cliente-propio" if index == 0 else "comensal acompanante"
         label = ""
         if index == 0:
@@ -345,21 +368,9 @@ def _walking_group(walk: _Walk, name: str) -> str:
                 f'<g class="{css}" transform="translate({x1},{y1})">{_person(CUSTOMER_BODY)}{label}</g>'
             )
             continue
-        delay = index * 0.12 - walk.elapsed
-        xm = 200 if x1 < 420 else 420
-        left, top, width, height = LONG_TABLE
-        if x1 > left + width:
-            aisle_y = 42 if y1 < top + height / 2 else ROOM_BOTTOM - 22
-        elif left <= x1 <= left + width and y1 > top + height:
-            aisle_y = ROOM_BOTTOM - 22
-        else:
-            aisle_y = AISLE_Y
         parts.append(
             f'<g class="{css} caminando" transform="translate({x1},{y1})" '
-            f'style="--x0:{x0}px;--y0:{y0}px;--xm:{xm}px;--ym:{aisle_y}px;'
-            f'--x1:{x1}px;--y1:{y1}px;'
-            f'{_customer_motion_path(x0, y0, xm, aisle_y, x1, y1)}'
-            f'animation-delay:{delay:.2f}s">'
+            f'style="{_walk_style(walk.seats[index], index, walk.elapsed)}">'
             f"{_person(CUSTOMER_BODY)}{label}</g>"
         )
     return "".join(parts)
@@ -449,6 +460,89 @@ def _pass_hatch() -> str:
     )
 
 
+def _waiter_offset(
+    slot: _Slot, seat: tuple[float, float, bool]
+) -> tuple[float, float]:
+    x, y, _ = seat
+    if slot.outline[0] == "long":
+        return (-48 if x < LONG_TABLE[0] else 48), 0
+    if slot.outline[0] == "bar":
+        return 0, 32
+    cx, cy = float(slot.outline[1]), float(slot.outline[2])
+    # The upper aisle is too close to the wall to stand above the customer.
+    if cy < LONG_TABLE[1] + LONG_TABLE[3] / 2:
+        return -32, 16
+    distance = math.hypot(x - cx, y - cy)
+    return round(32 * (x - cx) / distance, 1), round(32 * (y - cy) / distance, 1)
+
+
+@dataclass(frozen=True)
+class _Bounds:
+    left: float
+    top: float
+    right: float
+    bottom: float
+
+    def contains(self, x: float, y: float) -> bool:
+        return self.left < x < self.right and self.top < y < self.bottom
+
+
+def _waiter_obstacles(slots: list[_Slot], name: str | None, own_seats: list[tuple[float, float, bool]]) -> list[_Bounds]:
+    obstacles = []
+    for slot in slots:
+        if slot.outline[0] == "round":
+            cx, cy = float(slot.outline[1]), float(slot.outline[2])
+            obstacles.append(_Bounds(cx - 35.5, cy - 35.5, cx + 35.5, cy + 35.5))
+        else:
+            x, y, width, height = LONG_TABLE if slot.outline[0] == "long" else BAR_COUNTER
+            obstacles.append(_Bounds(x - 1, y - 1, x + width + 1, y + height + 1))
+        for x, y, vertical in slot.seats:
+            if slot.outline[0] == "round":
+                angle = math.radians(round(math.degrees(math.atan2(y - cy, x - cx)) + 90, 1))
+                half_width = 15.25 * abs(math.cos(angle)) + 11.25 * abs(math.sin(angle))
+                half_height = 15.25 * abs(math.sin(angle)) + 11.25 * abs(math.cos(angle))
+            elif slot.outline[0] == "long":
+                half_width, half_height = (11.25, 15.25) if vertical else (15.25, 11.25)
+            else:
+                half_width = half_height = 12.25
+            # Reserve space for a seated person or reservation mark even at an empty chair.
+            half_width, half_height = max(half_width, 22), max(half_height, 16.25)
+            obstacles.append(_Bounds(x - half_width, y - half_height, x + half_width, y + half_height))
+    x, y = CASHIER
+    obstacles.append(_Bounds(x - 14, y - 22, x + 14, y + 22))
+    x, y, width, height = TILL_COUNTER
+    obstacles.append(_Bounds(x - 1, y - 1, x + width + 1, y + height + 1))
+    obstacles.append(_Bounds(ROOM_RIGHT - 8, PASS_OPENING[0] - 1, ROOM_RIGHT + 8, PASS_OPENING[1] + 1))
+    if name and own_seats:
+        x, y, _ = own_seats[0]
+        half_width = min(len(name), 16) * 9
+        obstacles.append(_Bounds(x - half_width, y - 44, x + half_width, y - 20))
+    return obstacles
+
+
+def _free_waiter_position(
+    seat: tuple[float, float, bool], obstacles: list[_Bounds]
+) -> tuple[float, float]:
+    # Expand obstacles by the complete silhouette, including the tray, and a 3px gap.
+    forbidden = [
+        _Bounds(box.left - 37 - 3, box.top - 14 - 3, box.right + 22 + 3, box.bottom + 21 + 3)
+        for box in obstacles
+    ]
+    limits = _Bounds(24 + 5 + 22 + 2, 24 + 5 + 21 + 2, ROOM_RIGHT - 5 - 37 - 2, ROOM_BOTTOM - 5 - 14 - 2)
+    cx, cy, _ = seat
+    xs = {cx, limits.left, limits.right} | {value for box in forbidden for value in (box.left, box.right)}
+    ys = {cy, limits.top, limits.bottom} | {value for box in forbidden for value in (box.top, box.bottom)}
+    # The nearest free point lies on an obstacle edge or on the customer's axis.
+    candidates = sorted(
+        ((x, y) for x in xs for y in ys if limits.left <= x <= limits.right and limits.top <= y <= limits.bottom),
+        key=lambda point: ((point[0] - cx) ** 2 + (point[1] - cy) ** 2, abs(point[1] - cy), point),
+    )
+    for x, y in candidates:
+        if not any(box.contains(x, y) for box in forbidden):
+            return x, y
+    raise ValueError("No free position for the waiter inside the dining room")
+
+
 def floor_plan_svg(
     customer_name: str | None,
     waiter: str = "barra",
@@ -490,8 +584,15 @@ def floor_plan_svg(
             for index, (cx, cy) in enumerate(ROUND_TABLES, start=1)
         ) + _long_table(number=str(len(ROUND_TABLES) + 1))
     seated = bool(own_seats) and seating is not None and seating.status == "seated"
+    playing = walk_elapsed if walk_elapsed is not None and 0 <= walk_elapsed < WALK_SECONDS else None
+    waiter_offset = (0, 0)
+    if seated and own_slot is not None and room is not None:
+        waiter = "atendiendo"
+        waiter_offset = _waiter_offset(own_slot, own_seats[0])
+        waiter_x, waiter_y = _free_waiter_position(
+            own_seats[0], _waiter_obstacles(_slots(room), customer_name, own_seats)
+        )
     if customer_name and seated:
-        playing = walk_elapsed if walk_elapsed is not None and 0 <= walk_elapsed < WALK_SECONDS else None
         customer = f'<g class="grupo-propio">{_walking_group(_Walk(own_seats, playing), customer_name)}</g>'
         label += f"; {escape(customer_name)} y su grupo, sentados"
     elif customer_name:
@@ -524,10 +625,9 @@ def floor_plan_svg(
         plates = _plates(own_slot, own_seats, served_dishes)
         label += " Tu comida está servida en la mesa."
     if serving:
-        x1, y1, _ = own_seats[0]
-        (x0, y0), (xm, ym) = PASS, SERVE_MIDPOINT
+        x1, y1 = waiter_x, waiter_y
+        (x0, y0), (xm, ym) = WAITER_AT_PASS, SERVE_MIDPOINT
         if own_slot.outline[0] == "long":
-            x1 += -48 if x1 < LONG_TABLE[0] else 48
             lower_aisle = ROOM_BOTTOM - 22
             path = (
                 f"--recorrido:path('M {x0} {y0} L {x0} {lower_aisle - 20} "
@@ -536,7 +636,6 @@ def floor_plan_svg(
                 f"{x1} {lower_aisle - 20} L {x1} {y1}');"
             )
         elif own_slot.outline[0] == "bar":
-            y1 += 32
             path = (
                 f"--recorrido:path('M {x0} {y0} L {x0} {ym + 20} "
                 f"Q {x0} {ym} {x0 - 20} {ym} L 430 {ym} "
@@ -544,7 +643,6 @@ def floor_plan_svg(
                 f"Q 410 {y1} 390 {y1} L {x1} {y1}');"
             )
         else:
-            x1, y1 = int(own_slot.outline[1]) - 84, int(own_slot.outline[2])
             bend_y = ym + (20 if y1 > ym else -20)
             path = (
                 f"--recorrido:path('M {x0} {y0} L {x0} {ym + 20} "
@@ -560,6 +658,16 @@ def floor_plan_svg(
             f"{_person('#15110f', tray=True, collar=True)}</g>"
         )
         label += " El camarero te trae la comida desde el pase."
+    elif customer_name and seated and playing is not None:
+        x1, y1, _ = own_seats[0]
+        dx, dy = waiter_offset
+        waiter_markup = (
+            f'<g class="camarero acompanando" transform="translate({x1},{y1})" '
+            f'style="{_walk_style(own_seats[0], 0, playing)}">'
+            f'<g class="posicion-camarero" transform="translate({waiter_x - x1},{waiter_y - y1})" '
+            f'style="--dx0:{dx}px;--dy0:{dy}px;--dx1:{waiter_x - x1}px;--dy1:{waiter_y - y1}px">'
+            f"{_person('#15110f', tray=True, collar=True)}</g></g>"
+        )
     else:
         waiter_markup = (
             f'<g class="camarero" transform="translate({waiter_x},{waiter_y})">'

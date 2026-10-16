@@ -262,7 +262,7 @@ def _live_plan(opening: bool) -> None:
         st.rerun()
     entering = opening and time.monotonic() - state.get("opened_at", 0.0) < ENTRANCE_SECONDS
     seating = visit.snapshot.seating
-    waiter = "llegando" if entering else "barra" if seating.status == "seated" else "atendiendo"
+    waiter = "llegando" if entering else "atendiendo"
     activity = next(
         (message.activity for message in reversed(visit.snapshot.messages) if message.activity),
         [],

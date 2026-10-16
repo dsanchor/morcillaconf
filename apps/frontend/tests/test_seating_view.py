@@ -1,6 +1,9 @@
+import math
+import re
 import xml.etree.ElementTree as ET
 from datetime import timedelta
 
+import pytest
 
 from restaurant_contracts.application import Action, ActorContext
 from restaurant_contracts.seating import RoomView, SeatingView
@@ -8,7 +11,7 @@ from restaurant_contracts.seating import RoomView, SeatingView
 from tests.support.fake_client import FakeRestaurant
 from frontend.floor_plan import (
     BAR_COUNTER, LONG_TABLE, PLAN_H, PLAN_W, ROUND_TABLES,
-    WALK_SECONDS, floor_plan_svg,
+    ROOM_BOTTOM, ROOM_RIGHT, WAITER_AT_PASS, WALK_SECONDS, floor_plan_svg,
 )
 from frontend.markup import plan_markup, proposal_markup
 from frontend.visit import VisitSession
@@ -144,7 +147,7 @@ def test_the_waiter_brings_the_tray_from_the_pass_and_then_the_dishes_rest_on_th
         floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED, served_dishes=2, serve_elapsed=0.5)
     )
     [waiter] = _classes(walking, "sirviendo")
-    assert "--x0:1224px;--y0:258px" in waiter.get("style")
+    assert f"--x0:{WAITER_AT_PASS[0]}px;--y0:{WAITER_AT_PASS[1]}px" in waiter.get("style")
     assert not _classes(walking, "plato-servido")
 
     served = _parse(floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED, served_dishes=2))
@@ -273,7 +276,8 @@ def test_vertical_table_keeps_guests_plates_and_service_on_the_correct_sides() -
         "Ana", "barra", room=room, seating=seating, served_dishes=6, serve_elapsed=0.5,
     ))
     [waiter] = _classes(serving, "sirviendo")
-    assert "--x1:408px;--y1:124.0px" in waiter.get("style")
+    [resting] = _classes(root, "camarero")
+    assert waiter.get("transform") == resting.get("transform")
 
 
 def test_other_groups_are_anonymous_figures_and_holds_are_reserved() -> None:
@@ -314,6 +318,82 @@ def test_the_walk_plays_once_and_continues_across_renders() -> None:
     assert _classes(later, "caminando")[0].get("style").endswith("animation-delay:-1.00s")
     done = _parse(floor_plan_svg("Ana", "barra", room=ROOMS[1], seating=SEATED, walk_elapsed=WALK_SECONDS + 1))
     assert not _classes(done, "caminando")
+
+
+@pytest.mark.parametrize("place_index", range(6))
+def test_the_waiter_stays_beside_every_table_and_bar_after_walking_and_serving(place_index) -> None:
+    data = ROOMS[1].model_dump(mode="json")
+    data["places"][2].update(state="free", mine=False, party_size=None)
+    place = data["places"][place_index]
+    if place["kind"] == "bar":
+        place["mine"] = True
+        for seat in place["seats"]:
+            seat.update(state="free", mine=False)
+        place["seats"][3].update(state="occupied", mine=True)
+    else:
+        place.update(state="occupied", mine=True, party_size=1)
+    room = RoomView.model_validate(data)
+    positions = []
+    for options in ({}, {"walk_elapsed": WALK_SECONDS}, {"served_dishes": 2}):
+        root = _parse(floor_plan_svg("Ana", "barra", room=room, seating=SEATED, **options))
+        [waiter] = _classes(root, "camarero")
+        [customer] = _classes(root, "cliente-propio")
+        wx, wy = map(float, re.findall(r"-?\d+(?:\.\d+)?", waiter.get("transform")))
+        cx, cy = map(float, re.findall(r"-?\d+(?:\.\d+)?", customer.get("transform")))
+        assert 30 <= math.hypot(wx - cx, wy - cy) <= 100
+        assert root.get("class") == "planta atendiendo"
+        assert "el camarero, atendiéndote" in root.get("aria-label")
+        positions.append(waiter.get("transform"))
+    assert len(set(positions)) == 1
+
+    serving = _parse(floor_plan_svg(
+        "Ana", "barra", room=room, seating=SEATED, served_dishes=2, serve_elapsed=0.5,
+    ))
+    [waiter] = _classes(serving, "sirviendo")
+    assert waiter.get("transform") == positions[0]
+    _assert_waiter_path_inside_room(waiter)
+
+    walking = _parse(floor_plan_svg(
+        "Ana", "barra", room=room, seating=SEATED, walk_elapsed=0.5,
+    ))
+    [waiter] = _classes(walking, "acompanando")
+    offset = tuple(
+        float(re.search(rf"--{axis}0:([^p]+)px", waiter[0].get("style")).group(1))
+        for axis in ("dx", "dy")
+    )
+    _assert_waiter_path_inside_room(waiter, offset)
+
+
+def _assert_waiter_path_inside_room(
+    waiter: ET.Element, offset: tuple[float, float] = (0, 0)
+) -> None:
+    path = re.search(r"--recorrido:path\('([^']+)'\)", waiter.get("style")).group(1)
+    coordinates = list(map(float, re.findall(r"-?\d+(?:\.\d+)?", path)))
+    # Bounding every control point also bounds the whole Bezier curve.
+    for x, y in zip(coordinates[::2], coordinates[1::2]):
+        assert 24 + 5 + 22 <= x + offset[0] <= ROOM_RIGHT - 5 - 37
+        assert 24 + 5 + 21 <= y + offset[1] <= ROOM_BOTTOM - 5 - 14
+
+
+@pytest.mark.parametrize("elapsed", [0.0, 1.0, 2.5])
+def test_the_waiter_follows_the_same_walk_and_progress_as_the_customer(elapsed) -> None:
+    root = _parse(floor_plan_svg(
+        "Ana", "barra", room=ROOMS[1], seating=SEATED, walk_elapsed=elapsed,
+    ))
+    [waiter] = _classes(root, "acompanando")
+    [customer] = _classes(root, "cliente-propio")
+    assert waiter.get("style") == customer.get("style")
+    assert waiter.get("transform") == customer.get("transform")
+
+    done = _parse(floor_plan_svg(
+        "Ana", "barra", room=ROOMS[1], seating=SEATED, walk_elapsed=WALK_SECONDS,
+    ))
+    assert not _classes(done, "acompanando")
+    [resting] = _classes(done, "camarero")
+    cx, cy = map(float, re.findall(r"-?\d+(?:\.\d+)?", customer.get("transform")))
+    dx, dy = map(float, re.findall(r"-?\d+(?:\.\d+)?", waiter[0].get("transform")))
+    wx, wy = map(float, re.findall(r"-?\d+(?:\.\d+)?", resting.get("transform")))
+    assert (cx + dx, cy + dy) == (wx, wy)
 
 
 def _proposal_room() -> RoomView:
