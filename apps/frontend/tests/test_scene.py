@@ -7,6 +7,10 @@ from frontend.facade import FACADE_STATES, facade_html
 from frontend.floor_plan import (
     DOOR_GAP,
     PASS_OPENING,
+    ROOM_BOTTOM,
+    ROOM_RIGHT,
+    WAITER_AT_BAR,
+    WAITER_AT_DOOR,
     WAITER_STATES,
     customer_icon_svg,
     floor_plan_svg,
@@ -54,8 +58,8 @@ def test_plan_is_well_formed_for_every_waiter_state(waiter) -> None:
 def test_waiter_attends_the_customer_by_the_door() -> None:
     at_bar = _parse(floor_plan_svg("Ana", "barra")).find(f".//{SVG}g[@class='camarero']")
     serving = _parse(floor_plan_svg("Ana", "atendiendo")).find(f".//{SVG}g[@class='camarero']")
-    assert at_bar.get("transform") == "translate(560,124)"
-    assert serving.get("transform") == "translate(192,272)"
+    assert at_bar.get("transform") == f"translate({WAITER_AT_BAR[0]},{WAITER_AT_BAR[1]})"
+    assert serving.get("transform") == f"translate({WAITER_AT_DOOR[0]},{WAITER_AT_DOOR[1]})"
 
 
 def _segments(path: str) -> set[frozenset[tuple[float, float]]]:
@@ -93,16 +97,20 @@ def test_walls_enclose_the_room_except_the_door_and_the_pass() -> None:
     segments = _segments(path)
     left, right = DOOR_GAP
     top, bottom = PASS_OPENING
-    assert frozenset({(24, 24), (24, 316)}) in segments
-    assert frozenset({(24, 24), (976, 24)}) in segments
-    assert frozenset({(976, 24), (976, top)}) in segments
-    assert frozenset({(976, bottom), (976, 316)}) in segments
-    assert frozenset({(976, 316), (right, 316)}) in segments
-    assert frozenset({(24, 316), (left, 316)}) in segments
+    assert segments == {
+        frozenset({(24, 24), (24, ROOM_BOTTOM)}),
+        frozenset({(24, 24), (ROOM_RIGHT, 24)}),
+        frozenset({(ROOM_RIGHT, 24), (ROOM_RIGHT, top)}),
+        frozenset({(ROOM_RIGHT, bottom), (ROOM_RIGHT, ROOM_BOTTOM)}),
+        frozenset({(ROOM_RIGHT, ROOM_BOTTOM), (right, ROOM_BOTTOM)}),
+        frozenset({(24, ROOM_BOTTOM), (left, ROOM_BOTTOM)}),
+    }
     for segment in segments:
         (x1, y1), (x2, y2) = sorted(segment)
-        if y1 == y2 == 316:
+        if y1 == y2 == ROOM_BOTTOM:
             assert x2 <= left or x1 >= right, "the door gap must stay open"
+        if x1 == x2 == ROOM_RIGHT:
+            assert y2 <= top or y1 >= bottom, "the pass must stay open"
 
 
 def test_plan_escapes_the_customer_name() -> None:
